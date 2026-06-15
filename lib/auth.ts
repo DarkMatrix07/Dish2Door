@@ -8,6 +8,13 @@ import { prisma } from "@/lib/db";
 const SESSION_COOKIE = "campus_food_session";
 const SESSION_DAYS = 7;
 
+function useSecureCookie() {
+  if (process.env.AUTH_COOKIE_SECURE) {
+    return process.env.AUTH_COOKIE_SECURE === "true";
+  }
+  return process.env.NODE_ENV === "production";
+}
+
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -36,7 +43,7 @@ export async function createAppSession(userId: string) {
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: useSecureCookie(),
     path: "/",
     expires: expiresAt
   });
