@@ -1,0 +1,64 @@
+import { NextResponse } from "next/server";
+import { DeliveryType } from "@prisma/client";
+import { z } from "zod";
+import { createPendingOnlineOrder } from "@/lib/orders";
+import { createRazorpayClient } from "@/lib/razorpay";
+import { env } from "@/lib/env";
+
+const bodySchema = z.object({
+  customer: z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    phone: z.string().min(8),
+    deliveryType: z.nativeEnum(DeliveryType),
+    hostelBlock: z.string().optional(),
+    couponCode: z.string().optional()
+  }),
+  items: z.array(
+    z.object({
+      menuItemId: z.string().min(1),
+      quantity: z.number().int().min(1).max(20)
+    })
+  ).min(1)
+});
+
+export async function POST(request: Request) {
+  try {
+    const body = bodySchema.parse(await request.json());
+    const order = await createPendingOnlineOrder(body.customer, body.items);
+    const razorpay = createRazorpayClient();
+    const razorpayOrder = await razorpay.orders.create({
+      amount: order.totalPaise,
+      currency: "INR",
+      receipt: order.id,
+      notes: {
+        trackingCode: order.trackingCode
+      }
+    });
+
+    return NextResponse.json({
+      orderId: order.id,
+      amountPaise: order.totalPaise,
+      razorpayOrderId: razorpayOrder.id,
+      razorpayKeyId: env.RAZORPAY_KEY_ID,
+      customer: {
+        name: order.customerName,
+        email: order.customerEmail,
+        phone: order.customerPhone
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not create payment";
+    const isDatabaseConnectionError =
+      message.includes("ECONNREFUSED") || message.includes("Can't reach database server");
+
+    return NextResponse.json(
+      {
+        error: isDatabaseConnectionError
+          ? "Database is not running. Start PostgreSQL, run migrations, then try checkout again."
+          : message
+      },
+      { status: 400 }
+    );
+  }
+}

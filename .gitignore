@@ -1,0 +1,13 @@
+.env
+.env*.local
+.agents/
+.next/
+.local-tools/
+node_modules/
+dist/
+coverage/
+*.log
+tsconfig.tsbuildinfo
+prisma/dev.db
+public/uploads/*
+!public/uploads/.gitkeep

@@ -1,0 +1,307 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  DELIVERY
+}
+
+enum DeliveryType {
+  GATE
+  HOSTEL
+}
+
+enum OrderStatus {
+  ORDER_CONFIRMED
+  REACHED_CAMPUS
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderSource {
+  CUSTOMER_ONLINE
+  ADMIN_MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID_ONLINE
+  PAID_MANUALLY
+  FAILED
+  REFUNDED
+  UNPAID
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  TELEGRAM
+}
+
+enum NotificationEvent {
+  ORDER_CREATED
+  REACHED_CAMPUS
+  DELIVERED
+}
+
+enum NotificationStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+model User {
+  id            String        @id @default(cuid())
+  name          String
+  email         String        @unique
+  emailVerified Boolean       @default(false)
+  image         String?
+  phone         String?
+  role          UserRole      @default(DELIVERY)
+  passwordHash  String
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  appSessions   AppSession[]
+  deliveries    Order[]       @relation("DeliveredBy")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AppSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Restaurant {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  imageUrl    String?
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  courses     Course[]
+  menuItems   MenuItem[]
+  orders      Order[]
+}
+
+model Course {
+  id           String     @id @default(cuid())
+  name         String
+  sortOrder    Int        @default(0)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items        MenuItem[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+}
+
+model MenuItem {
+  id           String     @id @default(cuid())
+  name         String
+  description  String?
+  pricePaise   Int
+  discountPercent Int      @default(0)
+  imageUrl     String?
+  available    Boolean    @default(true)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  courseId     String
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  orderItems   OrderItem[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([restaurantId])
+  @@index([courseId])
+}
+
+model OrderSession {
+  id        String    @id @default(cuid())
+  label     String
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime?
+  isOpen    Boolean   @default(true)
+  orders    Order[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Order {
+  id                    String       @id @default(cuid())
+  trackingCode          String       @unique
+  trackingPasscodeHash  String?
+  customerName          String
+  customerEmail         String?
+  customerPhone         String
+  deliveryType          DeliveryType
+  hostelBlock           String?
+  status                OrderStatus  @default(ORDER_CONFIRMED)
+  source                OrderSource
+  paymentStatus         PaymentStatus
+  subtotalPaise         Int
+  platformFeePaise      Int
+  hostelFeePaise        Int          @default(0)
+  couponCode            String?
+  couponDiscountPaise   Int          @default(0)
+  paymentFeePaise       Int          @default(0)
+  totalPaise            Int
+  deliveryReleased      Boolean      @default(false)
+  releasedAt            DateTime?
+  reachedCampusAt       DateTime?
+  deliveredAt           DateTime?
+  deliveredById         String?
+  deliveredBy           User?        @relation("DeliveredBy", fields: [deliveredById], references: [id])
+  restaurantId          String
+  restaurant            Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  sessionId             String
+  session               OrderSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  items                 OrderItem[]
+  payment               Payment?
+  rating                Rating?
+  notificationLogs      NotificationLog[]
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  @@index([restaurantId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([deliveryType, deliveryReleased])
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId   String?
+  menuItem     MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  nameSnapshot String
+  pricePaise   Int
+  quantity     Int
+  linePaise    Int
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  orderId            String        @unique
+  order              Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider           String        @default("razorpay")
+  razorpayOrderId    String?
+  razorpayPaymentId  String?
+  razorpaySignature  String?
+  status             PaymentStatus @default(PENDING)
+  amountPaise        Int
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model Rating {
+  id             String   @id @default(cuid())
+  orderId        String   @unique
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  foodRating     Int
+  deliveryRating Int
+  review         String?
+  createdAt      DateTime @default(now())
+}
+
+model NotificationLog {
+  id           String              @id @default(cuid())
+  orderId      String?
+  order        Order?              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  channel      NotificationChannel
+  event        NotificationEvent
+  status       NotificationStatus
+  errorMessage String?
+  sentAt       DateTime            @default(now())
+
+  @@index([orderId])
+  @@index([channel, event])
+}
+
+model SystemSettings {
+  id                       String   @id @default("default")
+  ordersOpen               Boolean  @default(true)
+  closedMessage            String   @default("Orders are closed for today.")
+  contactNumber            String   @default("Contact admin")
+  platformFeePaise         Int      @default(200)
+  hostelDeliveryFeePaise   Int      @default(1500)
+  paymentChargePercentBps  Int      @default(250)
+  paymentChargeFixedPaise  Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+model Coupon {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  description     String?
+  discountPercent Int
+  active          Boolean  @default(true)
+  maxUses         Int?
+  usedCount       Int      @default(0)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
