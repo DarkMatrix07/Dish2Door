@@ -106,11 +106,11 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition",
                 active
-                  ? "bg-neutral-900 text-white shadow-sm"
+                  ? "bg-amber-50 text-neutral-900 ring-1 ring-amber-200"
                   : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
               )}
             >
-              <entry.icon size={18} className={active ? "text-amber-300" : "text-neutral-400"} />
+              <entry.icon size={18} className={active ? "text-amber-600" : "text-neutral-400"} />
               {entry.label}
             </Link>
           );
