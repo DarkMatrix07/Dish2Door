@@ -204,6 +204,21 @@ export function AdminShell({ children, userName }: { children: React.ReactNode; 
     setMobileOpen(false);
   }, [pathname]);
 
+  // While the drawer is open, lock background scroll and allow Escape to close.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileOpen]);
+
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
       {/* Desktop sidebar */}
@@ -301,9 +316,14 @@ export function AdminPageHeader({
 export function StatCard({ label, value, helper }: { label: string; value: React.ReactNode; helper?: string }) {
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
-      <p className="text-sm font-medium text-neutral-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{value}</p>
-      {helper ? <p className="mt-1 text-xs text-neutral-400">{helper}</p> : null}
+      <p className="truncate text-sm font-medium text-neutral-500">{label}</p>
+      <p
+        className="mt-2 truncate text-2xl font-bold tracking-tight sm:text-3xl"
+        title={typeof value === "string" ? value : undefined}
+      >
+        {value}
+      </p>
+      {helper ? <p className="mt-1 truncate text-xs text-neutral-400">{helper}</p> : null}
     </div>
   );
 }

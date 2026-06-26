@@ -53,18 +53,18 @@ export function AdminActions({ ordersOpen }: { ordersOpen: boolean }) {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <Button className="min-h-12 whitespace-nowrap px-5" variant={open ? "destructive" : "secondary"} disabled={!!busy} onClick={() => toggleOrders(!open)}>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Button className="h-11 whitespace-nowrap" variant={open ? "destructive" : "default"} disabled={!!busy} onClick={() => toggleOrders(!open)}>
         {open ? "Close public orders" : "Open public orders"}
       </Button>
-      <Button className="min-h-12 whitespace-nowrap px-5" variant="outline" disabled={!!busy} onClick={reachedCampus}>
+      <Button className="h-11 whitespace-nowrap" variant="outline" disabled={!!busy} onClick={reachedCampus}>
         Mark reached campus
       </Button>
-      <Button className="min-h-12 whitespace-nowrap px-5" variant="outline" disabled={!!busy} onClick={releaseDeliveries}>
+      <Button className="h-11 whitespace-nowrap" variant="outline" disabled={!!busy} onClick={releaseDeliveries}>
         Assign for delivery
       </Button>
-      <Button className="min-h-12 whitespace-nowrap px-5" variant="outline" disabled={!!busy} onClick={() => window.location.reload()}>
-        Refresh dashboard
+      <Button className="h-11 whitespace-nowrap" variant="outline" disabled={!!busy} onClick={() => window.location.reload()}>
+        Refresh
       </Button>
     </div>
   );
