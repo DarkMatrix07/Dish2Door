@@ -1,11 +1,14 @@
 import { NotificationChannel, NotificationStatus } from "@prisma/client";
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { NotificationsPanel } from "@/components/admin/NotificationsPanel";
+import { NotificationToggles } from "@/components/admin/NotificationToggles";
 import { prisma } from "@/lib/db";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminNotificationsPage() {
+  const settings = await getSettings();
   const [failedLogs, recentLogs] = await Promise.all([
     prisma.notificationLog.findMany({
       where: {
@@ -46,9 +49,12 @@ export default async function AdminNotificationsPage() {
       <AdminPageHeader
         eyebrow="Notifications"
         title="Notification logs"
-        description="Review failed email and WhatsApp sends, retry them manually, and scan the latest notification activity."
+        description="Turn channels on or off, review failed email and WhatsApp sends, retry them manually, and scan the latest notification activity."
       />
-      <NotificationsPanel failedLogs={failedLogs} recentLogs={recentLogs} />
+      <div className="space-y-5">
+        <NotificationToggles initialEmail={settings.notifyEmail} initialWhatsapp={settings.notifyWhatsapp} />
+        <NotificationsPanel failedLogs={failedLogs} recentLogs={recentLogs} />
+      </div>
     </PageContainer>
   );
 }

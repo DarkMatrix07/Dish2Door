@@ -29,6 +29,13 @@ export type CustomerDetails = {
   couponCode?: string;
 };
 
+// Notifications can be slow or flaky (WhatsApp/SMTP). Order mutations update the
+// database, return immediately, and deliver notifications in the background so no
+// admin/customer action is ever blocked on an external provider.
+function dispatchNotifications(orderId: string, event: NotificationEvent, passcode?: string) {
+  void sendOrderEventNotifications(orderId, event, passcode).catch(() => null);
+}
+
 export async function getOrCreateCurrentSession() {
   const openSession = await prisma.orderSession.findFirst({
     where: { isOpen: true },
@@ -190,7 +197,7 @@ export async function confirmOnlineOrder(orderId: string, payment: {
     });
   }
 
-  await sendOrderEventNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
+  dispatchNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
   return { order, passcode };
 }
 
@@ -228,7 +235,7 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
     });
   });
 
-  await sendOrderEventNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
+  dispatchNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
   return { order, passcode };
 }
 
@@ -253,9 +260,7 @@ export async function markAllReachedCampus() {
     }
   });
 
-  await Promise.allSettled(
-    activeOrders.map((order) => sendOrderEventNotifications(order.id, NotificationEvent.REACHED_CAMPUS))
-  );
+  activeOrders.forEach((order) => dispatchNotifications(order.id, NotificationEvent.REACHED_CAMPUS));
 
   return { count: activeOrders.length };
 }
@@ -302,15 +307,8 @@ export async function markDelivered(orderId: string, deliveredById: string) {
     });
   });
 
-  await sendOrderEventNotifications(order.id, NotificationEvent.DELIVERED);
+  dispatchNotifications(order.id, NotificationEvent.DELIVERED);
   return order;
-}
-
-// Notifications can be slow or flaky (WhatsApp/SMTP). For admin status changes we
-// update the order, return immediately, and deliver notifications in the background
-// so the UI is never blocked on an external provider.
-function dispatchNotifications(orderId: string, event: NotificationEvent) {
-  void sendOrderEventNotifications(orderId, event).catch(() => null);
 }
 
 export async function markOrderReachedCampus(orderId: string) {

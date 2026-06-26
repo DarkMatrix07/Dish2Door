@@ -2,6 +2,7 @@ import { NotificationChannel, NotificationEvent, NotificationStatus } from "@pri
 import { prisma } from "@/lib/db";
 import { orderEmailHtml, sendOrderEmail } from "@/lib/mail";
 import { orderInclude } from "@/lib/order-select";
+import { getSettings } from "@/lib/settings";
 import { sendTelegramGroupMessage, telegramOrderText } from "@/lib/telegram";
 import { orderWhatsAppText, sendWhatsApp } from "@/lib/whatsapp";
 
@@ -89,12 +90,22 @@ export async function sendOrderEventNotifications(orderId: string, event: Notifi
   });
   if (!order) return;
 
-  const copy = eventCopy(event);
+  const settings = await getSettings();
+  const tasks: Promise<unknown>[] = [];
 
-  await Promise.allSettled([
-    sendSingleOrderNotification(order.id, NotificationChannel.EMAIL, event, passcode),
-    sendSingleOrderNotification(order.id, NotificationChannel.WHATSAPP, event, passcode)
-  ]);
+  if (settings.notifyEmail) {
+    tasks.push(sendSingleOrderNotification(order.id, NotificationChannel.EMAIL, event, passcode));
+  } else {
+    tasks.push(logNotification(order.id, NotificationChannel.EMAIL, event, NotificationStatus.SKIPPED, "Email notifications are turned off"));
+  }
+
+  if (settings.notifyWhatsapp) {
+    tasks.push(sendSingleOrderNotification(order.id, NotificationChannel.WHATSAPP, event, passcode));
+  } else {
+    tasks.push(logNotification(order.id, NotificationChannel.WHATSAPP, event, NotificationStatus.SKIPPED, "WhatsApp notifications are turned off"));
+  }
+
+  await Promise.allSettled(tasks);
 
   if (event === NotificationEvent.ORDER_CREATED) {
     await sendSingleOrderNotification(order.id, NotificationChannel.TELEGRAM, event, passcode).catch(() => null);
