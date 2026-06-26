@@ -263,19 +263,28 @@ export function OrdersTable({
                 <p className="text-lg font-bold">{formatPaise(order.totalPaise)}</p>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
                   {order.status === "ORDER_CONFIRMED" ? (
-                    <Button size="sm" variant="outline" disabled={busyId === order.id} onClick={() => orderAction(order, "reached")}>
-                      Mark reached
+                    <Button size="sm" variant="secondary" disabled={busyId === order.id} onClick={() => orderAction(order, "reached")}>
+                      {busyId === order.id ? "Working..." : "Mark reached"}
                     </Button>
                   ) : null}
                   {order.status === "REACHED_CAMPUS" ? (
-                    <Button size="sm" variant="outline" disabled={busyId === order.id} onClick={() => orderAction(order, "delivered")}>
-                      Mark delivered
+                    <Button size="sm" variant="secondary" disabled={busyId === order.id} onClick={() => orderAction(order, "delivered")}>
+                      {busyId === order.id ? "Working..." : "Mark delivered"}
                     </Button>
                   ) : null}
                   {order.status === "ORDER_CONFIRMED" || order.status === "REACHED_CAMPUS" ? (
-                    <Button size="sm" variant="destructive" disabled={busyId === order.id} onClick={() => confirmCancel(order)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                      disabled={busyId === order.id}
+                      onClick={() => confirmCancel(order)}
+                    >
                       Cancel
                     </Button>
+                  ) : null}
+                  {order.status === "DELIVERED" || order.status === "CANCELLED" ? (
+                    <span className="text-xs font-medium text-neutral-400">No actions</span>
                   ) : null}
                 </div>
               </div>

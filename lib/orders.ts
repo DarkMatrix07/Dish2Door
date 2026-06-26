@@ -306,6 +306,13 @@ export async function markDelivered(orderId: string, deliveredById: string) {
   return order;
 }
 
+// Notifications can be slow or flaky (WhatsApp/SMTP). For admin status changes we
+// update the order, return immediately, and deliver notifications in the background
+// so the UI is never blocked on an external provider.
+function dispatchNotifications(orderId: string, event: NotificationEvent) {
+  void sendOrderEventNotifications(orderId, event).catch(() => null);
+}
+
 export async function markOrderReachedCampus(orderId: string) {
   const existing = await prisma.order.findFirst({
     where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED }
@@ -320,7 +327,7 @@ export async function markOrderReachedCampus(orderId: string) {
     include: orderInclude
   });
 
-  await sendOrderEventNotifications(order.id, NotificationEvent.REACHED_CAMPUS);
+  dispatchNotifications(order.id, NotificationEvent.REACHED_CAMPUS);
   return order;
 }
 
@@ -344,7 +351,7 @@ export async function adminMarkOrderDelivered(orderId: string, deliveredById: st
     include: orderInclude
   });
 
-  await sendOrderEventNotifications(order.id, NotificationEvent.DELIVERED);
+  dispatchNotifications(order.id, NotificationEvent.DELIVERED);
   return order;
 }
 

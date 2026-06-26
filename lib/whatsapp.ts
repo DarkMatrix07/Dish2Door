@@ -16,7 +16,12 @@ Track: ${trackingUrl}${passcodeLine}`;
 }
 
 function normalizePhone(phone: string) {
-  const digits = phone.replace(/\D/g, "");
+  let digits = phone.replace(/\D/g, "");
+  // Drop a leading trunk "0" (e.g. 09440095426 -> 9440095426) so 10-digit
+  // numbers get a country code instead of producing an invalid WhatsApp id.
+  if (digits.length > 10 && digits.startsWith("0")) {
+    digits = digits.replace(/^0+/, "");
+  }
   if (digits.length === 10 && env.WHATSAPP_DEFAULT_COUNTRY_CODE) {
     return `${env.WHATSAPP_DEFAULT_COUNTRY_CODE}${digits}`;
   }
