@@ -1,5 +1,5 @@
 import { NotificationChannel, NotificationStatus } from "@prisma/client";
-import { AdminPageHeader } from "@/components/admin/AdminShell";
+import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { NotificationsPanel } from "@/components/admin/NotificationsPanel";
 import { prisma } from "@/lib/db";
 
@@ -42,13 +42,13 @@ export default async function AdminNotificationsPage() {
   ]);
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <PageContainer>
       <AdminPageHeader
         eyebrow="Notifications"
         title="Notification logs"
         description="Review failed email and WhatsApp sends, retry them manually, and scan the latest notification activity."
       />
       <NotificationsPanel failedLogs={failedLogs} recentLogs={recentLogs} />
-    </section>
+    </PageContainer>
   );
 }

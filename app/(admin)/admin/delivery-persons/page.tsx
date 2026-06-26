@@ -1,4 +1,4 @@
-import { AdminPageHeader } from "@/components/admin/AdminShell";
+import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { DeliveryPersonsManager } from "@/components/admin/DeliveryPersonsManager";
 import { prisma } from "@/lib/db";
 
@@ -20,13 +20,13 @@ export default async function AdminDeliveryPersonsPage() {
   });
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <PageContainer>
       <AdminPageHeader
         eyebrow="Delivery"
         title="Delivery persons"
         description="Create delivery logins, edit contact details, reset passwords, and control active access."
       />
       <DeliveryPersonsManager initialUsers={users} />
-    </section>
+    </PageContainer>
   );
 }

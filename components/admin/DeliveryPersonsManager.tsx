@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { SectionCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 type DeliveryUser = {
@@ -76,91 +76,96 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-      <Card className="h-fit border-0 bg-white p-5 shadow-sm">
-        <h3 className="font-black">Add delivery person</h3>
-        <p className="mt-1 text-sm text-neutral-500">Create a login that opens the delivery dashboard directly.</p>
-        <div className="mt-5 space-y-3">
+    <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
+      <SectionCard title="Add delivery person" description="Create a login that opens the delivery dashboard directly.">
+        <div className="space-y-3">
           <Input placeholder="Name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
           <Input placeholder="Email" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
           <Input placeholder="Phone number" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
           <Input placeholder="Temporary password" type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} />
-          <Button className="w-full" disabled={busy} onClick={createUser}>Create delivery login</Button>
+          <Button className="w-full" disabled={busy} onClick={createUser}>
+            Create delivery login
+          </Button>
         </div>
-      </Card>
+      </SectionCard>
 
-      <Card className="overflow-hidden border-0 bg-white shadow-sm">
-        <div className="border-b border-neutral-100 p-5">
-          <h3 className="text-xl font-black">Delivery persons</h3>
-          <p className="mt-1 text-sm text-neutral-500">Edit details, reset passwords, deactivate staff, or delete unused accounts.</p>
-        </div>
+      <SectionCard title="Delivery persons" description="Edit details, reset passwords, deactivate staff, or delete unused accounts." bodyClassName="p-0">
         <div className="divide-y divide-neutral-100">
           {users.map((user) => (
-            <div key={user.id} className="grid gap-4 p-5 xl:grid-cols-[1fr_220px_240px] xl:items-center">
-              <div>
-                {editingId === user.id ? (
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <Input value={editDraft.name} onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })} />
-                    <Input type="email" value={editDraft.email} onChange={(event) => setEditDraft({ ...editDraft, email: event.target.value })} />
-                    <Input value={editDraft.phone} onChange={(event) => setEditDraft({ ...editDraft, phone: event.target.value })} />
+            <div key={user.id} className="space-y-4 p-4 sm:p-5">
+              {editingId === user.id ? (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Input value={editDraft.name} onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })} />
+                  <Input type="email" value={editDraft.email} onChange={(event) => setEditDraft({ ...editDraft, email: event.target.value })} />
+                  <Input value={editDraft.phone} onChange={(event) => setEditDraft({ ...editDraft, phone: event.target.value })} />
+                </div>
+              ) : (
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold">{user.name}</p>
+                    <Badge tone={user.active ? "green" : "red"}>{user.active ? "Active" : "Inactive"}</Badge>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-black">{user.name}</p>
-                      <Badge tone={user.active ? "green" : "red"}>{user.active ? "Active" : "Inactive"}</Badge>
-                    </div>
-                    <p className="mt-1 text-sm text-neutral-500">{user.email} · {user.phone || "No phone"}</p>
-                    <p className="mt-1 text-xs text-neutral-400">{user._count.deliveries} delivered orders</p>
-                  </>
-                )}
-              </div>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    {user.email} · {user.phone || "No phone"}
+                  </p>
+                  <p className="mt-1 text-xs text-neutral-400">{user._count.deliveries} delivered orders</p>
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Input
-                  type="password"
-                  placeholder="New password"
-                  value={passwordDraft[user.id] ?? ""}
-                  onChange={(event) => setPasswordDraft({ ...passwordDraft, [user.id]: event.target.value })}
-                />
-                <Button className="w-full" variant="outline" size="sm" disabled={busy} onClick={() => resetPassword(user.id)}>Reset password</Button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {editingId === user.id ? (
-                  <>
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => saveUser(user.id)}>Save</Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
-                  </>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={() => startEdit(user)}>Edit</Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => action({ action: "update", id: user.id, active: !user.active }, user.active ? "Delivery person deactivated" : "Delivery person activated")}
-                >
-                  {user.active ? "Deactivate" : "Activate"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={busy}
-                  onClick={() => {
-                    if (window.confirm(`Delete ${user.name}? Only unused delivery accounts can be deleted.`)) {
-                      action({ action: "delete", id: user.id }, "Delivery person deleted");
-                    }
-                  }}
-                >
-                  Delete
-                </Button>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex flex-1 gap-2">
+                  <Input
+                    type="password"
+                    placeholder="New password"
+                    value={passwordDraft[user.id] ?? ""}
+                    onChange={(event) => setPasswordDraft({ ...passwordDraft, [user.id]: event.target.value })}
+                  />
+                  <Button variant="outline" size="sm" disabled={busy} onClick={() => resetPassword(user.id)}>
+                    Reset
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {editingId === user.id ? (
+                    <>
+                      <Button size="sm" disabled={busy} onClick={() => saveUser(user.id)}>
+                        Save
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => startEdit(user)}>
+                      Edit
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => action({ action: "update", id: user.id, active: !user.active }, user.active ? "Delivery person deactivated" : "Delivery person activated")}
+                  >
+                    {user.active ? "Deactivate" : "Activate"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => {
+                      if (window.confirm(`Delete ${user.name}? Only unused delivery accounts can be deleted.`)) {
+                        action({ action: "delete", id: user.id }, "Delivery person deleted");
+                      }
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
           {!users.length ? <div className="p-8 text-center text-neutral-500">No delivery persons created yet.</div> : null}
         </div>
-      </Card>
+      </SectionCard>
     </div>
   );
 }

@@ -1,20 +1,20 @@
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
-import { StoreSettingsManager } from "@/components/admin/StoreSettingsManager";
+import { FeeSettingsManager } from "@/components/admin/FeeSettingsManager";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminStoreSettingsPage() {
+export default async function AdminFeeSettingsPage() {
   const settings = await getSettings();
 
   return (
     <PageContainer>
       <AdminPageHeader
         eyebrow="Settings"
-        title="Store & ordering"
-        description="Control public ordering state, customer closure copy, and contact details."
+        title="Fees"
+        description="Configure platform, hostel delivery, and Razorpay handling fees applied at checkout."
       />
-      <StoreSettingsManager initialSettings={settings} />
+      <FeeSettingsManager initialSettings={settings} />
     </PageContainer>
   );
 }

@@ -1,7 +1,7 @@
+import Link from "next/link";
 import { AdminActions } from "@/components/admin/AdminActions";
-import { AdminPageHeader } from "@/components/admin/AdminShell";
+import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { prisma } from "@/lib/db";
 import { orderInclude } from "@/lib/order-select";
 import { getSettings } from "@/lib/settings";
@@ -33,95 +33,97 @@ export default async function AdminDashboardPage() {
     prisma.restaurant.count({ where: { active: true } }),
     prisma.menuItem.count({ where: { available: true, restaurant: { active: true } } }),
     prisma.menuItem.count({ where: { available: false } }),
-    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: 5 })
+    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: 6 })
   ]);
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <PageContainer>
       <AdminPageHeader
         eyebrow="Operations"
         title="Dashboard"
-        description="Control public ordering, campus arrival, delivery release, revenue, and menu availability from one premium command view."
+        description="Control public ordering, campus arrival, delivery release, revenue, and menu availability from one place."
       >
         <Badge tone={settings.ordersOpen ? "green" : "red"}>{settings.ordersOpen ? "Orders open" : "Orders closed"}</Badge>
       </AdminPageHeader>
 
-      <Card className="overflow-hidden border border-amber-200 bg-[#fffaf1] text-neutral-950 shadow-xl shadow-amber-900/5">
-        <div className="grid gap-6 p-6 2xl:grid-cols-[1fr_520px] xl:p-8">
-          <div>
-            <p className="text-sm font-bold text-amber-700">Today&apos;s control panel</p>
-            <h3 className="mt-3 text-3xl font-black tracking-tight">Move the entire campus flow with one tap.</h3>
-            <p className="mt-3 max-w-2xl leading-7 text-neutral-600">
-              Open or close ordering, mark all active paid/manual orders as reached campus, and release hostel deliveries without duplicate assignment.
-            </p>
-          </div>
-          <AdminActions ordersOpen={settings.ordersOpen} />
-        </div>
-      </Card>
+      <SectionCard
+        title="Quick actions"
+        description="Open or close ordering, mark active orders as reached campus, and release hostel deliveries."
+      >
+        <AdminActions ordersOpen={settings.ordersOpen} />
+      </SectionCard>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Total orders", totalOrders, "All customer and manual orders"],
-          ["Confirmed", confirmed, "Waiting for campus arrival"],
-          ["Reached campus", reachedCampus, "Ready for gate or hostel flow"],
-          ["Paid revenue", formatPaise(revenue._sum.totalPaise ?? 0), "Online and manual paid orders"]
-        ].map(([label, value, helper]) => (
-          <Card key={label} className="border-0 bg-white p-5 shadow-sm">
-            <p className="text-sm font-bold text-neutral-500">{label}</p>
-            <p className="mt-3 text-3xl font-black tracking-tight">{value}</p>
-            <p className="mt-2 text-xs leading-5 text-neutral-400">{helper}</p>
-          </Card>
-        ))}
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard label="Total orders" value={totalOrders} helper="All customer and manual orders" />
+        <StatCard label="Confirmed" value={confirmed} helper="Waiting for campus arrival" />
+        <StatCard label="Reached campus" value={reachedCampus} helper="Ready for gate or hostel flow" />
+        <StatCard label="Paid revenue" value={formatPaise(revenue._sum.totalPaise ?? 0)} helper="Online + manual paid orders" />
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_420px]">
-        <Card className="overflow-hidden border-0 bg-white shadow-sm">
-          <div className="border-b border-neutral-100 p-5">
-            <h3 className="text-xl font-black">Latest orders</h3>
-            <p className="mt-1 text-sm text-neutral-500">Quick scan of customer, phone, items, and current status.</p>
-          </div>
+      <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_380px]">
+        <SectionCard title="Latest orders" description="Recent customer and counter orders." bodyClassName="p-0">
           <div className="divide-y divide-neutral-100">
             {recentOrders.map((order) => (
-              <div key={order.id} className="grid gap-3 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div>
+              <div key={order.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-black">{order.customerName}</p>
+                    <p className="font-semibold">{order.customerName}</p>
                     <Badge>{order.trackingCode}</Badge>
                     <Badge tone={order.status === "DELIVERED" ? "green" : order.status === "REACHED_CAMPUS" ? "amber" : "neutral"}>
                       {order.status.replaceAll("_", " ")}
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm text-neutral-500">
-                    {order.restaurant.name} - {order.customerPhone} - {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Gate"}
+                    {order.restaurant.name} · {order.customerPhone} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Gate"}
                   </p>
-                  <p className="mt-1 line-clamp-1 text-sm text-neutral-700">
+                  <p className="mt-1 line-clamp-1 text-sm text-neutral-600">
                     {order.items.map((item) => `${item.quantity}x ${item.nameSnapshot}`).join(", ")}
                   </p>
                 </div>
-                <p className="font-black">{formatPaise(order.totalPaise)}</p>
+                <p className="shrink-0 text-lg font-bold">{formatPaise(order.totalPaise)}</p>
               </div>
             ))}
+            {!recentOrders.length ? <div className="p-8 text-center text-neutral-500">No orders yet.</div> : null}
           </div>
-        </Card>
+        </SectionCard>
 
         <div className="grid gap-4">
-          <Card className="border-0 bg-white p-5 shadow-sm">
-            <p className="text-sm font-bold text-neutral-500">Restaurant health</p>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-2xl bg-neutral-50 p-4"><p className="text-2xl font-black">{restaurants}</p><p className="text-xs text-neutral-500">Active</p></div>
-              <div className="rounded-2xl bg-neutral-50 p-4"><p className="text-2xl font-black">{activeItems}</p><p className="text-xs text-neutral-500">Items live</p></div>
-              <div className="rounded-2xl bg-neutral-50 p-4"><p className="text-2xl font-black">{outOfStock}</p><p className="text-xs text-neutral-500">Out</p></div>
+          <SectionCard title="Restaurant health">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl bg-neutral-50 p-4">
+                <p className="text-2xl font-bold">{restaurants}</p>
+                <p className="text-xs text-neutral-500">Active</p>
+              </div>
+              <div className="rounded-xl bg-neutral-50 p-4">
+                <p className="text-2xl font-bold">{activeItems}</p>
+                <p className="text-xs text-neutral-500">Items live</p>
+              </div>
+              <div className="rounded-xl bg-neutral-50 p-4">
+                <p className="text-2xl font-bold">{outOfStock}</p>
+                <p className="text-xs text-neutral-500">Out</p>
+              </div>
             </div>
-          </Card>
-          <Card className="border-0 bg-white p-5 shadow-sm">
-            <p className="text-sm font-bold text-neutral-500">Delivery snapshot</p>
-            <div className="mt-4 space-y-3">
-              <div className="flex justify-between rounded-2xl bg-amber-50 p-4"><span>Hostel pending</span><strong>{hostelPending}</strong></div>
-              <div className="flex justify-between rounded-2xl bg-emerald-50 p-4"><span>Delivered total</span><strong>{delivered}</strong></div>
+          </SectionCard>
+          <SectionCard title="Delivery snapshot">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 text-sm">
+                <span className="text-neutral-600">Hostel pending</span>
+                <strong className="text-neutral-900">{hostelPending}</strong>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-sm">
+                <span className="text-neutral-600">Delivered total</span>
+                <strong className="text-neutral-900">{delivered}</strong>
+              </div>
             </div>
-          </Card>
+          </SectionCard>
+          <Link
+            href="/admin/orders/new"
+            className="rounded-2xl border border-dashed border-neutral-300 bg-white p-4 text-center text-sm font-semibold text-neutral-600 transition hover:border-neutral-400 hover:bg-neutral-50"
+          >
+            + Create a manual counter order
+          </Link>
         </div>
       </div>
-    </section>
+    </PageContainer>
   );
 }
