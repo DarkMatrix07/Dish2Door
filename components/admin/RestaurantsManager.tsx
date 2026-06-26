@@ -165,6 +165,19 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
     toast.success("Course updated");
   }
 
+  async function moveCourse(index: number, direction: -1 | 1) {
+    if (!selected) return;
+    const target = index + direction;
+    if (target < 0 || target >= selected.courses.length) return;
+    const ids = selected.courses.map((course) => course.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    try {
+      await action({ action: "course.reorder", restaurantId: selected.id, orderedIds: ids });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not reorder courses");
+    }
+  }
+
   async function deleteCourse(id: string) {
     if (!window.confirm("Delete this course? Move or delete its menu items first.")) return;
     try {
@@ -256,10 +269,33 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
                 Add course
               </Button>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {selected?.courses.map((course) => (
+            <p className="mt-3 text-xs text-neutral-400">Order here controls how courses appear on the customer menu.</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              {selected?.courses.map((course, index) => (
                 <div key={course.id} className="flex items-center justify-between gap-3 rounded-xl bg-neutral-50 p-3">
-                  <span className="font-semibold">{course.name}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col">
+                      <button
+                        type="button"
+                        className="text-neutral-400 hover:text-neutral-900 disabled:opacity-30"
+                        disabled={index === 0}
+                        aria-label="Move up"
+                        onClick={() => moveCourse(index, -1)}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        className="text-neutral-400 hover:text-neutral-900 disabled:opacity-30"
+                        disabled={index === (selected?.courses.length ?? 0) - 1}
+                        aria-label="Move down"
+                        onClick={() => moveCourse(index, 1)}
+                      >
+                        ▼
+                      </button>
+                    </div>
+                    <span className="font-semibold">{course.name}</span>
+                  </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => renameCourse(course.id, course.name)}>
                       Edit

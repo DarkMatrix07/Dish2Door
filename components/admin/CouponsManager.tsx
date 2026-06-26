@@ -85,6 +85,16 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
     toast.success("Coupon updated");
   }
 
+  async function deleteCoupon(coupon: Coupon) {
+    if (!window.confirm(`Delete coupon ${coupon.code}? This cannot be undone.`)) return;
+    try {
+      await action({ action: "coupon.delete", id: coupon.id });
+      toast.success("Coupon deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete coupon");
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
@@ -150,9 +160,14 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
                       Used {coupon.usedCount}
                       {coupon.maxUses !== null ? ` / ${coupon.maxUses}` : ""}
                     </span>
-                    <Button size="sm" variant="outline" onClick={() => toggleCoupon(coupon.id, !coupon.active)}>
-                      {coupon.active ? "Pause" : "Activate"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => toggleCoupon(coupon.id, !coupon.active)}>
+                        {coupon.active ? "Pause" : "Activate"}
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteCoupon(coupon)}>
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );

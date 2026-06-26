@@ -5,10 +5,14 @@ import { orderInclude } from "@/lib/order-select";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 20;
+
 export default async function AdminOrdersPage() {
-  const [orders, restaurants] = await Promise.all([
-    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: 100 }),
-    prisma.restaurant.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
+  const [orders, total, restaurants, sessions] = await Promise.all([
+    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: PAGE_SIZE }),
+    prisma.order.count(),
+    prisma.restaurant.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.orderSession.findMany({ select: { id: true, label: true }, orderBy: { startsAt: "desc" }, take: 60 })
   ]);
 
   return (
@@ -16,9 +20,15 @@ export default async function AdminOrdersPage() {
       <AdminPageHeader
         eyebrow="Fulfilment"
         title="Live orders"
-        description="Filter live orders, see customer contact details, and trigger campus or delivery actions."
+        description="Search and filter orders, manage each order's status, and trigger campus or delivery actions."
       />
-      <OrdersTable initialOrders={orders} restaurants={restaurants} />
+      <OrdersTable
+        initialOrders={orders}
+        initialTotal={total}
+        pageSize={PAGE_SIZE}
+        restaurants={restaurants}
+        sessions={sessions}
+      />
     </PageContainer>
   );
 }

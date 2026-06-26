@@ -306,6 +306,72 @@ export async function markDelivered(orderId: string, deliveredById: string) {
   return order;
 }
 
+export async function markOrderReachedCampus(orderId: string) {
+  const existing = await prisma.order.findFirst({
+    where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED }
+  });
+  if (!existing) {
+    throw new Error("Only confirmed orders can be marked reached campus");
+  }
+
+  const order = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: OrderStatus.REACHED_CAMPUS, reachedCampusAt: new Date() },
+    include: orderInclude
+  });
+
+  await sendOrderEventNotifications(order.id, NotificationEvent.REACHED_CAMPUS);
+  return order;
+}
+
+export async function adminMarkOrderDelivered(orderId: string, deliveredById: string) {
+  const existing = await prisma.order.findFirst({
+    where: { id: orderId, status: OrderStatus.REACHED_CAMPUS }
+  });
+  if (!existing) {
+    throw new Error("Only orders that reached campus can be marked delivered");
+  }
+
+  const order = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: OrderStatus.DELIVERED,
+      deliveredById,
+      deliveredAt: new Date(),
+      deliveryReleased: true,
+      releasedAt: existing.releasedAt ?? new Date()
+    },
+    include: orderInclude
+  });
+
+  await sendOrderEventNotifications(order.id, NotificationEvent.DELIVERED);
+  return order;
+}
+
+export async function cancelOrder(orderId: string, refund: boolean) {
+  const existing = await prisma.order.findFirst({
+    where: {
+      id: orderId,
+      status: { in: [OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] }
+    }
+  });
+  if (!existing) {
+    throw new Error("Only active orders can be cancelled");
+  }
+
+  const shouldRefund = refund && existing.paymentStatus === PaymentStatus.PAID_ONLINE;
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: OrderStatus.CANCELLED,
+      paymentStatus: shouldRefund ? PaymentStatus.REFUNDED : existing.paymentStatus,
+      ...(shouldRefund ? { payment: { update: { status: PaymentStatus.REFUNDED } } } : {})
+    },
+    include: orderInclude
+  });
+}
+
 export async function getOrderForNotification(orderId: string) {
   return prisma.order.findUnique({
     where: { id: orderId },

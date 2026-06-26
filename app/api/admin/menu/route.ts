@@ -93,6 +93,15 @@ const schema = z.discriminatedUnion("action", [
     active: z.boolean()
   }),
   z.object({
+    action: z.literal("coupon.delete"),
+    id: z.string()
+  }),
+  z.object({
+    action: z.literal("course.reorder"),
+    restaurantId: z.string(),
+    orderedIds: z.array(z.string()).min(1)
+  }),
+  z.object({
     action: z.literal("item.stock"),
     id: z.string(),
     available: z.boolean()
@@ -254,6 +263,23 @@ export async function POST(request: Request) {
       data: { active: body.active }
     });
     return NextResponse.json({ coupon });
+  }
+
+  if (body.action === "coupon.delete") {
+    const coupon = await prisma.coupon.delete({ where: { id: body.id } });
+    return NextResponse.json({ coupon });
+  }
+
+  if (body.action === "course.reorder") {
+    await prisma.$transaction(
+      body.orderedIds.map((id, index) =>
+        prisma.course.update({
+          where: { id },
+          data: { sortOrder: index }
+        })
+      )
+    );
+    return NextResponse.json({ ok: true });
   }
 
   if (body.action === "item.stock") {
