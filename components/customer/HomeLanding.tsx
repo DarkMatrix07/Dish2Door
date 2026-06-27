@@ -8,18 +8,18 @@ import { Card } from "@/components/ui/card";
 const commitments = [
   {
     icon: Sparkles,
-    title: "Restaurant-first quality",
-    copy: "Menus stay focused, items can be marked out of stock, and every order keeps a clean item record."
+    title: "Restaurants near campus",
+    copy: "Browse menus from restaurants around campus. Sold-out dishes are marked unavailable, so you never order something that isn't there."
   },
   {
     icon: ShieldCheck,
-    title: "Private order tracking",
-    copy: "Customers receive a secure tracking link and passcode after ordering, without needing an account."
+    title: "Track without an account",
+    copy: "After you order, you get a tracking link and a 4-digit passcode on WhatsApp and email. No sign-up, no app to install."
   },
   {
     icon: Clock3,
-    title: "Campus-aware handoffs",
-    copy: "Gate pickup and hostel delivery are handled as separate flows, so orders are easier to coordinate."
+    title: "Gate or hostel",
+    copy: "Choose gate pickup or hostel delivery at checkout. For hostel orders, just add your block and we bring it over."
   }
 ];
 
@@ -39,17 +39,17 @@ export function HomeLanding() {
 
         <div className="mx-auto flex min-h-screen max-w-7xl items-center px-4 pb-20 pt-28 sm:px-6 lg:px-8">
           <div className="max-w-5xl">
-            <p className="font-semibold text-amber-200">Campus meals, handled with care</p>
+            <p className="font-semibold text-amber-200">Dish2Door · Campus food ordering</p>
             <h1 className="mt-5 text-5xl font-black leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">
-              Food ordering that feels calm from cart to doorstep.
+              Campus food, at your gate or hostel.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/76">
-              Dish2Door brings campus restaurants, clear order updates, and careful gate or hostel handoffs into one simple flow.
+              Order from restaurants near campus, pay online or on delivery, and track your order with a passcode — no account needed.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/menu">
                 <Button variant="secondary" size="lg">
-                  Explore menu <ArrowRight size={18} />
+                  See the menu <ArrowRight size={18} />
                 </Button>
               </Link>
             </div>
@@ -59,8 +59,8 @@ export function HomeLanding() {
 
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mb-8 max-w-2xl">
-          <p className="font-semibold text-amber-700">Our commitments</p>
-          <h2 className="mt-2 text-4xl font-black tracking-tight text-neutral-950">Built for campus rush hours.</h2>
+          <p className="font-semibold text-amber-700">How it works</p>
+          <h2 className="mt-2 text-4xl font-black tracking-tight text-neutral-950">Order in a few taps.</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           {commitments.map((item) => (
@@ -74,8 +74,8 @@ export function HomeLanding() {
         <div className="mt-10 rounded-3xl bg-neutral-950 p-6 text-white sm:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="text-2xl font-black">Ready to order?</h3>
-              <p className="mt-2 text-white/65">Browse restaurants and build your cart on the dedicated menu page.</p>
+              <h3 className="text-2xl font-black">Hungry?</h3>
+              <p className="mt-2 text-white/65">Pick a restaurant, build your cart, and check out in a couple of minutes.</p>
             </div>
             <Link href="/menu">
               <Button variant="secondary" size="lg">

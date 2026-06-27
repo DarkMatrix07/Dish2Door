@@ -13,7 +13,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 text-sm text-neutral-600 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div>
           <p className="font-black text-neutral-950">Dish2Door</p>
-          <p className="mt-1">Campus food ordering with private tracking and careful handoffs.</p>
+          <p className="mt-1">Campus food ordering — gate pickup or hostel delivery.</p>
         </div>
         <nav className="flex flex-wrap gap-x-5 gap-y-2">
           {legalLinks.map((link) => (

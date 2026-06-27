@@ -201,7 +201,7 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
             <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
               <Badge tone="amber">Ordering page</Badge>
               <h1 className="mt-4 max-w-4xl text-4xl font-black tracking-tight text-neutral-950 sm:text-6xl">Restaurants near campus</h1>
-              <p className="mt-3 max-w-2xl text-neutral-600">Pick a place to see its menu. Your cart stays linked to one restaurant for a cleaner order.</p>
+              <p className="mt-3 max-w-2xl text-neutral-600">Pick a restaurant to see its menu. One order is from one restaurant.</p>
             </motion.div>
           ) : (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
