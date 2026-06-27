@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { confirmOnlineOrder } from "@/lib/orders";
+import { confirmOnlineOrderByRazorpayOrderId } from "@/lib/orders";
 import { verifyRazorpaySignature } from "@/lib/razorpay";
 
 const bodySchema = z.object({
-  orderId: z.string().min(1),
+  // orderId is accepted for backwards compatibility but intentionally NOT trusted:
+  // the order is resolved from the verified razorpayOrderId instead (see below).
+  orderId: z.string().optional(),
   razorpayOrderId: z.string().min(1),
   razorpayPaymentId: z.string().min(1),
   razorpaySignature: z.string().min(1)
@@ -19,7 +21,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
     }
 
-    const { order, passcode } = await confirmOnlineOrder(body.orderId, body);
+    // Resolve the order strictly from the signed razorpayOrderId via the Payment row
+    // (persisted at create-payment time). Never confirm a client-supplied orderId — a
+    // valid signature from one payment could otherwise confirm a different unpaid order.
+    const result = await confirmOnlineOrderByRazorpayOrderId(body.razorpayOrderId, body.razorpayPaymentId);
+    if (!result) {
+      return NextResponse.json({ error: "Payment could not be matched to an order" }, { status: 400 });
+    }
+
+    const { order, passcode } = result;
     return NextResponse.json({
       trackingCode: order.trackingCode,
       passcode // may be null if the webhook already confirmed this order first
