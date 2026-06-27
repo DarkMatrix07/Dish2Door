@@ -162,7 +162,13 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "restaurant.delete") {
-    const restaurant = await prisma.restaurant.delete({ where: { id: body.id } });
+    // Order.restaurantId is Restrict, so a restaurant with past orders can't be
+    // deleted directly. Remove its orders first (OrderItem/Payment/Rating/logs all
+    // cascade from Order), then the restaurant (courses + menu items cascade).
+    const restaurant = await prisma.$transaction(async (tx) => {
+      await tx.order.deleteMany({ where: { restaurantId: body.id } });
+      return tx.restaurant.delete({ where: { id: body.id } });
+    });
     return NextResponse.json({ restaurant });
   }
 
@@ -303,9 +309,16 @@ export async function POST(request: Request) {
     }
     const message = error instanceof Error ? error.message : "Action failed";
     // Prisma unique-constraint (e.g. duplicate coupon code / restaurant slug)
-    const friendly = message.includes("Unique constraint")
-      ? "That value already exists (duplicate code or name)."
-      : message;
+    let friendly = message;
+    if (message.includes("Unique constraint")) {
+      friendly = "That value already exists (duplicate code or name).";
+    } else if (message.includes("MenuItem_courseId_fkey")) {
+      friendly = "This course still has menu items. Delete or move them to another course first.";
+    } else if (message.includes("Foreign key constraint")) {
+      friendly = "This can't be deleted because other records still depend on it.";
+    } else if (message.includes("Record to delete does not exist") || message.includes("No record was found")) {
+      friendly = "That item was already removed. Refresh and try again.";
+    }
     return NextResponse.json({ error: friendly }, { status: 400 });
   }
 }

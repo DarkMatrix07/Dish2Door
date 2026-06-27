@@ -154,7 +154,13 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
   }
 
   async function deleteRestaurant() {
-    if (!selected || !window.confirm(`Delete ${selected.name}? This only works when it has no historical orders.`)) return;
+    if (
+      !selected ||
+      !window.confirm(
+        `Delete ${selected.name}? This permanently removes the restaurant, its courses, menu items, AND all of its past orders and history. This cannot be undone.`
+      )
+    )
+      return;
     try {
       await action({ action: "restaurant.delete", id: selected.id });
       setManagingId(null);

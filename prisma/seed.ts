@@ -9,7 +9,7 @@ async function main() {
       id: "default",
       ordersOpen: true,
       closedMessage: "Orders are closed for today. Please contact the admin for urgent orders.",
-      contactNumber: "Add contact number",
+      contactNumber: "63022 50978",
       platformFeePaise: 200,
       hostelDeliveryFeePaise: 1500,
       paymentChargePercentBps: 250,
