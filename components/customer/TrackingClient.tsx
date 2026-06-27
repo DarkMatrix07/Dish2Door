@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { CheckCircle2, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SiteFooter } from "@/components/customer/SiteFooter";
 import { formatPaise } from "@/lib/utils";
 
 type Order = {
@@ -25,9 +27,9 @@ type Order = {
 };
 
 const steps = [
-  { key: "ORDER_CONFIRMED", label: "Order confirmed" },
-  { key: "REACHED_CAMPUS", label: "Reached campus" },
-  { key: "DELIVERED", label: "Delivered" }
+  { key: "ORDER_CONFIRMED", label: "Order confirmed", helper: "We have your order" },
+  { key: "REACHED_CAMPUS", label: "Reached campus", helper: "On campus, heading over" },
+  { key: "DELIVERED", label: "Delivered", helper: "Enjoy your meal" }
 ];
 
 function statusIndex(status: Order["status"]) {
@@ -85,73 +87,100 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
     }
   }
 
-  return (
-    <main className="relative min-h-screen overflow-hidden bg-neutral-950 px-4 py-8 text-white">
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-30"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1526367790999-0150786686a2?auto=format&fit=crop&w=1800&q=85')"
-        }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-br from-neutral-950 via-neutral-950/92 to-neutral-900/82" />
+  const isCancelled = order?.status === "CANCELLED";
 
-      <section className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center">
+  return (
+    <main className="min-h-screen bg-[#fff8ec]">
+      <header className="border-b border-neutral-200 bg-white/85 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
+          <Link href="/" className="text-lg font-black">
+            Dish2Door
+          </Link>
+          <Link href="/menu">
+            <Button variant="outline">Back to menu</Button>
+          </Link>
+        </div>
+      </header>
+
+      <section className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         {!order ? (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mx-auto w-full max-w-md">
-            <Card className="border-white/15 bg-white/10 p-6 text-white backdrop-blur-2xl">
-              <LockKeyhole className="mb-4 text-amber-200" />
-              <h1 className="text-3xl font-black">Track your order</h1>
-              <p className="mt-2 text-white/70">Enter the 4-digit passcode sent on WhatsApp and email.</p>
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="mx-auto w-full max-w-md py-8">
+            <Card className="bg-white p-6">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-100 text-amber-700">
+                <LockKeyhole size={22} />
+              </span>
+              <h1 className="mt-4 text-3xl font-black text-neutral-950">Track your order</h1>
+              <p className="mt-2 text-neutral-600">Enter the 4-digit passcode sent to you on WhatsApp and email.</p>
               <Input
-                className="mt-6 bg-white text-neutral-950"
+                className="mt-6 text-center text-lg tracking-[0.4em]"
                 inputMode="numeric"
                 maxLength={4}
-                placeholder="4-digit passcode"
+                placeholder="••••"
                 value={passcode}
                 onChange={(event) => setPasscode(event.target.value)}
               />
-              <Button className="mt-4 w-full bg-amber-300 text-neutral-950 hover:bg-amber-200" disabled={busy} onClick={() => verify()}>
+              <Button className="mt-4 w-full" size="lg" disabled={busy} onClick={() => verify()}>
                 {busy ? "Checking..." : "View order"}
               </Button>
             </Card>
           </motion.div>
         ) : (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+          <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="w-full">
             <div className="mb-8">
-              <Badge className="bg-amber-200 text-neutral-950">Order {order.trackingCode}</Badge>
-              <h1 className="mt-4 text-4xl font-black sm:text-6xl">{order.restaurant.name}</h1>
-              <p className="mt-3 text-white/70">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="amber">Order {order.trackingCode}</Badge>
+                {isCancelled ? <Badge tone="red">Cancelled</Badge> : null}
+              </div>
+              <h1 className="mt-3 text-4xl font-black tracking-tight text-neutral-950 sm:text-5xl">{order.restaurant.name}</h1>
+              <p className="mt-2 text-neutral-600">
                 {order.customerName} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Campus gate"}
               </p>
             </div>
+
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-              <Card className="border-white/15 bg-white/10 p-6 text-white backdrop-blur-2xl">
-                <h2 className="text-xl font-black">Status</h2>
-                <div className="mt-6 space-y-5">
-                  {steps.map((step, index) => {
-                    const done = index <= statusIndex(order.status);
-                    return (
-                      <div key={step.key} className="flex items-center gap-4">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${done ? "bg-amber-300 text-neutral-950" : "bg-white/10 text-white/40"}`}>
-                          <CheckCircle2 size={20} />
+              <Card className="bg-white p-6">
+                <h2 className="text-xl font-black text-neutral-950">Status</h2>
+                {isCancelled ? (
+                  <div className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+                    This order was cancelled. If you paid online, your refund will be processed by the team.
+                  </div>
+                ) : (
+                  <div className="mt-6 space-y-2">
+                    {steps.map((step, index) => {
+                      const done = index <= statusIndex(order.status);
+                      const current = index === statusIndex(order.status);
+                      return (
+                        <div key={step.key} className="flex items-center gap-4 rounded-2xl p-2">
+                          <div
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+                              done ? "bg-amber-400 text-neutral-950" : "bg-neutral-100 text-neutral-300"
+                            }`}
+                          >
+                            <CheckCircle2 size={22} />
+                          </div>
+                          <div>
+                            <p className={done ? "font-bold text-neutral-950" : "font-semibold text-neutral-400"}>{step.label}</p>
+                            <p className={`text-xs ${current ? "text-amber-700" : "text-neutral-400"}`}>{step.helper}</p>
+                          </div>
                         </div>
-                        <span className={done ? "font-bold" : "text-white/50"}>{step.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </Card>
-              <Card className="border-white/15 bg-white/10 p-6 text-white backdrop-blur-2xl">
-                <h2 className="text-xl font-black">Order details</h2>
+
+              <Card className="h-fit bg-white p-6">
+                <h2 className="text-xl font-black text-neutral-950">Order details</h2>
                 <div className="mt-4 space-y-3">
                   {order.items.map((item) => (
-                    <div key={item.id} className="flex justify-between gap-3 text-sm">
-                      <span>{item.quantity}x {item.nameSnapshot}</span>
-                      <span>{formatPaise(item.linePaise)}</span>
+                    <div key={item.id} className="flex justify-between gap-3 text-sm text-neutral-700">
+                      <span>
+                        {item.quantity}x {item.nameSnapshot}
+                      </span>
+                      <span className="font-semibold">{formatPaise(item.linePaise)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between border-t border-white/15 pt-3 text-lg font-black">
+                  <div className="flex justify-between border-t border-neutral-200 pt-3 text-lg font-black text-neutral-950">
                     <span>Total</span>
                     <span>{formatPaise(order.totalPaise)}</span>
                   </div>
@@ -160,25 +189,35 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
             </div>
 
             {order.status === "DELIVERED" && !order.rating ? (
-              <Card className="mt-6 border-white/15 bg-white/10 p-6 text-white backdrop-blur-2xl">
-                <h2 className="text-xl font-black">Rate your order</h2>
+              <Card className="mt-6 bg-white p-6">
+                <h2 className="text-xl font-black text-neutral-950">Rate your order</h2>
+                <p className="mt-1 text-sm text-neutral-500">Your feedback helps the kitchen and delivery team.</p>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm">
-                    Food rating
-                    <Input className="mt-2 bg-white text-neutral-950" type="number" min={1} max={5} value={rating.foodRating} onChange={(event) => setRating({ ...rating, foodRating: Number(event.target.value) })} />
+                  <label className="text-sm font-semibold text-neutral-600">
+                    Food rating (1–5)
+                    <Input className="mt-2" type="number" min={1} max={5} value={rating.foodRating} onChange={(event) => setRating({ ...rating, foodRating: Number(event.target.value) })} />
                   </label>
-                  <label className="text-sm">
-                    Delivery rating
-                    <Input className="mt-2 bg-white text-neutral-950" type="number" min={1} max={5} value={rating.deliveryRating} onChange={(event) => setRating({ ...rating, deliveryRating: Number(event.target.value) })} />
+                  <label className="text-sm font-semibold text-neutral-600">
+                    Delivery rating (1–5)
+                    <Input className="mt-2" type="number" min={1} max={5} value={rating.deliveryRating} onChange={(event) => setRating({ ...rating, deliveryRating: Number(event.target.value) })} />
                   </label>
                 </div>
-                <Textarea className="mt-4 bg-white text-neutral-950" placeholder="Optional review" value={rating.review} onChange={(event) => setRating({ ...rating, review: event.target.value })} />
-                <Button className="mt-4 bg-amber-300 text-neutral-950 hover:bg-amber-200" onClick={submitRating}>Submit rating</Button>
+                <Textarea className="mt-4" placeholder="Optional review" value={rating.review} onChange={(event) => setRating({ ...rating, review: event.target.value })} />
+                <Button className="mt-4" onClick={submitRating}>
+                  Submit rating
+                </Button>
+              </Card>
+            ) : null}
+
+            {order.rating ? (
+              <Card className="mt-6 bg-white p-5 text-sm text-emerald-700">
+                ✓ Thanks for rating this order.
               </Card>
             ) : null}
           </motion.div>
         )}
       </section>
+      <SiteFooter />
     </main>
   );
 }
