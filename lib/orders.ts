@@ -165,6 +165,25 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
   });
 }
 
+// Online orders are created as PENDING *before* the customer pays. If they close the
+// Razorpay popup without paying, that unpaid order would otherwise linger in the admin
+// list forever. Clear any online PENDING order that hasn't been paid within 5 minutes.
+// OrderItem / Payment / NotificationLog all cascade-delete, so removing the order is
+// enough. A captured payment flips the row to PAID_ONLINE first, so it's never matched.
+export const PENDING_ORDER_TTL_MS = 5 * 60 * 1000;
+
+export async function cleanupStalePendingOrders() {
+  const cutoff = new Date(Date.now() - PENDING_ORDER_TTL_MS);
+  const result = await prisma.order.deleteMany({
+    where: {
+      source: OrderSource.CUSTOMER_ONLINE,
+      paymentStatus: PaymentStatus.PENDING,
+      createdAt: { lt: cutoff }
+    }
+  });
+  return result.count;
+}
+
 // Idempotent: safe to call from the browser verify-payment path AND the Razorpay
 // webhook. The first caller to flip PENDING -> PAID_ONLINE "wins" (atomic conditional
 // update) and runs the one-time side effects (coupon increment + notification). Any

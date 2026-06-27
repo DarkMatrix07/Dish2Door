@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { cleanupStalePendingOrders } from "@/lib/orders";
 import { orderInclude } from "@/lib/order-select";
 
 const ORDER_STATUSES = ["ORDER_CONFIRMED", "REACHED_CAMPUS", "DELIVERED", "CANCELLED"];
@@ -21,6 +22,9 @@ function endOfDay(value: string) {
 export async function GET(request: Request) {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Drop unpaid online orders older than 5 minutes so the list stays clean.
+  await cleanupStalePendingOrders().catch(() => null);
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim() ?? "";
