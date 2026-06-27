@@ -74,7 +74,7 @@ const schema = z.discriminatedUnion("action", [
     action: z.literal("coupon.create"),
     code: z.string().min(3).max(24),
     description: z.string().optional(),
-    discountPercent: z.number().int().min(1).max(90),
+    discountPercent: z.number().int().min(1).max(100),
     maxUses: z.number().int().min(1).nullable().optional(),
     expiresAt: z.string().datetime().nullable().optional()
   }),
@@ -83,7 +83,7 @@ const schema = z.discriminatedUnion("action", [
     id: z.string(),
     code: z.string().min(3).max(24).optional(),
     description: z.string().nullable().optional(),
-    discountPercent: z.number().int().min(1).max(90).optional(),
+    discountPercent: z.number().int().min(1).max(100).optional(),
     maxUses: z.number().int().min(1).nullable().optional(),
     expiresAt: z.string().datetime().nullable().optional()
   }),
@@ -134,6 +134,7 @@ export async function POST(request: Request) {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  try {
   const body = schema.parse(await request.json());
 
   if (body.action === "restaurant.create") {
@@ -294,4 +295,17 @@ export async function POST(request: Request) {
     where: { id: body.id }
   });
   return NextResponse.json({ item });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const issue = error.issues[0];
+      const field = issue?.path.join(".") || "input";
+      return NextResponse.json({ error: issue ? `${field}: ${issue.message}` : "Invalid input" }, { status: 400 });
+    }
+    const message = error instanceof Error ? error.message : "Action failed";
+    // Prisma unique-constraint (e.g. duplicate coupon code / restaurant slug)
+    const friendly = message.includes("Unique constraint")
+      ? "That value already exists (duplicate code or name)."
+      : message;
+    return NextResponse.json({ error: friendly }, { status: 400 });
+  }
 }

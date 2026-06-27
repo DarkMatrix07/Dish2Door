@@ -117,7 +117,7 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
             <Input className="uppercase" placeholder="Coupon code" value={draft.code} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })} />
             <Input placeholder="Description (optional)" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
             <div className="grid grid-cols-2 gap-3">
-              <Input type="number" min={1} max={90} placeholder="Discount %" value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} />
+              <Input type="number" min={1} max={100} placeholder="Discount %" value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} />
               <Input type="number" min={1} placeholder="Max uses" value={draft.maxUses} onChange={(event) => setDraft({ ...draft, maxUses: event.target.value })} />
             </div>
             <Input type="date" value={draft.expiresAt} onChange={(event) => setDraft({ ...draft, expiresAt: event.target.value })} />
@@ -144,7 +144,7 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <label className="text-xs font-semibold text-neutral-500">
                       Discount %
-                      <Input className="mt-1" type="number" min={1} max={90} defaultValue={coupon.discountPercent} onBlur={(event) => updateCoupon(coupon.id, { discountPercent: Number(event.target.value) })} />
+                      <Input className="mt-1" type="number" min={1} max={100} defaultValue={coupon.discountPercent} onBlur={(event) => updateCoupon(coupon.id, { discountPercent: Number(event.target.value) })} />
                     </label>
                     <label className="text-xs font-semibold text-neutral-500">
                       Max uses
