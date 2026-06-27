@@ -3,29 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifyPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
+import { clearRateLimit, rateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
   passcode: z.string().length(4)
 });
 
-// In-memory throttle: cap passcode guesses per tracking code so the 4-digit
-// passcode can't be brute-forced to read a customer's order details. Resets on
-// restart and is per-process, which is fine for the single app instance.
+// Cap passcode guesses per tracking code so the 4-digit passcode can't be
+// brute-forced to read a customer's order details.
 const MAX_ATTEMPTS = 8;
 const WINDOW_MS = 10 * 60 * 1000;
-const attempts = new Map<string, { count: number; resetAt: number }>();
-
-function rateLimit(key: string) {
-  const now = Date.now();
-  const entry = attempts.get(key);
-  if (!entry || entry.resetAt < now) {
-    attempts.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= MAX_ATTEMPTS) return false;
-  entry.count += 1;
-  return true;
-}
 
 export async function POST(request: Request, { params }: { params: Promise<{ trackingCode: string }> }) {
   const { trackingCode } = await params;
@@ -37,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     return NextResponse.json({ error: "Enter the 4-digit passcode." }, { status: 400 });
   }
 
-  if (!rateLimit(trackingCode)) {
+  if (!rateLimit(`verify:${trackingCode}`, MAX_ATTEMPTS, WINDOW_MS)) {
     return NextResponse.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });
   }
 
@@ -56,6 +43,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   }
 
   // Successful unlock — clear the throttle for this tracking code.
-  attempts.delete(trackingCode);
+  clearRateLimit(`verify:${trackingCode}`);
   return NextResponse.json({ order });
 }
