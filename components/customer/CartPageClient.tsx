@@ -175,8 +175,12 @@ export function CartPageClient({ settings }: { settings: Settings }) {
             return;
           }
           clearStoredCart();
-          window.sessionStorage.setItem(`dish2door_passcode_${verified.trackingCode}`, verified.passcode);
-          toast.success(`Order confirmed. Passcode: ${verified.passcode}`);
+          if (verified.passcode) {
+            window.sessionStorage.setItem(`dish2door_passcode_${verified.trackingCode}`, verified.passcode);
+            toast.success(`Order confirmed. Passcode: ${verified.passcode}`);
+          } else {
+            toast.success("Order confirmed! Your passcode has been sent to your email and WhatsApp.");
+          }
           window.location.href = `/orders/${verified.trackingCode}`;
         }
       });

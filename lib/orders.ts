@@ -165,19 +165,34 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
   });
 }
 
+// Idempotent: safe to call from the browser verify-payment path AND the Razorpay
+// webhook. The first caller to flip PENDING -> PAID_ONLINE "wins" (atomic conditional
+// update) and runs the one-time side effects (coupon increment + notification). Any
+// later caller is a no-op and returns passcode: null (the customer already received
+// the passcode by email/WhatsApp on the first confirm).
 export async function confirmOnlineOrder(orderId: string, payment: {
   razorpayOrderId: string;
   razorpayPaymentId: string;
-  razorpaySignature: string;
+  razorpaySignature?: string;
 }) {
   const passcode = generatePasscode();
   const passcodeHash = await hashPasscode(passcode);
 
+  const claim = await prisma.order.updateMany({
+    where: { id: orderId, paymentStatus: PaymentStatus.PENDING },
+    data: { paymentStatus: PaymentStatus.PAID_ONLINE, trackingPasscodeHash: passcodeHash }
+  });
+
+  if (claim.count === 0) {
+    // Already confirmed (or not a pending online order) — return current state.
+    const existing = await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
+    if (!existing) throw new Error("Order not found");
+    return { order: existing, passcode: null as string | null };
+  }
+
   const order = await prisma.order.update({
     where: { id: orderId },
     data: {
-      trackingPasscodeHash: passcodeHash,
-      paymentStatus: PaymentStatus.PAID_ONLINE,
       payment: {
         update: {
           status: PaymentStatus.PAID_ONLINE,
@@ -198,7 +213,20 @@ export async function confirmOnlineOrder(orderId: string, payment: {
   }
 
   dispatchNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
-  return { order, passcode };
+  return { order, passcode: passcode as string | null };
+}
+
+// Used by the Razorpay webhook: map a Razorpay order id back to our order via the
+// Payment row (persisted at create-payment time), then confirm idempotently. Returns
+// null when the Razorpay order is not ours (the account may be shared with other apps).
+export async function confirmOnlineOrderByRazorpayOrderId(razorpayOrderId: string, razorpayPaymentId: string) {
+  const paymentRow = await prisma.payment.findFirst({
+    where: { razorpayOrderId },
+    select: { orderId: true }
+  });
+  if (!paymentRow) return null;
+
+  return confirmOnlineOrder(paymentRow.orderId, { razorpayOrderId, razorpayPaymentId });
 }
 
 export async function createManualOrder(details: CustomerDetails, items: OrderItemInput[], paymentStatus: PaymentStatus) {

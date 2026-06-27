@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const { order, passcode } = await confirmOnlineOrder(body.orderId, body);
     return NextResponse.json({
       trackingCode: order.trackingCode,
-      passcode
+      passcode // may be null if the webhook already confirmed this order first
     });
   } catch (error) {
     return NextResponse.json(

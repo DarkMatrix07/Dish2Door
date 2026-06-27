@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DeliveryType } from "@prisma/client";
 import { z } from "zod";
+import { prisma } from "@/lib/db";
 import { createPendingOnlineOrder } from "@/lib/orders";
 import { createRazorpayClient } from "@/lib/razorpay";
 import { env } from "@/lib/env";
@@ -34,6 +35,13 @@ export async function POST(request: Request) {
       notes: {
         trackingCode: order.trackingCode
       }
+    });
+
+    // Persist the Razorpay order id so the webhook can map a captured payment
+    // back to this order even if the customer's browser never calls verify-payment.
+    await prisma.payment.update({
+      where: { orderId: order.id },
+      data: { razorpayOrderId: razorpayOrder.id }
     });
 
     return NextResponse.json({
