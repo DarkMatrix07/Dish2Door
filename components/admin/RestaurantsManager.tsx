@@ -149,8 +149,12 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
 
   async function toggleActive() {
     if (!selected) return;
-    await action({ action: "restaurant.active", id: selected.id, active: !selected.active });
-    toast.success(selected.active ? "Restaurant hidden" : "Restaurant is visible");
+    try {
+      await action({ action: "restaurant.active", id: selected.id, active: !selected.active });
+      toast.success(selected.active ? "Restaurant hidden" : "Restaurant is visible");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update restaurant");
+    }
   }
 
   async function deleteRestaurant() {
@@ -171,17 +175,34 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
   }
 
   async function createCourse() {
-    if (!selected || !courseName.trim()) return;
-    await action({ action: "course.create", restaurantId: selected.id, name: courseName, sortOrder: selected.courses.length });
-    setCourseName("");
-    toast.success("Course added");
+    if (!selected) return;
+    const name = courseName.trim();
+    if (name.length < 2) {
+      toast.error("Enter a course name (at least 2 characters).");
+      return;
+    }
+    try {
+      await action({ action: "course.create", restaurantId: selected.id, name, sortOrder: selected.courses.length });
+      setCourseName("");
+      toast.success("Course added");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not add course");
+    }
   }
 
   async function renameCourse(id: string, currentName: string) {
     const next = window.prompt("Course/category name", currentName)?.trim();
     if (!next) return;
-    await action({ action: "course.update", id, name: next });
-    toast.success("Course updated");
+    if (next.length < 2) {
+      toast.error("Course name must be at least 2 characters.");
+      return;
+    }
+    try {
+      await action({ action: "course.update", id, name: next });
+      toast.success("Course updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update course");
+    }
   }
 
   async function moveCourse(index: number, direction: -1 | 1) {
