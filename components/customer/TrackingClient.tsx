@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { CheckCircle2, LockKeyhole } from "lucide-react";
+import { CheckCircle2, LockKeyhole, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,27 @@ function statusIndex(status: Order["status"]) {
   if (status === "DELIVERED") return 2;
   if (status === "REACHED_CAMPUS") return 1;
   return 0;
+}
+
+function StarRating({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="mt-2 flex gap-1.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          aria-label={`${n} star${n > 1 ? "s" : ""}`}
+          onClick={() => onChange(n)}
+          className="rounded-md p-0.5 transition hover:scale-110"
+        >
+          <Star
+            size={32}
+            className={n <= value ? "fill-amber-400 text-amber-400" : "fill-transparent text-neutral-300"}
+          />
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function TrackingClient({ trackingCode }: { trackingCode: string }) {
@@ -192,15 +213,15 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <Card className="mt-6 bg-white p-6">
                 <h2 className="text-xl font-black text-neutral-950">Rate your order</h2>
                 <p className="mt-1 text-sm text-neutral-500">Your feedback helps the kitchen and delivery team.</p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <label className="text-sm font-semibold text-neutral-600">
-                    Food rating (1–5)
-                    <Input className="mt-2" type="number" min={1} max={5} value={rating.foodRating} onChange={(event) => setRating({ ...rating, foodRating: Number(event.target.value) })} />
-                  </label>
-                  <label className="text-sm font-semibold text-neutral-600">
-                    Delivery rating (1–5)
-                    <Input className="mt-2" type="number" min={1} max={5} value={rating.deliveryRating} onChange={(event) => setRating({ ...rating, deliveryRating: Number(event.target.value) })} />
-                  </label>
+                <div className="mt-4 grid gap-5 sm:grid-cols-2">
+                  <div className="text-sm font-semibold text-neutral-600">
+                    Food rating
+                    <StarRating value={rating.foodRating} onChange={(value) => setRating({ ...rating, foodRating: value })} />
+                  </div>
+                  <div className="text-sm font-semibold text-neutral-600">
+                    Delivery rating
+                    <StarRating value={rating.deliveryRating} onChange={(value) => setRating({ ...rating, deliveryRating: value })} />
+                  </div>
                 </div>
                 <Textarea className="mt-4" placeholder="Optional review" value={rating.review} onChange={(event) => setRating({ ...rating, review: event.target.value })} />
                 <Button className="mt-4" onClick={submitRating}>
