@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ChevronLeft, Plus, UtensilsCrossed } from "lucide-react";
 import { SectionCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { formatPaise } from "@/lib/utils";
 
@@ -23,6 +25,7 @@ type MenuItem = {
 type Restaurant = {
   id: string;
   name: string;
+  imageUrl?: string | null;
   courses: { id: string; name: string }[];
   menuItems: MenuItem[];
 };
@@ -31,15 +34,17 @@ const PLACEHOLDER = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?a
 
 export function ItemsManager({ initialRestaurants }: { initialRestaurants: Restaurant[] }) {
   const [restaurants, setRestaurants] = useState(initialRestaurants);
-  const [selectedId, setSelectedId] = useState(restaurants[0]?.id ?? "");
+  const [managingId, setManagingId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [item, setItem] = useState({ name: "", price: "", discountPercent: "0", courseId: "" });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
+  const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ name: "", price: "", discountPercent: "0", courseId: "" });
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
-  const selected = restaurants.find((restaurant) => restaurant.id === selectedId);
+  const selected = restaurants.find((restaurant) => restaurant.id === managingId);
 
   useEffect(() => {
     return () => {
@@ -86,6 +91,17 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
     });
   }
 
+  function openCreate() {
+    if (!selected) return;
+    if (!selected.courses.length) {
+      toast.error("Create a course before adding menu items.");
+      return;
+    }
+    setItem({ name: "", price: "", discountPercent: "0", courseId: selected.courses[0]?.id ?? "" });
+    onNewImage(undefined);
+    setShowCreate(true);
+  }
+
   async function createItem() {
     if (!selected) return;
     const courseId = item.courseId || selected.courses[0]?.id;
@@ -97,6 +113,7 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
       toast.error("Enter an item name and price.");
       return;
     }
+    setCreating(true);
     try {
       const imageUrl = imageFile ? await uploadImage(imageFile) : undefined;
       await action({
@@ -108,11 +125,14 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
         discountPercent: Number(item.discountPercent || 0),
         imageUrl
       });
+      setShowCreate(false);
       setItem({ name: "", price: "", discountPercent: "0", courseId: "" });
       onNewImage(undefined);
       toast.success("Menu item added");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add item");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -174,68 +194,76 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
     toast.success("Menu item deleted");
   }
 
-  return (
-    <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
-      <div className="space-y-5">
-        <SectionCard title="Select restaurant" description="Choose which inventory you are editing.">
-          <Select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-            <option value="">Select restaurant</option>
-            {restaurants.map((restaurant) => (
-              <option key={restaurant.id} value={restaurant.id}>
-                {restaurant.name}
-              </option>
-            ))}
-          </Select>
-          {selected ? (
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-xl bg-neutral-50 p-3">
-                <p className="text-xl font-bold">{selected.menuItems.length}</p>
-                <p className="text-xs text-neutral-500">Items</p>
-              </div>
-              <div className="rounded-xl bg-neutral-50 p-3">
-                <p className="text-xl font-bold">{selected.menuItems.filter((i) => i.available).length}</p>
-                <p className="text-xs text-neutral-500">Live</p>
-              </div>
-              <div className="rounded-xl bg-neutral-50 p-3">
-                <p className="text-xl font-bold">{selected.menuItems.filter((i) => !i.available).length}</p>
-                <p className="text-xs text-neutral-500">Out</p>
-              </div>
+  // ---- List view: restaurant names ----
+  if (!selected) {
+    return (
+      <SectionCard title="Menu items" description="Pick a restaurant to manage its items." bodyClassName="p-4 sm:p-5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {restaurants.map((restaurant) => {
+            const live = restaurant.menuItems.filter((menuItem) => menuItem.available).length;
+            return (
+              <button
+                key={restaurant.id}
+                type="button"
+                onClick={() => setManagingId(restaurant.id)}
+                className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-left transition hover:border-amber-300 hover:bg-amber-50"
+              >
+                <div
+                  className="h-14 w-14 shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center"
+                  style={{ backgroundImage: `url('${restaurant.imageUrl ?? PLACEHOLDER}')` }}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold text-neutral-950">{restaurant.name}</p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {restaurant.menuItems.length} item{restaurant.menuItems.length === 1 ? "" : "s"} · {live} live
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+          {!restaurants.length ? (
+            <div className="col-span-full grid place-items-center gap-3 rounded-xl bg-neutral-50 p-10 text-center text-neutral-500">
+              <UtensilsCrossed size={28} className="text-neutral-300" />
+              <p>No restaurants yet. Add one in Restaurants first.</p>
             </div>
           ) : null}
-        </SectionCard>
+        </div>
+      </SectionCard>
+    );
+  }
 
-        <SectionCard title="Add menu item" description="Price in INR. Discount is optional.">
-          <div className="space-y-3">
-            <Input placeholder="Item name" value={item.name} onChange={(event) => setItem({ ...item, name: event.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
-              <Input type="number" placeholder="Price (INR)" value={item.price} onChange={(event) => setItem({ ...item, price: event.target.value })} />
-              <Input type="number" min={0} max={90} placeholder="Discount %" value={item.discountPercent} onChange={(event) => setItem({ ...item, discountPercent: event.target.value })} />
-            </div>
-            <Select value={item.courseId} onChange={(event) => setItem({ ...item, courseId: event.target.value })}>
-              <option value="">Select course</option>
-              {selected?.courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
-                </option>
-              ))}
-            </Select>
-            <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3">
-              <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                <div className="h-20 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${imagePreview || PLACEHOLDER}')` }} />
-                <Input className="h-auto cursor-pointer bg-white py-2" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onNewImage(event.target.files?.[0])} />
-              </div>
-            </div>
-            <Button className="w-full" disabled={!selected || !selected.courses.length} onClick={createItem}>
-              Add item
-            </Button>
-            {!selected?.courses.length ? <p className="text-sm text-neutral-500">Create at least one course before adding items.</p> : null}
-          </div>
-        </SectionCard>
+  // ---- Detail view: items for one restaurant ----
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="outline" onClick={() => setManagingId(null)}>
+          <ChevronLeft size={16} className="-ml-1 mr-1" />
+          All restaurants
+        </Button>
+        <Button onClick={openCreate}>
+          <Plus size={16} className="-ml-1 mr-1" />
+          Add item
+        </Button>
       </div>
 
-      <SectionCard title={`Inventory${selected ? ` · ${selected.name}` : ""}`} description="Course, price, discount, stock status, and item actions." bodyClassName="p-0">
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <div className="rounded-xl border border-neutral-200 bg-white p-3">
+          <p className="text-xl font-bold">{selected.menuItems.length}</p>
+          <p className="text-xs text-neutral-500">Items</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 bg-white p-3">
+          <p className="text-xl font-bold">{selected.menuItems.filter((i) => i.available).length}</p>
+          <p className="text-xs text-neutral-500">Live</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 bg-white p-3">
+          <p className="text-xl font-bold">{selected.menuItems.filter((i) => !i.available).length}</p>
+          <p className="text-xs text-neutral-500">Out</p>
+        </div>
+      </div>
+
+      <SectionCard title={`Inventory · ${selected.name}`} description="Course, price, discount, stock status, and item actions." bodyClassName="p-0">
         <div className="divide-y divide-neutral-100">
-          {selected?.menuItems.map((menuItem) => (
+          {selected.menuItems.map((menuItem) => (
             <div key={menuItem.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:p-5">
               <div className="h-20 w-20 shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center" style={{ backgroundImage: `url('${menuItem.imageUrl ?? PLACEHOLDER}')` }} />
               <div className="min-w-0 flex-1">
@@ -298,12 +326,50 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
               </div>
             </div>
           ))}
-          {!selected ? <div className="p-8 text-center text-neutral-500">Select a restaurant to manage its items.</div> : null}
-          {selected && !selected.menuItems.length ? (
-            <div className="p-8 text-center text-neutral-500">No menu items yet. Add a course, then create your first item.</div>
+          {!selected.menuItems.length ? (
+            <div className="p-8 text-center text-neutral-500">No menu items yet. Use “Add item” to create your first one.</div>
           ) : null}
         </div>
       </SectionCard>
+
+      <Modal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Add menu item"
+        description={`New item for ${selected.name}. Price in INR, discount optional.`}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>
+              Cancel
+            </Button>
+            <Button disabled={creating} onClick={createItem}>
+              {creating ? "Adding..." : "Add item"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Input placeholder="Item name" value={item.name} onChange={(event) => setItem({ ...item, name: event.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input type="number" placeholder="Price (INR)" value={item.price} onChange={(event) => setItem({ ...item, price: event.target.value })} />
+            <Input type="number" min={0} max={90} placeholder="Discount %" value={item.discountPercent} onChange={(event) => setItem({ ...item, discountPercent: event.target.value })} />
+          </div>
+          <Select value={item.courseId} onChange={(event) => setItem({ ...item, courseId: event.target.value })}>
+            <option value="">Select course</option>
+            {selected.courses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.name}
+              </option>
+            ))}
+          </Select>
+          <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3">
+            <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+              <div className="h-20 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${imagePreview || PLACEHOLDER}')` }} />
+              <Input className="h-auto cursor-pointer bg-white py-2" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onNewImage(event.target.files?.[0])} />
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

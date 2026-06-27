@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 import { SectionCard, StatCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 
 type Coupon = {
   id: string;
@@ -31,6 +33,7 @@ function formatDateInput(value: Coupon["expiresAt"]) {
 
 export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] }) {
   const [coupons, setCoupons] = useState(initialCoupons);
+  const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({ code: "", description: "", discountPercent: "10", maxUses: "", expiresAt: "" });
 
   const stats = useMemo(
@@ -69,6 +72,7 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
         expiresAt: draft.expiresAt ? new Date(draft.expiresAt).toISOString() : null
       });
       setDraft({ code: "", description: "", discountPercent: "10", maxUses: "", expiresAt: "" });
+      setShowCreate(false);
       toast.success("Coupon created");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create coupon");
@@ -103,32 +107,18 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
         <StatCard label="Total uses" value={stats.uses} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
-        <SectionCard
-          title="Generate coupon"
-          description="Create checkout offers with expiry and usage limits."
-          actions={
-            <Button variant="outline" size="sm" onClick={() => setDraft({ ...draft, code: randomCode() })}>
-              Generate
-            </Button>
-          }
-        >
-          <div className="space-y-3">
-            <Input className="uppercase" placeholder="Coupon code" value={draft.code} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })} />
-            <Input placeholder="Description (optional)" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
-              <Input type="number" min={1} max={100} placeholder="Discount %" value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} />
-              <Input type="number" min={1} placeholder="Max uses" value={draft.maxUses} onChange={(event) => setDraft({ ...draft, maxUses: event.target.value })} />
-            </div>
-            <Input type="date" value={draft.expiresAt} onChange={(event) => setDraft({ ...draft, expiresAt: event.target.value })} />
-            <Button className="w-full" onClick={createCoupon}>
-              Add coupon
-            </Button>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Coupon control" description="Pause, activate, adjust validity, and watch usage." bodyClassName="p-0">
-          <div className="grid gap-3 p-4 sm:p-5 md:grid-cols-2">
+      <SectionCard
+        title="Coupon control"
+        description="Pause, activate, adjust validity, and watch usage."
+        actions={
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus size={16} className="-ml-1 mr-1" />
+            Add coupon
+          </Button>
+        }
+        bodyClassName="p-0"
+      >
+        <div className="grid gap-3 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-3">
             {coupons.map((coupon) => {
               const expired = coupon.expiresAt ? new Date(coupon.expiresAt) < new Date() : false;
               const fullyUsed = coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses;
@@ -172,10 +162,48 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
                 </div>
               );
             })}
-            {!coupons.length ? <div className="rounded-xl bg-neutral-50 p-8 text-center text-neutral-500 md:col-span-2">No coupons created yet.</div> : null}
+          {!coupons.length ? <div className="rounded-xl bg-neutral-50 p-8 text-center text-neutral-500 md:col-span-2 xl:col-span-3">No coupons created yet.</div> : null}
+        </div>
+      </SectionCard>
+
+      <Modal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Generate coupon"
+        description="Create a checkout offer with expiry and usage limits."
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createCoupon}>Add coupon</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Input className="uppercase" placeholder="Coupon code" value={draft.code} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase() })} />
+            <Button variant="outline" onClick={() => setDraft({ ...draft, code: randomCode() })}>
+              Generate
+            </Button>
           </div>
-        </SectionCard>
-      </div>
+          <Input placeholder="Description (optional)" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-semibold text-neutral-500">
+              Discount %
+              <Input className="mt-1" type="number" min={1} max={100} placeholder="Discount %" value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} />
+            </label>
+            <label className="text-xs font-semibold text-neutral-500">
+              Max uses
+              <Input className="mt-1" type="number" min={1} placeholder="Unlimited" value={draft.maxUses} onChange={(event) => setDraft({ ...draft, maxUses: event.target.value })} />
+            </label>
+          </div>
+          <label className="block text-xs font-semibold text-neutral-500">
+            Expires
+            <Input className="mt-1" type="date" value={draft.expiresAt} onChange={(event) => setDraft({ ...draft, expiresAt: event.target.value })} />
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 }
