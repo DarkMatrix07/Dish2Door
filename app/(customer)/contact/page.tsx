@@ -16,8 +16,9 @@ export default function ContactPage() {
           title: "Customer support",
           body: [
             "For order help, keep your tracking code and phone number ready. This helps the admin find your order quickly.",
-            "Contact number: 63022 50978."
-          ]
+            "Contact number: 63022 50978. You can call or message us on WhatsApp using the button below."
+          ],
+          action: { label: "Chat on WhatsApp", href: "https://wa.me/916302250978" }
         },
         {
           title: "Order issues",
@@ -30,7 +31,8 @@ export default function ContactPage() {
           title: "Business details",
           body: [
             "Business name: Dish2Door.",
-            "Dish2Door operates as a campus food ordering service and does not have a physical customer office. Support is handled through the contact number listed above."
+            "Operating location: Vijayawada, Andhra Pradesh, India.",
+            "Dish2Door operates as a campus food ordering service and does not have a physical customer office. Support is handled through the contact number and WhatsApp listed above."
           ]
         }
       ]}

@@ -1,9 +1,11 @@
+import { MessageCircle } from "lucide-react";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { SiteNav } from "@/components/customer/SiteNav";
 
 type Section = {
   title: string;
   body: string[];
+  action?: { label: string; href: string };
 };
 
 export function LegalPage({
@@ -39,6 +41,17 @@ export function LegalPage({
                   <p key={paragraph}>{paragraph}</p>
                 ))}
               </div>
+              {section.action ? (
+                <a
+                  href={section.action.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:brightness-95"
+                >
+                  <MessageCircle size={18} />
+                  {section.action.label}
+                </a>
+              ) : null}
             </section>
           ))}
         </div>
