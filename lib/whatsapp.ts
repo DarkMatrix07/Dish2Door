@@ -28,22 +28,37 @@ function normalizePhone(phone: string) {
   return digits;
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function sendWhatsApp(order: FullOrder, message: string) {
   const url = requireEnv("WHATSAPP_API_URL");
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(env.WHATSAPP_API_KEY ? { "x-service-key": env.WHATSAPP_API_KEY } : {})
-    },
-    body: JSON.stringify({
-      phone: normalizePhone(order.customerPhone),
-      text: message
-    })
-  });
+  const body = JSON.stringify({ phone: normalizePhone(order.customerPhone), text: message });
 
-  if (!response.ok) {
+  // WAHA's WhatsApp-Web engine occasionally tears down its Chromium context
+  // mid-send (e.g. right after a session restart) and returns a 5xx with
+  // "Execution context was destroyed". These clear within a few seconds, so
+  // retry server errors with backoff. 4xx (bad number etc.) fail fast.
+  const maxAttempts = 3;
+  let lastError = "";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(env.WHATSAPP_API_KEY ? { "x-service-key": env.WHATSAPP_API_KEY } : {})
+      },
+      body
+    });
+
+    if (response.ok) return;
+
     const details = await response.text().catch(() => "");
-    throw new Error(`WhatsApp API failed with ${response.status}${details ? `: ${details}` : ""}`);
+    lastError = `${response.status}${details ? `: ${details}` : ""}`;
+
+    if (response.status < 500 || attempt === maxAttempts) {
+      throw new Error(`WhatsApp API failed with ${lastError}`);
+    }
+    await delay(attempt * 3000);
   }
 }
