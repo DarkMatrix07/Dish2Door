@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DeliveryType } from "@prisma/client";
+import { DeliveryType, OrderSlot } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { createPendingOnlineOrder } from "@/lib/orders";
@@ -13,7 +13,8 @@ const bodySchema = z.object({
     phone: z.string().min(8),
     deliveryType: z.nativeEnum(DeliveryType),
     hostelBlock: z.string().optional(),
-    couponCode: z.string().optional()
+    couponCode: z.string().optional(),
+    orderSlot: z.nativeEnum(OrderSlot)
   }),
   items: z.array(
     z.object({

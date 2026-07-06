@@ -59,7 +59,8 @@ export function CartPageClient({ settings }: { settings: Settings }) {
     email: "",
     phone: "",
     deliveryType: "GATE",
-    hostelBlock: ""
+    hostelBlock: "",
+    orderSlot: "AFTERNOON"
   });
 
   useEffect(() => {
@@ -286,6 +287,28 @@ export function CartPageClient({ settings }: { settings: Settings }) {
                 onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })}
               />
             ) : null}
+            <div>
+              <p className="mb-2 text-sm font-semibold text-neutral-600">When do you want it?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: "AFTERNOON", label: "Afternoon" },
+                  { value: "NIGHT", label: "Night" }
+                ].map((slot) => (
+                  <button
+                    key={slot.value}
+                    type="button"
+                    onClick={() => setCustomer({ ...customer, orderSlot: slot.value })}
+                    className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
+                      customer.orderSlot === slot.value
+                        ? "border-amber-400 bg-amber-50 text-amber-900 ring-1 ring-amber-200"
+                        : "border-neutral-300 bg-white text-neutral-600 hover:border-amber-300"
+                    }`}
+                  >
+                    {slot.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-3">

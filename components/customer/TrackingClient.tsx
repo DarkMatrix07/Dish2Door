@@ -19,6 +19,7 @@ type Order = {
   customerPhone: string;
   deliveryType: "GATE" | "HOSTEL";
   hostelBlock: string | null;
+  orderSlot: "AFTERNOON" | "NIGHT" | null;
   status: "ORDER_CONFIRMED" | "REACHED_CAMPUS" | "DELIVERED" | "CANCELLED";
   totalPaise: number;
   restaurant: { name: string };
@@ -155,6 +156,7 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <h1 className="mt-3 text-4xl font-black tracking-tight text-neutral-950 sm:text-5xl">{order.restaurant.name}</h1>
               <p className="mt-2 text-neutral-600">
                 {order.customerName} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Campus gate"}
+                {order.orderSlot ? ` · ${order.orderSlot === "NIGHT" ? "Night" : "Afternoon"}` : ""}
               </p>
             </div>
 

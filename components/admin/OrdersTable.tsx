@@ -23,6 +23,7 @@ type Order = {
   hostelBlock: string | null;
   status: "ORDER_CONFIRMED" | "REACHED_CAMPUS" | "DELIVERED" | "CANCELLED";
   paymentStatus: string;
+  orderSlot: "AFTERNOON" | "NIGHT" | null;
   source: string;
   totalPaise: number;
   createdAt: string | Date;
@@ -250,6 +251,7 @@ export function OrdersTable({
                   <Badge tone={order.paymentStatus.includes("PAID") ? "green" : order.paymentStatus === "REFUNDED" ? "amber" : "red"}>
                     {order.paymentStatus.replaceAll("_", " ")}
                   </Badge>
+                  {order.orderSlot ? <Badge tone="amber">{order.orderSlot === "NIGHT" ? "Night" : "Afternoon"}</Badge> : null}
                 </div>
                 <p className="mt-1 text-sm text-neutral-500">
                   {order.restaurant.name} · {order.customerPhone} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Gate"} · {order.session.label}

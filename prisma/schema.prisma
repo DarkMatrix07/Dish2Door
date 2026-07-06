@@ -28,6 +28,11 @@ enum OrderSource {
   ADMIN_MANUAL
 }
 
+enum OrderSlot {
+  AFTERNOON
+  NIGHT
+}
+
 enum PaymentStatus {
   PENDING
   PAID_ONLINE
@@ -196,6 +201,7 @@ model Order {
   hostelBlock           String?
   status                OrderStatus  @default(ORDER_CONFIRMED)
   source                OrderSource
+  orderSlot             OrderSlot?
   paymentStatus         PaymentStatus
   subtotalPaise         Int
   platformFeePaise      Int

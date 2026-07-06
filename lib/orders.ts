@@ -1,6 +1,7 @@
 import {
   DeliveryType,
   NotificationEvent,
+  OrderSlot,
   OrderSource,
   OrderStatus,
   PaymentStatus,
@@ -27,6 +28,7 @@ export type CustomerDetails = {
   deliveryType: DeliveryType;
   hostelBlock?: string;
   couponCode?: string;
+  orderSlot?: OrderSlot;
 };
 
 // Notifications can be slow or flaky (WhatsApp/SMTP). Order mutations update the
@@ -141,6 +143,7 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,
         source: OrderSource.CUSTOMER_ONLINE,
+        orderSlot: details.orderSlot ?? null,
         paymentStatus: PaymentStatus.PENDING,
         couponCode: validCoupon?.code,
         restaurantId: resolved.restaurantId,
