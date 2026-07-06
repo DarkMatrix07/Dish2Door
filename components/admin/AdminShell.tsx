@@ -33,6 +33,7 @@ const NAV: NavEntry[] = [
     icon: ClipboardList,
     children: [
       { href: "/admin/orders", label: "Live orders" },
+      { href: "/admin/orders/today", label: "Today's orders" },
       { href: "/admin/orders/new", label: "New manual order" }
     ]
   },
@@ -69,7 +70,9 @@ const NAV: NavEntry[] = [
 ];
 
 function isLinkActive(pathname: string, href: string) {
-  if (href === "/admin") return pathname === "/admin";
+  // Exact-match parents that have deeper sibling routes, so they don't stay
+  // highlighted on their sub-pages (e.g. /admin/orders vs /admin/orders/today).
+  if (href === "/admin" || href === "/admin/orders") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
