@@ -316,7 +316,7 @@ export function CartPageClient({ settings }: { settings: Settings }) {
             <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
               <Input
                 className="uppercase"
-                placeholder="HOSTEL10"
+                placeholder="Enter code"
                 value={couponCode}
                 onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
               />
