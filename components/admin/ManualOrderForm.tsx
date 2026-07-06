@@ -32,6 +32,7 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
     phone: "",
     deliveryType: "GATE",
     hostelBlock: "",
+    orderSlot: "AFTERNOON",
     paymentStatus: "PAID_MANUALLY"
   });
 
@@ -76,7 +77,7 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
       if (!response.ok) throw new Error(data.error ?? "Could not create manual order");
       toast.success(`Manual order created. Passcode: ${data.passcode}`);
       setItems([]);
-      setCustomer({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", paymentStatus: "PAID_MANUALLY" });
+      setCustomer({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON", paymentStatus: "PAID_MANUALLY" });
       router.push("/admin/orders");
       router.refresh();
     } catch (error) {
@@ -106,6 +107,10 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
           {customer.deliveryType === "HOSTEL" ? (
             <Input placeholder="Hostel block" value={customer.hostelBlock} onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })} />
           ) : null}
+          <Select value={customer.orderSlot} onChange={(event) => setCustomer({ ...customer, orderSlot: event.target.value })}>
+            <option value="AFTERNOON">Deliver by afternoon</option>
+            <option value="NIGHT">Deliver by night</option>
+          </Select>
         </div>
       </SectionCard>
 

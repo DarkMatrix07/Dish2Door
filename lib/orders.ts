@@ -273,6 +273,7 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,
         source: OrderSource.ADMIN_MANUAL,
+        orderSlot: details.orderSlot ?? null,
         paymentStatus,
         restaurantId: resolved.restaurantId,
         sessionId: session.id,

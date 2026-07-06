@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DeliveryType, PaymentStatus } from "@prisma/client";
+import { DeliveryType, OrderSlot, PaymentStatus } from "@prisma/client";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { createManualOrder } from "@/lib/orders";
@@ -10,7 +10,8 @@ const schema = z.object({
     email: z.string().email().optional().or(z.literal("")),
     phone: z.string().min(8),
     deliveryType: z.nativeEnum(DeliveryType),
-    hostelBlock: z.string().optional()
+    hostelBlock: z.string().optional(),
+    orderSlot: z.nativeEnum(OrderSlot)
   }),
   items: z.array(z.object({ menuItemId: z.string(), quantity: z.number().int().min(1).max(20) })).min(1),
   paymentStatus: z.nativeEnum(PaymentStatus)
