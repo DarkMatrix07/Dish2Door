@@ -83,6 +83,13 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
     }
 
     const slotLabel = slotKey === "NIGHT" ? "Deliver by Night" : "Deliver by Afternoon";
+    const slotWord = slotKey === "NIGHT" ? "Night" : "Afternoon";
+    // Default download filename (browsers use the document title): date + slot + time.
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fileTitle = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${slotWord} orders ${pad(
+      now.getHours()
+    )}-${pad(now.getMinutes())}`;
     const slotOrders = orders.filter((o) => slotOf(o) === slotKey);
     const restaurants = groupByRestaurant(slotOrders);
     const body = restaurants
@@ -112,7 +119,7 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
       })
       .join("");
 
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Dish2Door — ${escapeHtml(slotLabel)} — ${escapeHtml(dateLabel)}</title>
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(fileTitle)}</title>
       <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 28px; }
@@ -133,6 +140,7 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
       ${body || "<p>No orders in this slot.</p>"}
       </body></html>`);
     win.document.close();
+    win.document.title = fileTitle;
     win.focus();
     win.print();
   }
