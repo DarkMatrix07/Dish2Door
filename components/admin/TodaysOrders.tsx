@@ -75,50 +75,44 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
     [orders]
   );
 
-  function generatePdf() {
+  function generatePdf(slotKey: "AFTERNOON" | "NIGHT") {
     const win = window.open("", "_blank", "width=900,height=1000");
     if (!win) {
       toast.error("Allow pop-ups to generate the PDF.");
       return;
     }
 
-    const restaurants = groupByRestaurant(orders);
+    const slotLabel = slotKey === "NIGHT" ? "Deliver by Night" : "Deliver by Afternoon";
+    const slotOrders = orders.filter((o) => slotOf(o) === slotKey);
+    const restaurants = groupByRestaurant(slotOrders);
     const body = restaurants
       .map(([name, restaurantOrders]) => {
-        const slotBlocks = SLOTS.map((slot) => {
-          const slotOrders = restaurantOrders.filter((o) => slotOf(o) === slot.key);
-          if (!slotOrders.length) return "";
-          const summary = aggregateItems(slotOrders)
-            .map(([itemName, qty]) => `${qty}× ${escapeHtml(itemName)}`)
-            .join(", ");
-          const rows = slotOrders
-            .map(
-              (o, i) => `<tr>
+        const summary = aggregateItems(restaurantOrders)
+          .map(([itemName, qty]) => `${qty}× ${escapeHtml(itemName)}`)
+          .join(", ");
+        const rows = restaurantOrders
+          .map(
+            (o, i) => `<tr>
                 <td>${i + 1}</td>
                 <td>${escapeHtml(o.customerName)}<br><span class="muted">${escapeHtml(o.customerPhone)}</span></td>
                 <td>${escapeHtml(deliveryLabel(o))}</td>
                 <td>${o.items.map((it) => `${it.quantity}× ${escapeHtml(it.nameSnapshot)}`).join("<br>")}</td>
                 <td class="right">${formatPaise(o.totalPaise)}</td>
               </tr>`
-            )
-            .join("");
-          return `<div class="slot">
-            <h3>${slot.label} — ${slotOrders.length} order${slotOrders.length === 1 ? "" : "s"}</h3>
-            <p class="summary"><strong>To prepare:</strong> ${summary}</p>
-            <table>
-              <thead><tr><th>#</th><th>Customer</th><th>Delivery</th><th>Items</th><th class="right">Total</th></tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>`;
-        }).join("");
+          )
+          .join("");
         return `<section class="restaurant">
           <h2>${escapeHtml(name)} <span class="muted">(${restaurantOrders.length} order${restaurantOrders.length === 1 ? "" : "s"})</span></h2>
-          ${slotBlocks}
+          <p class="summary"><strong>To prepare:</strong> ${summary}</p>
+          <table>
+            <thead><tr><th>#</th><th>Customer</th><th>Delivery</th><th>Items</th><th class="right">Total</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
         </section>`;
       })
       .join("");
 
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Dish2Door orders — ${escapeHtml(dateLabel)}</title>
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Dish2Door — ${escapeHtml(slotLabel)} — ${escapeHtml(dateLabel)}</title>
       <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 28px; }
@@ -126,7 +120,6 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
         .meta { color: #666; font-size: 12px; margin-bottom: 18px; }
         section.restaurant { margin-bottom: 22px; page-break-inside: avoid; }
         h2 { font-size: 17px; border-bottom: 2px solid #111; padding-bottom: 4px; margin: 18px 0 8px; }
-        h3 { font-size: 13px; margin: 12px 0 4px; color: #b45309; }
         .summary { font-size: 12px; margin: 0 0 6px; background: #fff7ed; padding: 6px 8px; border-radius: 6px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         th, td { border: 1px solid #ddd; padding: 5px 7px; text-align: left; vertical-align: top; }
@@ -135,9 +128,9 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
         .muted { color: #666; font-weight: normal; }
         @media print { body { margin: 12mm; } }
       </style></head><body>
-      <h1>Dish2Door — Today's orders</h1>
-      <div class="meta">${escapeHtml(dateLabel)} · ${orders.length} order${orders.length === 1 ? "" : "s"} · Afternoon ${counts.afternoon} · Night ${counts.night}${counts.none ? ` · No slot ${counts.none}` : ""}</div>
-      ${body || "<p>No orders today.</p>"}
+      <h1>Dish2Door — ${escapeHtml(slotLabel)}</h1>
+      <div class="meta">${escapeHtml(dateLabel)} · ${slotOrders.length} order${slotOrders.length === 1 ? "" : "s"}</div>
+      ${body || "<p>No orders in this slot.</p>"}
       </body></html>`);
     win.document.close();
     win.focus();
@@ -152,10 +145,16 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
           <StatCard label="Afternoon" value={counts.afternoon} />
           <StatCard label="Night" value={counts.night} />
         </div>
-        <Button onClick={generatePdf} disabled={!orders.length}>
-          <FileDown size={16} className="-ml-1 mr-1" />
-          Generate PDF
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => generatePdf("AFTERNOON")} disabled={!counts.afternoon}>
+            <FileDown size={16} className="-ml-1 mr-1" />
+            Afternoon PDF
+          </Button>
+          <Button onClick={() => generatePdf("NIGHT")} disabled={!counts.night}>
+            <FileDown size={16} className="-ml-1 mr-1" />
+            Night PDF
+          </Button>
+        </div>
       </div>
 
       {!orders.length ? (
