@@ -45,6 +45,19 @@ body {
   outline-color: #c65d24;
 }
 
+@keyframes dish-loading-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(220%); }
+}
+
+.dish-loading-bar {
+  animation: dish-loading-slide 1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dish-loading-bar { animation-duration: 2.5s; }
+}
+
 button,
 input,
 select,
@@ -63,6 +76,10 @@ a {
 
 .home-gold-cta {
   color: #171713;
+}
+
+.menu-cart-link {
+  color: #ffffff;
 }
 
 .ambient-grid {
