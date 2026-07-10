@@ -9,17 +9,15 @@ const legalLinks = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-neutral-200 bg-[#fff8ec]">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 text-sm text-neutral-600 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+    <footer className="bg-[#f7f3eb]">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-7 px-5 py-10 text-sm text-[#6c6458] sm:px-8 lg:flex-row lg:items-end lg:justify-between lg:px-12 lg:py-12">
         <div>
-          <p className="font-black text-neutral-950">Dish2Door</p>
-          <p className="mt-1">Campus food ordering — gate pickup or hostel delivery.</p>
+          <p className="text-xl font-black tracking-[-0.03em] text-[#171713]">Dish2Door</p>
+          <p className="mt-2">Good food, from campus kitchens to your door.</p>
         </div>
-        <nav className="flex flex-wrap gap-x-5 gap-y-2">
+        <nav className="flex flex-wrap gap-x-5 gap-y-2" aria-label="Legal and support">
           {legalLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="font-semibold hover:text-neutral-950">
-              {link.label}
-            </Link>
+            <Link key={link.href} href={link.href} className="font-semibold transition-colors hover:text-[#c65d24]">{link.label}</Link>
           ))}
         </nav>
       </div>
