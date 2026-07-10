@@ -1,14 +1,11 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
 import { formatPaise } from "@/lib/utils";
@@ -36,11 +33,7 @@ function discountedUnitPrice(item: StoredCartItem) {
 
 function loadRazorpayScript() {
   return new Promise<boolean>((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-
+    if (window.Razorpay) return resolve(true);
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.onload = () => resolve(true);
@@ -49,23 +42,16 @@ function loadRazorpayScript() {
   });
 }
 
+const fieldClass = "h-12 w-full rounded-md border border-black/12 bg-white/75 px-4 text-sm font-medium text-[#171713] outline-none transition placeholder:text-[#a29b90] focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10";
+
 export function CartPageClient({ settings }: { settings: Settings }) {
   const [cart, setCart] = useState<StoredCartItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
-  const [customer, setCustomer] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    deliveryType: "GATE",
-    hostelBlock: "",
-    orderSlot: "AFTERNOON"
-  });
+  const [customer, setCustomer] = useState({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON" });
 
-  useEffect(() => {
-    setCart(readStoredCart());
-  }, []);
+  useEffect(() => setCart(readStoredCart()), []);
 
   function persist(nextCart: StoredCartItem[]) {
     setCart(nextCart);
@@ -73,11 +59,7 @@ export function CartPageClient({ settings }: { settings: Settings }) {
   }
 
   function updateQty(id: string, delta: number) {
-    persist(
-      cart
-        .map((item) => (item.id === id ? { ...item, quantity: item.quantity + delta } : item))
-        .filter((item) => item.quantity > 0)
-    );
+    persist(cart.map((item) => item.id === id ? { ...item, quantity: item.quantity + delta } : item).filter((item) => item.quantity > 0));
   }
 
   function emptyCart() {
@@ -91,23 +73,13 @@ export function CartPageClient({ settings }: { settings: Settings }) {
     const hostelFeePaise = customer.deliveryType === "HOSTEL" ? settings.hostelDeliveryFeePaise : 0;
     const basePaise = Math.max(0, subtotalPaise - couponDiscountPaise) + settings.platformFeePaise + hostelFeePaise;
     const paymentFeePaise = paymentFee(basePaise, settings);
-    return {
-      subtotalPaise,
-      couponDiscountPaise,
-      hostelFeePaise,
-      paymentFeePaise,
-      totalPaise: basePaise + paymentFeePaise
-    };
+    return { subtotalPaise, couponDiscountPaise, hostelFeePaise, paymentFeePaise, totalPaise: basePaise + paymentFeePaise };
   }, [cart, coupon, customer.deliveryType, settings]);
 
   async function applyCoupon() {
     if (!couponCode.trim()) return;
     try {
-      const response = await fetch("/api/coupons/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: couponCode.trim() })
-      });
+      const response = await fetch("/api/coupons/validate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: couponCode.trim() }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Coupon not valid");
       setCoupon(data);
@@ -118,75 +90,48 @@ export function CartPageClient({ settings }: { settings: Settings }) {
   }
 
   async function checkout() {
-    if (!cart.length) {
-      toast.error("Your cart is empty.");
-      return;
-    }
-    if (!customer.name || !customer.email || !customer.phone) {
-      toast.error("Name, email, and phone are required.");
-      return;
-    }
-    if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) {
-      toast.error("Hostel block is required for hostel delivery.");
-      return;
-    }
+    if (!cart.length) return toast.error("Your cart is empty.");
+    if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
+    if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Hostel block is required for hostel delivery.");
 
     setBusy(true);
     try {
       const loaded = await loadRazorpayScript();
       if (!loaded || !window.Razorpay) throw new Error("Razorpay checkout could not load");
-
       const response = await fetch("/api/orders/create-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer: { ...customer, couponCode: coupon?.code },
-          items: cart.map((item) => ({ menuItemId: item.id, quantity: item.quantity }))
-        })
+        body: JSON.stringify({ customer: { ...customer, couponCode: coupon?.code }, items: cart.map((item) => ({ menuItemId: item.id, quantity: item.quantity })) })
       });
       const payment = await response.json();
       if (!response.ok) throw new Error(payment.error ?? "Could not start payment");
 
-      const checkoutWindow = new window.Razorpay({
+      new window.Razorpay({
         key: payment.razorpayKeyId,
         amount: payment.amountPaise,
         currency: "INR",
         name: "Dish2Door",
         description: cart[0]?.restaurantName,
         order_id: payment.razorpayOrderId,
-        prefill: {
-          name: customer.name,
-          email: customer.email,
-          contact: customer.phone
-        },
+        prefill: { name: customer.name, email: customer.email, contact: customer.phone },
         handler: async (result: Record<string, string>) => {
           const verifyResponse = await fetch("/api/orders/verify-payment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              orderId: payment.orderId,
-              razorpayOrderId: result.razorpay_order_id,
-              razorpayPaymentId: result.razorpay_payment_id,
-              razorpaySignature: result.razorpay_signature
-            })
+            body: JSON.stringify({ orderId: payment.orderId, razorpayOrderId: result.razorpay_order_id, razorpayPaymentId: result.razorpay_payment_id, razorpaySignature: result.razorpay_signature })
           });
           const verified = await verifyResponse.json();
-          if (!verifyResponse.ok) {
-            toast.error(verified.error ?? "Payment verification failed");
-            return;
-          }
+          if (!verifyResponse.ok) return toast.error(verified.error ?? "Payment verification failed");
           clearStoredCart();
           if (verified.passcode) {
             window.sessionStorage.setItem(`dish2door_passcode_${verified.trackingCode}`, verified.passcode);
             toast.success(`Order confirmed. Passcode: ${verified.passcode}`);
           } else {
-            toast.success("Order confirmed! Your passcode has been sent to your email and WhatsApp.");
+            toast.success("Order confirmed. Your passcode has been sent by email and WhatsApp.");
           }
           window.location.href = `/orders/${verified.trackingCode}`;
         }
-      });
-
-      checkoutWindow.open();
+      }).open();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Checkout failed");
     } finally {
@@ -195,172 +140,72 @@ export function CartPageClient({ settings }: { settings: Settings }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#fff8ec]">
-      <header className="border-b border-neutral-200 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
-          <Link href="/" className="text-lg font-black">
-            Dish2Door
-          </Link>
-          <Link href="/menu">
-            <Button variant="outline">Back to menu</Button>
-          </Link>
-        </div>
-      </header>
-
-      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_420px] lg:px-8">
-        <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="mb-6">
-            <p className="font-semibold text-amber-700">Review carefully</p>
-            <h1 className="mt-2 text-4xl font-black tracking-tight text-neutral-950 sm:text-5xl">Your cart</h1>
-            <p className="mt-3 max-w-2xl text-neutral-600">
-              Confirm items, delivery choice, contact details, and the final payable amount before checkout.
-            </p>
+    <main id="main-content" className="min-h-screen bg-[#f7f3eb] text-[#171713]">
+      <section className="relative border-b border-black/10">
+        <SiteNav />
+        <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-32 sm:px-8 lg:px-12 lg:pb-14 lg:pt-40">
+          <Link href="/menu" className="inline-flex items-center gap-2 text-sm font-bold text-[#6c6458] transition hover:text-[#c65d24]"><ArrowLeft size={16} /> Continue browsing</Link>
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div><h1 className="text-5xl font-black leading-none tracking-[-0.055em] sm:text-7xl">Your order.</h1><p className="mt-4 max-w-xl text-lg leading-8 text-[#6c6458]">Review every detail before payment. We will send your private tracking link after confirmation.</p></div>
+            {cart.length ? <p className="font-mono text-xs text-[#817a70]">{cart.reduce((sum, item) => sum + item.quantity, 0).toString().padStart(2, "0")} ITEMS</p> : null}
           </div>
+        </div>
+      </section>
 
-          {cart.length ? (
-            <div className="space-y-4">
-              {cart.map((item) => (
-                <Card key={item.id} className="grid gap-4 p-4 sm:grid-cols-[112px_1fr_auto] sm:items-center">
-                  <img
-                    alt={item.name}
-                    className="h-28 w-full rounded-2xl object-cover sm:w-28"
-                    src={
-                      item.imageUrl ??
-                      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=85"
-                    }
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-700">{item.restaurantName}</p>
-                    <h2 className="text-xl font-black">{item.name}</h2>
-                    <p className="mt-1 text-sm text-neutral-500">{item.description}</p>
-                    <p className="mt-2 font-bold">
-                      {formatPaise(discountedUnitPrice(item))} each
-                      {item.discountPercent ? (
-                        <span className="ml-2 text-sm font-semibold text-neutral-400 line-through">{formatPaise(item.pricePaise)}</span>
-                      ) : null}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="icon" onClick={() => updateQty(item.id, -1)}>
-                        <Minus size={14} />
-                      </Button>
-                      <span className="w-8 text-center font-black">{item.quantity}</span>
-                      <Button variant="outline" size="icon" onClick={() => updateQty(item.id, 1)}>
-                        <Plus size={14} />
-                      </Button>
-                    </div>
-                    <p className="text-lg font-black">{formatPaise(discountedUnitPrice(item) * item.quantity)}</p>
-                  </div>
-                </Card>
-              ))}
-              <Button variant="ghost" onClick={emptyCart}>
-                <Trash2 size={16} /> Clear cart
-              </Button>
-            </div>
-          ) : (
-            <Card className="p-10 text-center">
-              <ShoppingBag className="mx-auto text-amber-700" />
-              <h2 className="mt-4 text-2xl font-black">Your cart is empty</h2>
-              <p className="mt-2 text-neutral-500">Add items from the menu and they will appear here.</p>
-              <Link href="/menu">
-                <Button className="mt-5">Browse menu</Button>
-              </Link>
-            </Card>
-          )}
-        </motion.div>
-
-        <aside className="h-fit rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm lg:sticky lg:top-6">
-          <h2 className="text-2xl font-black">Checkout details</h2>
-          <div className="mt-5 space-y-3">
-            <Input placeholder="Name" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} />
-            <Input placeholder="Email" type="email" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} />
-            <Input placeholder="Phone number" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} />
-            <Select value={customer.deliveryType} onChange={(event) => setCustomer({ ...customer, deliveryType: event.target.value })}>
-              <option value="GATE">Deliver to gate</option>
-              <option value="HOSTEL">Deliver to hostel</option>
-            </Select>
-            {customer.deliveryType === "HOSTEL" ? (
-              <Input
-                placeholder="Hostel block"
-                value={customer.hostelBlock}
-                onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })}
-              />
-            ) : null}
+      {!cart.length ? (
+        <section className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 lg:px-12 lg:py-24">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="grid min-h-96 place-items-center rounded-2xl border border-dashed border-black/15 bg-white/40 px-6 text-center">
+            <div><span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#e9e5dd]"><ShoppingBag size={22} /></span><h2 className="mt-6 text-3xl font-black tracking-[-0.04em]">Nothing in your cart yet</h2><p className="mx-auto mt-3 max-w-sm leading-7 text-[#716a5f]">Choose a restaurant and add a few favourites. Your order will wait here.</p><Link href="/menu" className="cart-dark-link mt-7 inline-flex h-12 items-center gap-4 rounded-md bg-[#171713] px-6 font-bold transition hover:-translate-y-0.5 hover:bg-[#c65d24]">Browse the menu <ArrowRight size={17} /></Link></div>
+          </motion.div>
+        </section>
+      ) : (
+        <section className="mx-auto grid max-w-[1440px] gap-12 px-5 py-10 pb-24 sm:px-8 lg:grid-cols-[minmax(0,1fr)_25rem] lg:gap-16 lg:px-12 lg:py-16">
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex items-center justify-between border-b border-black/12 pb-4"><h2 className="text-2xl font-black tracking-[-0.035em]">From {cart[0]?.restaurantName}</h2><button type="button" onClick={emptyCart} className="inline-flex items-center gap-2 text-sm font-bold text-[#8a342c] transition hover:text-[#b23f32]"><Trash2 size={15} /> Clear cart</button></div>
             <div>
-              <p className="mb-2 text-sm font-semibold text-neutral-600">When do you want it?</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: "AFTERNOON", label: "Afternoon" },
-                  { value: "NIGHT", label: "Night" }
-                ].map((slot) => (
-                  <button
-                    key={slot.value}
-                    type="button"
-                    onClick={() => setCustomer({ ...customer, orderSlot: slot.value })}
-                    className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${
-                      customer.orderSlot === slot.value
-                        ? "border-amber-400 bg-amber-50 text-amber-900 ring-1 ring-amber-200"
-                        : "border-neutral-300 bg-white text-neutral-600 hover:border-amber-300"
-                    }`}
-                  >
-                    {slot.label}
+              {cart.map((item) => (
+                <motion.article layout key={item.id} className="grid grid-cols-[6.5rem_1fr] gap-4 border-b border-black/10 py-6 sm:grid-cols-[7.5rem_1fr_auto] sm:items-center sm:gap-6">
+                  <img alt={item.name} className="h-28 w-full rounded-xl object-cover" src={item.imageUrl ?? "/dish2door-home-hero.png"} />
+                  <div className="min-w-0"><h3 className="text-lg font-black tracking-[-0.025em] sm:text-xl">{item.name}</h3>{item.description ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#716a5f]">{item.description}</p> : null}<div className="mt-3 flex items-center gap-2"><span className="font-black tabular-nums">{formatPaise(discountedUnitPrice(item))}</span>{item.discountPercent ? <span className="text-sm text-[#9a9388] line-through">{formatPaise(item.pricePaise)}</span> : null}</div></div>
+                  <div className="col-span-2 flex items-center justify-between sm:col-span-1 sm:flex-col sm:items-end sm:gap-3">
+                    <div className="flex h-10 items-center rounded-md border border-black/12 bg-white/70"><button type="button" aria-label={`Decrease ${item.name}`} onClick={() => updateQty(item.id, -1)} className="grid h-10 w-10 place-items-center transition hover:bg-[#f6b73c]"><Minus size={14} /></button><span className="w-8 text-center text-sm font-black tabular-nums">{item.quantity}</span><button type="button" aria-label={`Increase ${item.name}`} onClick={() => updateQty(item.id, 1)} className="grid h-10 w-10 place-items-center transition hover:bg-[#f6b73c]"><Plus size={14} /></button></div>
+                    <p className="text-lg font-black tabular-nums">{formatPaise(discountedUnitPrice(item) * item.quantity)}</p>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
+
+            <div className="mt-12">
+              <h2 className="text-3xl font-black tracking-[-0.04em]">Where should we send it?</h2>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: "We bring it to your block" }].map((option) => (
+                  <button key={option.value} type="button" onClick={() => setCustomer({ ...customer, deliveryType: option.value })} className={`relative rounded-xl border p-5 text-left transition ${customer.deliveryType === option.value ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}>
+                    <MapPin size={20} className={customer.deliveryType === option.value ? "text-[#f6b73c]" : "text-[#c65d24]"} /><span className="mt-5 block font-black">{option.title}</span><span className={`mt-1 block text-sm ${customer.deliveryType === option.value ? "text-white/55" : "text-[#716a5f]"}`}>{option.copy}</span>{customer.deliveryType === option.value ? <Check className="absolute right-4 top-4 text-[#f6b73c]" size={17} /> : null}
                   </button>
                 ))}
               </div>
-            </div>
-          </div>
 
-          <div className="mt-5 rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-3">
-            <p className="text-sm font-bold text-amber-900">Coupon code</p>
-            <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
-              <Input
-                className="uppercase"
-                placeholder="Enter code"
-                value={couponCode}
-                onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
-              />
-              <Button variant="outline" onClick={applyCoupon}>Apply</Button>
-            </div>
-            {coupon ? <p className="mt-2 text-sm text-emerald-700">{coupon.code} gives {coupon.discountPercent}% off items.</p> : null}
-          </div>
-
-          <div className="mt-6 space-y-2 rounded-2xl bg-neutral-50 p-4 text-sm">
-            <div className="flex justify-between">
-              <span>Items subtotal</span>
-              <span>{formatPaise(totals.subtotalPaise)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Platform fee</span>
-              <span>{formatPaise(settings.platformFeePaise)}</span>
-            </div>
-            {totals.couponDiscountPaise ? (
-              <div className="flex justify-between text-emerald-700">
-                <span>Coupon discount</span>
-                <span>-{formatPaise(totals.couponDiscountPaise)}</span>
+              <div className="mt-8 grid gap-5 sm:grid-cols-2">
+                <label className="text-sm font-bold">Full name<input className={`${fieldClass} mt-2`} autoComplete="name" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} placeholder="Your name" /></label>
+                <label className="text-sm font-bold">Phone number<input className={`${fieldClass} mt-2`} inputMode="tel" autoComplete="tel" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} placeholder="10-digit number" /></label>
+                <label className="text-sm font-bold sm:col-span-2">Email address<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} placeholder="you@example.com" /></label>
+                <AnimatePresence>{customer.deliveryType === "HOSTEL" ? <motion.label initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm font-bold sm:col-span-2">Hostel block<input className={`${fieldClass} mt-2`} value={customer.hostelBlock} onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })} placeholder="For example, B2" /></motion.label> : null}</AnimatePresence>
               </div>
-            ) : null}
-            <div className="flex justify-between">
-              <span>Hostel delivery</span>
-              <span>{formatPaise(totals.hostelFeePaise)}</span>
+
+              <div className="mt-8"><p className="text-sm font-bold">Order slot</p><div className="mt-2 grid grid-cols-2 gap-2">{[{ value: "AFTERNOON", label: "Afternoon" }, { value: "NIGHT", label: "Night" }].map((slot) => <button key={slot.value} type="button" onClick={() => setCustomer({ ...customer, orderSlot: slot.value })} className={`h-12 rounded-md border text-sm font-bold transition ${customer.orderSlot === slot.value ? "border-[#f6b73c] bg-[#f6b73c] text-[#171713]" : "border-black/12 bg-white/50 text-[#625b50] hover:border-black/30"}`}>{slot.label}</button>)}</div></div>
             </div>
-            <div className="flex justify-between">
-              <span>Online payment handling</span>
-              <span>{formatPaise(totals.paymentFeePaise)}</span>
-            </div>
-            <div className="flex justify-between border-t border-neutral-200 pt-3 text-lg font-black">
-              <span>Total</span>
-              <span>{formatPaise(totals.totalPaise)}</span>
-            </div>
-          </div>
-          <Button className="mt-5 w-full" size="lg" disabled={busy || !cart.length} onClick={checkout}>
-            {busy ? "Starting payment..." : "Proceed to payment"}
-          </Button>
-          <p className="mt-3 text-xs leading-5 text-neutral-500">
-            After payment, Dish2Door sends your private tracking link and 4-digit passcode on WhatsApp and email.
-          </p>
-        </aside>
-      </section>
+          </motion.div>
+
+          <aside className="h-fit rounded-2xl bg-white p-5 shadow-[0_24px_70px_rgba(58,43,22,0.09)] lg:sticky lg:top-6 sm:p-6">
+            <div className="flex items-center justify-between"><h2 className="text-2xl font-black tracking-[-0.035em]">Payment summary</h2><ShieldCheck size={21} className="text-[#c65d24]" /></div>
+            <div className="mt-6 border-y border-black/10 py-5"><label className="text-sm font-bold">Have a coupon?</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button></div>{coupon ? <p className="mt-3 flex items-center gap-2 text-sm font-bold text-[#34705a]"><Check size={14} /> {coupon.code} gives {coupon.discountPercent}% off</p> : null}</div>
+            <div className="mt-6 space-y-3 text-sm text-[#625b50]"><div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(settings.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
+            <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><span className="text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
+            <button type="button" disabled={busy} onClick={checkout} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"><span>{busy ? "Starting payment..." : "Pay securely"}</span><ArrowRight size={18} /></button>
+            <p className="mt-4 text-xs leading-5 text-[#817a70]">After payment, your tracking link and private 4-digit passcode are sent by WhatsApp and email.</p>
+          </aside>
+        </section>
+      )}
       <SiteFooter />
     </main>
   );

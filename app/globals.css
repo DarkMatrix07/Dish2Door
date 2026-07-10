@@ -82,6 +82,14 @@ a {
   color: #ffffff;
 }
 
+.cart-dark-link {
+  color: #ffffff;
+}
+
+.tracking-dark-link {
+  color: #ffffff;
+}
+
 .ambient-grid {
   background-image:
     linear-gradient(rgba(23, 19, 14, 0.05) 1px, transparent 1px),
