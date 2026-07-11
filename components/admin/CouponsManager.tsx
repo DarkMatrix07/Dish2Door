@@ -101,7 +101,7 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid gap-3 min-[430px]:grid-cols-3 sm:gap-4">
         <StatCard label="Total coupons" value={coupons.length} />
         <StatCard label="Active" value={stats.active} />
         <StatCard label="Total uses" value={stats.uses} />

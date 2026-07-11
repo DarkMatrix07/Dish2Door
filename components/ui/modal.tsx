@@ -48,12 +48,15 @@ export function Modal({
       onMouseDown={onClose}
     >
       <div
-        className={`my-6 w-full ${widths[size]} rounded-2xl border border-neutral-200 bg-white shadow-2xl`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        className={`my-3 w-full ${widths[size]} overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl sm:my-6`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
           <div>
-            <h2 className="text-lg font-black text-neutral-950">{title}</h2>
+            <h2 id="modal-title" className="text-lg font-black text-neutral-950">{title}</h2>
             {description ? <p className="mt-1 text-sm text-neutral-500">{description}</p> : null}
           </div>
           <button
@@ -66,7 +69,7 @@ export function Modal({
           </button>
         </div>
         <div className="p-5">{children}</div>
-        {footer ? <div className="flex justify-end gap-2 border-t border-neutral-100 p-5">{footer}</div> : null}
+        {footer ? <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 p-4 sm:p-5">{footer}</div> : null}
       </div>
     </div>
   );

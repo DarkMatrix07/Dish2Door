@@ -52,7 +52,7 @@ export default async function AdminRatingsPage() {
         description="Track customer feedback, restaurant-wise averages, food quality, and delivery experience."
       />
 
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid gap-3 min-[430px]:grid-cols-3 sm:gap-4">
         <StatCard label="Total reviews" value={ratings.length} />
         <StatCard label="Food average" value={ratingText(foodAverage)} />
         <StatCard label="Delivery average" value={ratingText(deliveryAverage)} />

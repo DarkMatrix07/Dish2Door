@@ -326,7 +326,7 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
   // ---- List view: restaurant names ----
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid gap-3 min-[430px]:grid-cols-3 sm:gap-4">
         <StatCard label="Restaurants" value={stats.total} helper={`${stats.live} live`} />
         <StatCard label="Courses" value={stats.courses} helper="Across all restaurants" />
         <StatCard label="Hidden" value={stats.total - stats.live} helper="Not shown to customers" />

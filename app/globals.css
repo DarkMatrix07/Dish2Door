@@ -58,6 +58,71 @@ body {
   .dish-loading-bar { animation-duration: 2.5s; }
 }
 
+.admin-app {
+  --admin-border: rgba(32, 33, 38, 0.1);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(246, 183, 60, 0.08), transparent 26rem),
+    #f3f4f6;
+}
+
+.admin-app button,
+.admin-app a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.admin-app input,
+.admin-app select,
+.admin-app textarea {
+  min-width: 0;
+  max-width: 100%;
+  border-color: rgba(32, 33, 38, 0.14);
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #202126;
+}
+
+.admin-app input:focus,
+.admin-app select:focus,
+.admin-app textarea:focus {
+  border-color: #b65a20;
+  box-shadow: 0 0 0 3px rgba(182, 90, 32, 0.1);
+}
+
+.admin-app table {
+  min-width: 44rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-app .admin-logout button {
+  min-height: 2rem;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: transparent;
+  padding-inline: 0.65rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.admin-app .admin-logout button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.admin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+@media (max-width: 639px) {
+  .admin-app button,
+  .admin-app a {
+    text-wrap: pretty;
+  }
+
+  .admin-app [role="dialog"] {
+    max-height: calc(100dvh - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+    overflow-y: auto;
+  }
+}
+
 button,
 input,
 select,

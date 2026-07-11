@@ -246,7 +246,7 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
         </Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-center">
+      <div className="grid gap-3 text-center min-[430px]:grid-cols-3">
         <div className="rounded-xl border border-neutral-200 bg-white p-3">
           <p className="text-xl font-bold">{selected.menuItems.length}</p>
           <p className="text-xs text-neutral-500">Items</p>
@@ -363,7 +363,7 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
             ))}
           </Select>
           <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3">
-            <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+            <div className="grid gap-3 min-[430px]:grid-cols-[80px_1fr] min-[430px]:items-center">
               <div className="h-20 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${imagePreview || PLACEHOLDER}')` }} />
               <Input className="h-auto cursor-pointer bg-white py-2" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onNewImage(event.target.files?.[0])} />
             </div>

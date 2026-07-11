@@ -148,7 +148,7 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid flex-1 grid-cols-3 gap-3 sm:max-w-md">
+        <div className="grid w-full flex-1 gap-3 min-[430px]:grid-cols-3 sm:max-w-md">
           <StatCard label="Today" value={counts.total} helper="orders" />
           <StatCard label="Afternoon" value={counts.afternoon} />
           <StatCard label="Night" value={counts.night} />

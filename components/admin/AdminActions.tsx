@@ -53,17 +53,17 @@ export function AdminActions({ ordersOpen }: { ordersOpen: boolean }) {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Button className="h-11 whitespace-nowrap" variant={open ? "destructive" : "default"} disabled={!!busy} onClick={() => toggleOrders(!open)}>
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant={open ? "destructive" : "default"} disabled={!!busy} onClick={() => toggleOrders(!open)}>
         {open ? "Close public orders" : "Open public orders"}
       </Button>
-      <Button className="h-11 whitespace-nowrap" variant="outline" disabled={!!busy} onClick={reachedCampus}>
+      <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={reachedCampus}>
         Mark reached campus
       </Button>
-      <Button className="h-11 whitespace-nowrap" variant="outline" disabled={!!busy} onClick={releaseDeliveries}>
+      <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={releaseDeliveries}>
         Assign for delivery
       </Button>
-      <Button className="h-11 whitespace-nowrap" variant="outline" disabled={!!busy} onClick={() => window.location.reload()}>
+      <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={() => window.location.reload()}>
         Refresh
       </Button>
     </div>

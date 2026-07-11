@@ -53,7 +53,7 @@ export default async function AdminDashboardPage() {
         <AdminActions ordersOpen={settings.ordersOpen} />
       </SectionCard>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="mt-6 grid gap-3 min-[430px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard label="Total orders" value={totalOrders} helper="All customer and manual orders" />
         <StatCard label="Confirmed" value={confirmed} helper="Waiting for campus arrival" />
         <StatCard label="Reached campus" value={reachedCampus} helper="Ready for gate or hostel flow" />
@@ -90,15 +90,15 @@ export default async function AdminDashboardPage() {
         <div className="grid gap-4">
           <SectionCard title="Restaurant health">
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="rounded-lg bg-[#f3f4f6] p-3 sm:p-4">
                 <p className="text-2xl font-bold">{restaurants}</p>
                 <p className="text-xs text-neutral-500">Active</p>
               </div>
-              <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="rounded-lg bg-[#f3f4f6] p-3 sm:p-4">
                 <p className="text-2xl font-bold">{activeItems}</p>
                 <p className="text-xs text-neutral-500">Items live</p>
               </div>
-              <div className="rounded-xl bg-neutral-50 p-4">
+              <div className="rounded-lg bg-[#f3f4f6] p-3 sm:p-4">
                 <p className="text-2xl font-bold">{outOfStock}</p>
                 <p className="text-xs text-neutral-500">Out</p>
               </div>
