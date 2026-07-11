@@ -5,6 +5,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
   const { cleanupStalePendingOrders } = await import("@/lib/orders");
+  const { processDueNotificationRetries } = await import("@/lib/notifications");
 
   const runCleanup = () =>
     cleanupStalePendingOrders().catch((error) => {
@@ -14,4 +15,13 @@ export async function register() {
   // First sweep shortly after boot, then every minute.
   setTimeout(runCleanup, 15_000);
   setInterval(runCleanup, 60_000);
+
+  const runNotificationRetries = () =>
+    processDueNotificationRetries().catch((error) => {
+      console.error("[notifications] automatic retry failed:", error);
+    });
+
+  // Retry failed email and WhatsApp deliveries once they have waited 10 minutes.
+  setTimeout(runNotificationRetries, 30_000);
+  setInterval(runNotificationRetries, 60_000);
 }

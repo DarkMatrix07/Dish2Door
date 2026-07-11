@@ -49,7 +49,7 @@ export default async function AdminNotificationsPage() {
       <AdminPageHeader
         eyebrow="Notifications"
         title="Notification logs"
-        description="Turn channels on or off, review failed email and WhatsApp sends, retry them manually, and scan the latest notification activity."
+        description="Monitor every delivery channel, see exactly when failures happened, and confirm whether automatic or manual retries recovered them."
       />
       <div className="space-y-5">
         <NotificationToggles initialEmail={settings.notifyEmail} initialWhatsapp={settings.notifyWhatsapp} />

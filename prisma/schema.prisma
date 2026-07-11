@@ -281,9 +281,14 @@ model NotificationLog {
   status       NotificationStatus
   errorMessage String?
   sentAt       DateTime            @default(now())
+  retryCount   Int                 @default(0)
+  nextRetryAt  DateTime?
+  lastRetryAt  DateTime?
+  resolvedAt   DateTime?
 
   @@index([orderId])
   @@index([channel, event])
+  @@index([status, nextRetryAt])
 }
 
 model SystemSettings {
