@@ -192,7 +192,25 @@ export function CartPageClient({ settings }: { settings: Settings }) {
                 <AnimatePresence>{customer.deliveryType === "HOSTEL" ? <motion.label initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm font-bold sm:col-span-2">Hostel block<input className={`${fieldClass} mt-2`} value={customer.hostelBlock} onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })} placeholder="For example, B2" /></motion.label> : null}</AnimatePresence>
               </div>
 
-              <div className="mt-8"><p className="text-sm font-bold">Order slot</p><div className="mt-2 grid grid-cols-2 gap-2">{[{ value: "AFTERNOON", label: "Afternoon" }, { value: "NIGHT", label: "Night" }].map((slot) => <button key={slot.value} type="button" onClick={() => setCustomer({ ...customer, orderSlot: slot.value })} className={`h-12 rounded-md border text-sm font-bold transition ${customer.orderSlot === slot.value ? "border-[#f6b73c] bg-[#f6b73c] text-[#171713]" : "border-black/12 bg-white/50 text-[#625b50] hover:border-black/30"}`}>{slot.label}</button>)}</div></div>
+              <div className="mt-8">
+                <p className="text-sm font-bold">Order slot</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {[
+                    { value: "AFTERNOON", label: "Afternoon", cutoff: "Order before 12:30 PM" },
+                    { value: "NIGHT", label: "Night", cutoff: "Order before 5:30 PM" },
+                  ].map((slot) => (
+                    <button
+                      key={slot.value}
+                      type="button"
+                      onClick={() => setCustomer({ ...customer, orderSlot: slot.value })}
+                      className={`min-h-16 rounded-md border px-3 py-2.5 text-left transition ${customer.orderSlot === slot.value ? "border-[#f6b73c] bg-[#f6b73c] text-[#171713]" : "border-black/12 bg-white/50 text-[#625b50] hover:border-black/30"}`}
+                    >
+                      <span className="block text-sm font-black">{slot.label}</span>
+                      <span className={`mt-0.5 block text-[11px] font-medium leading-4 sm:text-xs ${customer.orderSlot === slot.value ? "text-[#171713]/65" : "text-[#817a70]"}`}>{slot.cutoff}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </motion.div>
 
