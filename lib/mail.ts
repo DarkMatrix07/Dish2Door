@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import { env } from "@/lib/env";
 import type { FullOrder } from "@/lib/order-types";
 import { formatPaise } from "@/lib/utils";
@@ -10,28 +9,6 @@ function escapeHtml(value: unknown) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-export function createMailTransporter() {
-  const host = env.SMTP_HOST || "smtp.gmail.com";
-  const port = env.SMTP_PORT ?? 465;
-  const secure = env.SMTP_SECURE ?? port === 465;
-  const user = env.SMTP_USER;
-  const pass = env.SMTP_PASS;
-
-  if (!user || !pass) {
-    throw new Error("SMTP_USER/SMTP_PASS are not configured");
-  }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: {
-      user,
-      pass
-    }
-  });
 }
 
 export function orderEmailHtml(order: FullOrder, headline: string, body: string, passcode?: string) {
@@ -127,11 +104,29 @@ export async function sendOrderEmail(order: FullOrder, subject: string, html: st
     throw new Error("Customer email missing");
   }
 
-  const transporter = createMailTransporter();
-  await transporter.sendMail({
-    from: env.SMTP_FROM || `Dish2Door <${env.SMTP_USER || "orders@campus.local"}>`,
-    to: order.customerEmail,
-    subject,
-    html
+  if (!env.MAILER_SERVICE_URL || !env.MAILER_SERVICE_SECRET) {
+    throw new Error("MAILER_SERVICE_URL/MAILER_SERVICE_SECRET are not configured");
+  }
+
+  const endpoint = `${env.MAILER_SERVICE_URL.replace(/\/+$/, "")}/send`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Api-Secret": env.MAILER_SERVICE_SECRET,
+    },
+    body: JSON.stringify({
+      to: [order.customerEmail],
+      subject,
+      html,
+      fromAddress: env.MAIL_FROM_ADDRESS,
+      fromName: env.MAIL_FROM_NAME || "Dish2Door",
+    }),
+    signal: AbortSignal.timeout(25_000),
   });
+
+  if (!response.ok) {
+    const details = (await response.text()).slice(0, 500);
+    throw new Error(`Mailer service failed with ${response.status}: ${details || response.statusText}`);
+  }
 }
