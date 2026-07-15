@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
+import { readApiJson } from "@/lib/api-client";
 import { formatPaise } from "@/lib/utils";
 
 type Order = {
@@ -69,7 +70,7 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
     setBusy(true);
     try {
       const response = await fetch(`/api/tracking/${trackingCode}/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: passcodeOverride ?? passcode }) });
-      const data = await response.json();
+      const data = await readApiJson<{ error?: string; order: Order }>(response, "Could not verify this order");
       if (!response.ok) throw new Error(data.error ?? "Could not verify this order");
       setOrder(data.order);
     } catch (error) {
@@ -82,7 +83,7 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
   async function submitRating() {
     try {
       const response = await fetch(`/api/tracking/${trackingCode}/rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode, ...rating }) });
-      const data = await response.json();
+      const data = await readApiJson<{ error?: string; rating: { id: string } }>(response, "Could not submit rating");
       if (!response.ok) throw new Error(data.error ?? "Could not submit rating");
       toast.success("Thanks for rating your order.");
       setOrder((current) => current ? { ...current, rating: data.rating } : current);

@@ -8,9 +8,10 @@ export const dynamic = "force-dynamic";
 
 export default async function NewManualOrderPage() {
   const restaurants = await prisma.restaurant.findMany({
+    where: { active: true },
     include: {
       courses: { orderBy: { sortOrder: "asc" } },
-      menuItems: { orderBy: { name: "asc" } }
+      menuItems: { where: { available: true }, orderBy: { name: "asc" } }
     },
     orderBy: { name: "asc" }
   });

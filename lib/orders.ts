@@ -80,7 +80,7 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
   });
 
   if (menuItems.length !== ids.length) {
-    throw new Error("Some items are unavailable");
+    throw new Error("A selected item is out of stock or its restaurant is inactive. Refresh and choose an available item.");
   }
 
   const restaurantId = menuItems[0]?.restaurantId;

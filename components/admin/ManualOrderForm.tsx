@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { readApiJson } from "@/lib/api-client";
 import { formatPaise } from "@/lib/utils";
 
 type Restaurant = {
@@ -73,7 +74,7 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customer, items, paymentStatus: customer.paymentStatus })
       });
-      const data = await response.json();
+      const data = await readApiJson<{ error?: string; passcode?: string }>(response, "Could not create manual order");
       if (!response.ok) throw new Error(data.error ?? "Could not create manual order");
       toast.success(`Manual order created. Passcode: ${data.passcode}`);
       setItems([]);

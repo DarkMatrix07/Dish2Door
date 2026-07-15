@@ -44,5 +44,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
 
   // Successful unlock — clear the throttle for this tracking code.
   clearRateLimit(`verify:${trackingCode}`);
-  return NextResponse.json({ order });
+  const { trackingPasscodeHash: _trackingPasscodeHash, ...safeOrder } = order;
+  return NextResponse.json({ order: safeOrder });
 }
