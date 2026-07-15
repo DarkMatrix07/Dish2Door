@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -51,6 +51,7 @@ export function CartPageClient({ settings }: { settings: Settings }) {
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
   const [indiaMinutes, setIndiaMinutes] = useState<number | null>(null);
+  const [confirmEmailOpen, setConfirmEmailOpen] = useState(false);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON" });
 
   useEffect(() => setCart(readStoredCart()), []);
@@ -77,6 +78,20 @@ export function CartPageClient({ settings }: { settings: Settings }) {
       return current;
     });
   }, [indiaMinutes]);
+
+  useEffect(() => {
+    if (!confirmEmailOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConfirmEmailOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [confirmEmailOpen]);
 
   function persist(nextCart: StoredCartItem[]) {
     setCart(nextCart);
@@ -114,11 +129,22 @@ export function CartPageClient({ settings }: { settings: Settings }) {
     }
   }
 
-  async function checkout() {
+  function validateCheckoutDetails() {
     if (!cart.length) return toast.error("Your cart is empty.");
     if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address.");
     if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Hostel block is required for hostel delivery.");
     if (!customer.orderSlot) return toast.error("Ordering has closed for today's delivery slots.");
+    return true;
+  }
+
+  function reviewEmailBeforePayment() {
+    if (validateCheckoutDetails()) setConfirmEmailOpen(true);
+  }
+
+  async function checkout() {
+    if (!validateCheckoutDetails()) return;
+    setConfirmEmailOpen(false);
 
     setBusy(true);
     try {
@@ -251,11 +277,47 @@ export function CartPageClient({ settings }: { settings: Settings }) {
             <div className="mt-6 border-y border-black/10 py-5"><label className="text-sm font-bold">Have a coupon?</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button></div>{coupon ? <p className="mt-3 flex items-center gap-2 text-sm font-bold text-[#34705a]"><Check size={14} /> {coupon.code} gives {coupon.discountPercent}% off</p> : null}</div>
             <div className="mt-6 space-y-3 text-sm text-[#625b50]"><div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(settings.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
             <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><span className="text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
-            <button type="button" disabled={busy} onClick={checkout} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"><span>{busy ? "Starting payment..." : "Pay securely"}</span><ArrowRight size={18} /></button>
+            <button type="button" disabled={busy} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"><span>{busy ? "Starting payment..." : "Pay securely"}</span><ArrowRight size={18} /></button>
             <p className="mt-4 text-xs leading-5 text-[#817a70]">After payment, your tracking link and private 4-digit passcode are sent by WhatsApp and email.</p>
           </aside>
         </section>
       )}
+
+      <AnimatePresence>
+        {confirmEmailOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[100] grid place-items-end bg-[#171713]/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmEmailOpen(false); }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="confirm-email-title"
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 360, damping: 30 }}
+              className="w-full max-w-lg rounded-t-2xl bg-[#fffdf8] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] sm:rounded-2xl sm:p-7"
+            >
+              <div className="flex items-start justify-between gap-5">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f6b73c] text-[#171713]"><MailCheck size={22} /></span>
+                <button type="button" aria-label="Close email confirmation" onClick={() => setConfirmEmailOpen(false)} className="grid h-10 w-10 place-items-center rounded-full text-[#716a5f] transition hover:bg-black/5 hover:text-[#171713]"><X size={19} /></button>
+              </div>
+              <h2 id="confirm-email-title" className="mt-6 text-3xl font-black tracking-[-0.04em]">Is your email correct?</h2>
+              <p className="mt-3 text-sm leading-6 text-[#716a5f]">After payment, your tracking link and private four-digit passcode will be sent to this address.</p>
+              <div className="mt-5 break-all rounded-xl border border-[#c65d24]/20 bg-[#c65d24]/[0.06] px-4 py-4 text-base font-black text-[#171713]">{customer.email.trim()}</div>
+              <p className="mt-4 text-xs leading-5 text-[#817a70]">Please check carefully. The confirmation email may occasionally arrive in your Spam or Junk folder.</p>
+              <div className="mt-7 grid gap-2 sm:grid-cols-[0.8fr_1.2fr]">
+                <button type="button" onClick={() => setConfirmEmailOpen(false)} className="min-h-12 rounded-md border border-black/15 px-4 text-sm font-black transition hover:border-black/35 hover:bg-black/[0.03]">Edit email</button>
+                <button type="button" onClick={checkout} className="cart-dark-link flex min-h-12 items-center justify-center gap-3 rounded-md bg-[#171713] px-4 text-sm font-black transition hover:bg-[#c65d24]">Email is correct <ArrowRight size={16} /></button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       <SiteFooter />
     </main>
   );

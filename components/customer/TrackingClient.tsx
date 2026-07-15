@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Check, CheckCircle2, LockKeyhole, MapPin, ReceiptText, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, LockKeyhole, Mail, MapPin, ReceiptText, ShieldCheck, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -117,6 +117,10 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <span className="grid h-12 w-12 place-items-center rounded-lg bg-[#171713] text-[#f6b73c]"><LockKeyhole size={21} /></span>
               <h2 className="mt-7 text-2xl font-black tracking-[-0.035em]">Unlock tracking</h2>
               <p className="mt-2 text-sm leading-6 text-[#716a5f]">Order reference <span className="font-mono font-bold text-[#171713]">{trackingCode}</span></p>
+              <div className="mt-5 flex gap-3 rounded-xl border border-[#c65d24]/15 bg-[#c65d24]/[0.06] p-4">
+                <Mail size={18} className="mt-0.5 shrink-0 text-[#c65d24]" />
+                <p className="text-xs leading-5 text-[#625b50]">Your tracking link and passcode were sent by email. If you cannot find the message in your inbox, please check your Spam or Junk folder.</p>
+              </div>
               <label className="mt-7 block text-sm font-bold">Four-digit passcode
                 <input className="mt-2 h-16 w-full rounded-md border border-black/12 bg-[#f7f3eb] px-4 text-center font-mono text-2xl font-black tracking-[0.45em] outline-none transition placeholder:text-[#bbb4a9] focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10" inputMode="numeric" pattern="[0-9]*" maxLength={4} autoComplete="one-time-code" placeholder="0000" value={passcode} onChange={(event) => setPasscode(event.target.value.replace(/\D/g, ""))} onKeyDown={(event) => { if (event.key === "Enter" && passcode.length === 4) void verify(); }} />
               </label>
