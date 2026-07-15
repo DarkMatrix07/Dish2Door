@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
+import { getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
 type Settings = {
@@ -49,9 +50,33 @@ export function CartPageClient({ settings }: { settings: Settings }) {
   const [busy, setBusy] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [indiaMinutes, setIndiaMinutes] = useState<number | null>(null);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON" });
 
   useEffect(() => setCart(readStoredCart()), []);
+
+  useEffect(() => {
+    const updateIndiaTime = () => setIndiaMinutes(getIndiaMinutes());
+    updateIndiaTime();
+    const timer = window.setInterval(updateIndiaTime, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (indiaMinutes === null) return;
+    const afternoonOpen = indiaMinutes < ORDER_SLOT_DETAILS.AFTERNOON.cutoffMinutes;
+    const nightOpen = indiaMinutes < ORDER_SLOT_DETAILS.NIGHT.cutoffMinutes;
+
+    setCustomer((current) => {
+      if (current.orderSlot === "AFTERNOON" && !afternoonOpen) {
+        return { ...current, orderSlot: nightOpen ? "NIGHT" : "" };
+      }
+      if (current.orderSlot === "NIGHT" && !nightOpen) {
+        return { ...current, orderSlot: "" };
+      }
+      return current;
+    });
+  }, [indiaMinutes]);
 
   function persist(nextCart: StoredCartItem[]) {
     setCart(nextCart);
@@ -93,6 +118,7 @@ export function CartPageClient({ settings }: { settings: Settings }) {
     if (!cart.length) return toast.error("Your cart is empty.");
     if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
     if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Hostel block is required for hostel delivery.");
+    if (!customer.orderSlot) return toast.error("Ordering has closed for today's delivery slots.");
 
     setBusy(true);
     try {
@@ -195,20 +221,26 @@ export function CartPageClient({ settings }: { settings: Settings }) {
               <div className="mt-8">
                 <p className="text-sm font-bold">Order slot</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  {[
-                    { value: "AFTERNOON", label: "Afternoon", cutoff: "Order before 12:30 PM" },
-                    { value: "NIGHT", label: "Night", cutoff: "Order before 5:30 PM" },
-                  ].map((slot) => (
+                  {([
+                    { value: "AFTERNOON", label: "Afternoon", ...ORDER_SLOT_DETAILS.AFTERNOON },
+                    { value: "NIGHT", label: "Night", ...ORDER_SLOT_DETAILS.NIGHT },
+                  ] as const).map((slot) => {
+                    const unavailable = indiaMinutes === null || indiaMinutes >= slot.cutoffMinutes;
+                    return (
                     <button
                       key={slot.value}
                       type="button"
+                      disabled={unavailable}
                       onClick={() => setCustomer({ ...customer, orderSlot: slot.value })}
-                      className={`min-h-16 rounded-md border px-3 py-2.5 text-left transition ${customer.orderSlot === slot.value ? "border-[#f6b73c] bg-[#f6b73c] text-[#171713]" : "border-black/12 bg-white/50 text-[#625b50] hover:border-black/30"}`}
+                      className={`relative min-h-24 rounded-md border px-3 py-3 text-left transition ${unavailable ? "cursor-not-allowed border-black/8 bg-black/[0.035] text-[#9a9388]" : customer.orderSlot === slot.value ? "border-[#f6b73c] bg-[#f6b73c] text-[#171713]" : "border-black/12 bg-white/50 text-[#625b50] hover:border-black/30"}`}
                     >
                       <span className="block text-sm font-black">{slot.label}</span>
-                      <span className={`mt-0.5 block text-[11px] font-medium leading-4 sm:text-xs ${customer.orderSlot === slot.value ? "text-[#171713]/65" : "text-[#817a70]"}`}>{slot.cutoff}</span>
+                      <span className={`mt-1 block text-[11px] font-medium leading-4 sm:text-xs ${unavailable ? "text-[#9a9388]" : customer.orderSlot === slot.value ? "text-[#171713]/65" : "text-[#817a70]"}`}>{slot.cutoffLabel}</span>
+                      <span className={`block text-[11px] font-bold leading-4 sm:text-xs ${unavailable ? "text-[#9a9388]" : customer.orderSlot === slot.value ? "text-[#171713]" : "text-[#c65d24]"}`}>{slot.deliveryLabel}</span>
+                      {unavailable && indiaMinutes !== null ? <span className="absolute right-2.5 top-2.5 rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#8a342c]">Closed</span> : null}
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>

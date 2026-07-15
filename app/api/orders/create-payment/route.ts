@@ -3,6 +3,7 @@ import { DeliveryType, OrderSlot } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { createPendingOnlineOrder } from "@/lib/orders";
+import { assertOrderSlotAvailable } from "@/lib/order-slots";
 import { createRazorpayClient } from "@/lib/razorpay";
 import { env } from "@/lib/env";
 
@@ -27,6 +28,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   try {
     const body = bodySchema.parse(await request.json());
+    assertOrderSlotAvailable(body.customer.orderSlot);
     const order = await createPendingOnlineOrder(body.customer, body.items);
     const razorpay = createRazorpayClient();
     const razorpayOrder = await razorpay.orders.create({
