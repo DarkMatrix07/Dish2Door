@@ -1,6 +1,14 @@
+"use client";
+
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { clearStoredCart } from "@/lib/cart";
 
 export function ClosedOrders({ message, contactNumber }: { message: string; contactNumber: string }) {
+  useEffect(() => {
+    clearStoredCart();
+  }, []);
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-neutral-950 px-4 text-white">
       <div
