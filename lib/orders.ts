@@ -316,11 +316,15 @@ export async function markAllReachedCampus() {
   return { count: activeOrders.length };
 }
 
+// Assign hostel orders to the delivery board. Releases every pending hostel
+// order (confirmed OR already reached), not just reached ones — the delivery
+// person then marks each reached and delivered on their side.
 export async function releaseHostelDeliveries() {
   const result = await prisma.order.updateMany({
     where: {
       deliveryType: DeliveryType.HOSTEL,
-      status: OrderStatus.REACHED_CAMPUS,
+      status: { in: [OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] },
+      paymentStatus: { in: [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY, PaymentStatus.UNPAID] },
       deliveryReleased: false
     },
     data: {
@@ -330,6 +334,34 @@ export async function releaseHostelDeliveries() {
   });
 
   return { count: result.count };
+}
+
+// A delivery person marks an assigned hostel order as reached campus.
+export async function markDeliveryReached(orderId: string, assignedHostelBlocks: string[]) {
+  const order = await prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findFirst({
+      where: {
+        id: orderId,
+        deliveryType: DeliveryType.HOSTEL,
+        hostelBlock: { in: assignedHostelBlocks },
+        deliveryReleased: true,
+        status: OrderStatus.ORDER_CONFIRMED
+      }
+    });
+
+    if (!existing) {
+      throw new Error("Order is not available to mark reached");
+    }
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.REACHED_CAMPUS, reachedCampusAt: new Date() },
+      include: orderInclude
+    });
+  });
+
+  dispatchNotifications(order.id, NotificationEvent.REACHED_CAMPUS);
+  return order;
 }
 
 export async function markDelivered(orderId: string, deliveredById: string, assignedHostelBlocks: string[]) {

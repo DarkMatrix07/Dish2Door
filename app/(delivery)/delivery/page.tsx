@@ -20,7 +20,7 @@ export default async function DeliveryPage() {
         deliveryType: DeliveryType.HOSTEL,
         hostelBlock: { in: user?.assignedHostelBlocks ?? [] },
         deliveryReleased: true,
-        status: OrderStatus.REACHED_CAMPUS
+        status: { in: [OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] }
       },
       include: orderInclude,
       orderBy: { releasedAt: "asc" }

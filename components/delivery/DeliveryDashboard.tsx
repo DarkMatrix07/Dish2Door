@@ -13,6 +13,7 @@ type Order = {
   customerName: string;
   customerPhone: string;
   hostelBlock: string | null;
+  status: string;
   totalPaise: number;
   restaurant: { name: string };
   items: { id: string; nameSnapshot: string; quantity: number }[];
@@ -58,6 +59,18 @@ export function DeliveryDashboard({
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [orders, groupBy]);
 
+  async function markReached(id: string) {
+    try {
+      const response = await fetch(`/api/delivery/orders/${id}/reached`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not mark reached");
+      setOrders((current) => current.map((order) => (order.id === id ? { ...order, status: "REACHED_CAMPUS" } : order)));
+      toast.success("Marked reached campus");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not mark reached");
+    }
+  }
+
   async function delivered(id: string) {
     try {
       const response = await fetch(`/api/delivery/orders/${id}/delivered`, { method: "POST" });
@@ -84,6 +97,9 @@ export function DeliveryDashboard({
             <p className="text-sm text-amber-200">{order.restaurant.name}</p>
             <h2 className="mt-1 text-2xl font-black">{order.customerName}</h2>
             <p className="mt-1 text-white/65">Hostel {order.hostelBlock} / {order.trackingCode}</p>
+            <span className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${order.status === "REACHED_CAMPUS" ? "bg-emerald-400/20 text-emerald-200" : "bg-white/10 text-white/70"}`}>
+              {order.status === "REACHED_CAMPUS" ? "Reached campus" : "Confirmed"}
+            </span>
           </div>
           <p className="font-black">{formatPaise(order.totalPaise)}</p>
         </div>
@@ -96,9 +112,15 @@ export function DeliveryDashboard({
               <Phone size={16} /> Call
             </Button>
           </a>
-          <Button className="flex-1 bg-amber-300 text-neutral-950 hover:bg-amber-200" onClick={() => delivered(order.id)}>
-            Delivered
-          </Button>
+          {order.status === "ORDER_CONFIRMED" ? (
+            <Button className="flex-1 bg-sky-300 text-neutral-950 hover:bg-sky-200" onClick={() => markReached(order.id)}>
+              Mark reached
+            </Button>
+          ) : (
+            <Button className="flex-1 bg-amber-300 text-neutral-950 hover:bg-amber-200" onClick={() => delivered(order.id)}>
+              Delivered
+            </Button>
+          )}
         </div>
       </Card>
     );

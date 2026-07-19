@@ -46,7 +46,7 @@ export function AdminActions({ ordersOpen }: { ordersOpen: boolean }) {
   async function releaseDeliveries() {
     try {
       const result = await post("/api/admin/orders/release-deliveries");
-      toast.success(`${result.count} hostel orders released`);
+      toast.success(`${result.count} hostel orders assigned to delivery`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not release deliveries");
     }
