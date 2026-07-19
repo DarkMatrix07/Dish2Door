@@ -59,6 +59,7 @@ export async function POST(request: Request) {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  try {
   const body = schema.parse(await request.json());
 
   if (body.action === "create") {
@@ -123,4 +124,16 @@ export async function POST(request: Request) {
     select: { id: true }
   });
   return NextResponse.json({ user: deliveryUser });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const issue = error.issues[0];
+      const field = issue?.path.join(".") || "input";
+      return NextResponse.json({ error: issue ? `${field}: ${issue.message}` : "Invalid input" }, { status: 400 });
+    }
+    const message = error instanceof Error ? error.message : "Action failed";
+    const friendly = message.includes("Unique constraint")
+      ? "A user with this email already exists."
+      : message;
+    return NextResponse.json({ error: friendly }, { status: 400 });
+  }
 }
