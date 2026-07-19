@@ -6,6 +6,7 @@ import { createPendingOnlineOrder } from "@/lib/orders";
 import { assertOrderSlotAvailable } from "@/lib/order-slots";
 import { createRazorpayClient } from "@/lib/razorpay";
 import { env } from "@/lib/env";
+import { HOSTEL_BLOCKS } from "@/lib/hostels";
 
 const bodySchema = z.object({
   customer: z.object({
@@ -13,9 +14,17 @@ const bodySchema = z.object({
     email: z.string().email(),
     phone: z.string().min(8),
     deliveryType: z.nativeEnum(DeliveryType),
-    hostelBlock: z.string().optional(),
+    hostelBlock: z.enum(HOSTEL_BLOCKS).optional(),
     couponCode: z.string().optional(),
     orderSlot: z.nativeEnum(OrderSlot)
+  }).superRefine((customer, context) => {
+    if (customer.deliveryType === DeliveryType.HOSTEL && !customer.hostelBlock) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hostelBlock"],
+        message: "Select a hostel block"
+      });
+    }
   }),
   items: z.array(
     z.object({

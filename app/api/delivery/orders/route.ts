@@ -18,6 +18,7 @@ export async function GET() {
     prisma.order.findMany({
       where: {
         deliveryType: DeliveryType.HOSTEL,
+        hostelBlock: { in: user.assignedHostelBlocks },
         deliveryReleased: true,
         status: OrderStatus.REACHED_CAMPUS
       },

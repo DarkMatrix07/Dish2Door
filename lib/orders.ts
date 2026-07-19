@@ -332,12 +332,13 @@ export async function releaseHostelDeliveries() {
   return { count: result.count };
 }
 
-export async function markDelivered(orderId: string, deliveredById: string) {
+export async function markDelivered(orderId: string, deliveredById: string, assignedHostelBlocks: string[]) {
   const order = await prisma.$transaction(async (tx) => {
     const existing = await tx.order.findFirst({
       where: {
         id: orderId,
         deliveryType: DeliveryType.HOSTEL,
+        hostelBlock: { in: assignedHostelBlocks },
         deliveryReleased: true,
         status: OrderStatus.REACHED_CAMPUS
       }

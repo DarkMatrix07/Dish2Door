@@ -8,7 +8,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
 
   try {
     const { id } = await params;
-    const order = await markDelivered(id, user.id);
+    const order = await markDelivered(id, user.id, user.assignedHostelBlocks);
     return NextResponse.json({ order });
   } catch (error) {
     return NextResponse.json(

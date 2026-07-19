@@ -18,6 +18,7 @@ export default async function DeliveryPage() {
     prisma.order.findMany({
       where: {
         deliveryType: DeliveryType.HOSTEL,
+        hostelBlock: { in: user?.assignedHostelBlocks ?? [] },
         deliveryReleased: true,
         status: OrderStatus.REACHED_CAMPUS
       },
@@ -39,5 +40,5 @@ export default async function DeliveryPage() {
     prisma.order.count({ where: { deliveredById: user?.id } })
   ]);
 
-  return <DeliveryDashboard initialOrders={orders} stats={{ deliveredToday, deliveredThisWeek, deliveredTotal, pending: orders.length }} />;
+  return <DeliveryDashboard initialOrders={orders} assignedHostelBlocks={user?.assignedHostelBlocks ?? []} stats={{ deliveredToday, deliveredThisWeek, deliveredTotal, pending: orders.length }} />;
 }

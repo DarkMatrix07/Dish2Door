@@ -3,6 +3,7 @@ import { DeliveryType, OrderSlot, PaymentStatus } from "@prisma/client";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { createManualOrder } from "@/lib/orders";
+import { HOSTEL_BLOCKS } from "@/lib/hostels";
 
 const schema = z.object({
   customer: z.object({
@@ -10,8 +11,16 @@ const schema = z.object({
     email: z.string().email().optional().or(z.literal("")),
     phone: z.string().min(8),
     deliveryType: z.nativeEnum(DeliveryType),
-    hostelBlock: z.string().optional(),
+    hostelBlock: z.enum(HOSTEL_BLOCKS).optional(),
     orderSlot: z.nativeEnum(OrderSlot)
+  }).superRefine((customer, context) => {
+    if (customer.deliveryType === DeliveryType.HOSTEL && !customer.hostelBlock) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hostelBlock"],
+        message: "Select a hostel block"
+      });
+    }
   }),
   items: z.array(z.object({ menuItemId: z.string(), quantity: z.number().int().min(1).max(20) })).min(1),
   paymentStatus: z.nativeEnum(PaymentStatus)

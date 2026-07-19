@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole, hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { HOSTEL_BLOCKS } from "@/lib/hostels";
 
 const schema = z.discriminatedUnion("action", [
   z.object({
@@ -9,7 +10,8 @@ const schema = z.discriminatedUnion("action", [
     name: z.string().min(2),
     email: z.string().email(),
     phone: z.string().min(6).max(20).optional(),
-    password: z.string().min(6)
+    password: z.string().min(6),
+    assignedHostelBlocks: z.array(z.enum(HOSTEL_BLOCKS)).default([])
   }),
   z.object({
     action: z.literal("update"),
@@ -17,7 +19,8 @@ const schema = z.discriminatedUnion("action", [
     name: z.string().min(2).optional(),
     email: z.string().email().optional(),
     phone: z.string().min(6).max(20).nullable().optional(),
-    active: z.boolean().optional()
+    active: z.boolean().optional(),
+    assignedHostelBlocks: z.array(z.enum(HOSTEL_BLOCKS)).optional()
   }),
   z.object({
     action: z.literal("resetPassword"),
@@ -42,6 +45,7 @@ export async function GET() {
       email: true,
       phone: true,
       active: true,
+      assignedHostelBlocks: true,
       createdAt: true,
       _count: { select: { deliveries: true } }
     },
@@ -64,9 +68,10 @@ export async function POST(request: Request) {
         email: body.email.toLowerCase(),
         phone: body.phone,
         role: "DELIVERY",
-        passwordHash: await hashPassword(body.password)
+        passwordHash: await hashPassword(body.password),
+        assignedHostelBlocks: body.assignedHostelBlocks
       },
-      select: { id: true, name: true, email: true, phone: true, active: true }
+      select: { id: true, name: true, email: true, phone: true, active: true, assignedHostelBlocks: true }
     });
     return NextResponse.json({ user: deliveryUser });
   }
@@ -81,9 +86,10 @@ export async function POST(request: Request) {
         name: body.name,
         email: body.email?.toLowerCase(),
         phone: body.phone,
-        active: body.active
+        active: body.active,
+        assignedHostelBlocks: body.assignedHostelBlocks
       },
-      select: { id: true, name: true, email: true, phone: true, active: true }
+      select: { id: true, name: true, email: true, phone: true, active: true, assignedHostelBlocks: true }
     });
     return NextResponse.json({ user: deliveryUser });
   }

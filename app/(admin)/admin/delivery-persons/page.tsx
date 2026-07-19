@@ -13,6 +13,7 @@ export default async function AdminDeliveryPersonsPage() {
       email: true,
       phone: true,
       active: true,
+      assignedHostelBlocks: true,
       createdAt: true,
       _count: { select: { deliveries: true } }
     },

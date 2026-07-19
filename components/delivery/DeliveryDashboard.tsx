@@ -20,9 +20,11 @@ type Order = {
 
 export function DeliveryDashboard({
   initialOrders,
-  stats
+  stats,
+  assignedHostelBlocks
 }: {
   initialOrders: Order[];
+  assignedHostelBlocks: string[];
   stats: { deliveredToday: number; deliveredThisWeek: number; deliveredTotal: number; pending: number };
 }) {
   const [orders, setOrders] = useState(initialOrders);
@@ -48,6 +50,10 @@ export function DeliveryDashboard({
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-sm text-white/70">
+        <span className="font-semibold text-white">Your hostels</span>
+        {assignedHostelBlocks.length ? assignedHostelBlocks.map((block) => <span key={block} className="rounded-full bg-white/10 px-3 py-1 font-semibold text-amber-200">{block}</span>) : <span className="rounded-full bg-red-400/15 px-3 py-1 font-semibold text-red-200">None assigned</span>}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="border-white/10 bg-white/10 p-5 text-white"><p className="text-sm text-white/55">Pending</p><p className="mt-2 text-3xl font-black">{orders.length}</p></Card>
         <Card className="border-white/10 bg-white/10 p-5 text-white"><p className="text-sm text-white/55">Delivered today</p><p className="mt-2 text-3xl font-black">{currentStats.deliveredToday}</p></Card>
@@ -61,7 +67,7 @@ export function DeliveryDashboard({
               <div>
                 <p className="text-sm text-amber-200">{order.restaurant.name}</p>
                 <h2 className="mt-1 text-2xl font-black">{order.customerName}</h2>
-                <p className="mt-1 text-white/65">Hostel {order.hostelBlock} · {order.trackingCode}</p>
+                <p className="mt-1 text-white/65">Hostel {order.hostelBlock} / {order.trackingCode}</p>
               </div>
               <p className="font-black">{formatPaise(order.totalPaise)}</p>
             </div>

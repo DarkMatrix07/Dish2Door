@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { HOSTEL_BLOCKS } from "@/lib/hostels";
 
 type DeliveryUser = {
   id: string;
@@ -13,15 +14,43 @@ type DeliveryUser = {
   email: string;
   phone: string | null;
   active: boolean;
+  assignedHostelBlocks: string[];
   createdAt: string | Date;
   _count: { deliveries: number };
 };
 
+function HostelSelector({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-neutral-700">Assigned hostels</p>
+        <p className="text-xs text-neutral-400">{value.length} selected</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+        {HOSTEL_BLOCKS.map((block) => {
+          const selected = value.includes(block);
+          return (
+            <button
+              key={block}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(selected ? value.filter((item) => item !== block) : [...value, block])}
+              className={`min-h-10 rounded-lg border px-2 text-sm font-semibold transition ${selected ? "border-amber-400 bg-amber-100 text-neutral-950" : "border-neutral-200 bg-white text-neutral-500 hover:border-neutral-400"}`}
+            >
+              {block}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function DeliveryPersonsManager({ initialUsers }: { initialUsers: DeliveryUser[] }) {
   const [users, setUsers] = useState(initialUsers);
-  const [draft, setDraft] = useState({ name: "", email: "", phone: "", password: "" });
+  const [draft, setDraft] = useState({ name: "", email: "", phone: "", password: "", assignedHostelBlocks: [] as string[] });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState({ name: "", email: "", phone: "" });
+  const [editDraft, setEditDraft] = useState({ name: "", email: "", phone: "", assignedHostelBlocks: [] as string[] });
   const [passwordDraft, setPasswordDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
@@ -52,12 +81,12 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
 
   async function createUser() {
     await action({ action: "create", ...draft }, "Delivery person added");
-    setDraft({ name: "", email: "", phone: "", password: "" });
+    setDraft({ name: "", email: "", phone: "", password: "", assignedHostelBlocks: [] });
   }
 
   function startEdit(user: DeliveryUser) {
     setEditingId(user.id);
-    setEditDraft({ name: user.name, email: user.email, phone: user.phone ?? "" });
+    setEditDraft({ name: user.name, email: user.email, phone: user.phone ?? "", assignedHostelBlocks: user.assignedHostelBlocks });
   }
 
   async function saveUser(id: string) {
@@ -83,6 +112,7 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
           <Input placeholder="Email" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
           <Input placeholder="Phone number" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
           <Input placeholder="Temporary password" type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} />
+          <HostelSelector value={draft.assignedHostelBlocks} onChange={(assignedHostelBlocks) => setDraft({ ...draft, assignedHostelBlocks })} />
           <Button className="w-full" disabled={busy} onClick={createUser}>
             Create delivery login
           </Button>
@@ -94,10 +124,13 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
           {users.map((user) => (
             <div key={user.id} className="space-y-4 p-4 sm:p-5">
               {editingId === user.id ? (
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Input value={editDraft.name} onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })} />
-                  <Input type="email" value={editDraft.email} onChange={(event) => setEditDraft({ ...editDraft, email: event.target.value })} />
-                  <Input value={editDraft.phone} onChange={(event) => setEditDraft({ ...editDraft, phone: event.target.value })} />
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Input value={editDraft.name} onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })} />
+                    <Input type="email" value={editDraft.email} onChange={(event) => setEditDraft({ ...editDraft, email: event.target.value })} />
+                    <Input value={editDraft.phone} onChange={(event) => setEditDraft({ ...editDraft, phone: event.target.value })} />
+                  </div>
+                  <HostelSelector value={editDraft.assignedHostelBlocks} onChange={(assignedHostelBlocks) => setEditDraft({ ...editDraft, assignedHostelBlocks })} />
                 </div>
               ) : (
                 <div>
@@ -106,9 +139,10 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
                     <Badge tone={user.active ? "green" : "red"}>{user.active ? "Active" : "Inactive"}</Badge>
                   </div>
                   <p className="mt-1 text-sm text-neutral-500">
-                    {user.email} · {user.phone || "No phone"}
+                    {user.email} / {user.phone || "No phone"}
                   </p>
                   <p className="mt-1 text-xs text-neutral-400">{user._count.deliveries} delivered orders</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">{user.assignedHostelBlocks.length ? user.assignedHostelBlocks.map((block) => <span key={block} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-neutral-800">{block}</span>) : <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">No hostels assigned</span>}</div>
                 </div>
               )}
 

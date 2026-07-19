@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { readApiJson } from "@/lib/api-client";
+import { HOSTEL_BLOCKS } from "@/lib/hostels";
 import { formatPaise } from "@/lib/utils";
 
 type Restaurant = {
@@ -106,7 +107,7 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
             </Select>
           </div>
           {customer.deliveryType === "HOSTEL" ? (
-            <Input placeholder="Hostel block" value={customer.hostelBlock} onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })} />
+            <Select value={customer.hostelBlock} onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })}><option value="">Select hostel block</option>{HOSTEL_BLOCKS.map((block) => <option key={block} value={block}>{block}</option>)}</Select>
           ) : null}
           <Select value={customer.orderSlot} onChange={(event) => setCustomer({ ...customer, orderSlot: event.target.value })}>
             <option value="AFTERNOON">Deliver by afternoon</option>
