@@ -28,10 +28,10 @@ export function HomeLanding() {
             <div className="mb-8 flex items-center gap-3 text-sm font-semibold text-[#746c5f]">
               <span className="h-px w-9 bg-[#d97706]" /> Built around campus life
             </div>
-            <h1 className="max-w-[780px] text-[clamp(3.25rem,7.2vw,7.1rem)] font-black leading-[0.88] tracking-[-0.055em] text-balance">
-              Good food.<br /><span className="font-serif font-normal italic text-[#c65d24]">Right to your door.</span>
+            <h1 className="max-w-[780px] text-[clamp(3.5rem,7.6vw,7.75rem)] font-black leading-[0.88] tracking-[-0.055em] text-balance">
+              Good food.<br /><span className="font-extrabold text-[#c65d24]">Right to your door.</span>
             </h1>
-            <p className="mt-8 max-w-xl text-lg leading-8 text-[#625b50] sm:text-xl">
+            <p className="mt-8 max-w-2xl text-lg leading-8 text-[#625b50] sm:text-xl lg:text-[1.35rem] lg:leading-9">
               Dish2Door brings dependable local food to your campus gate or hostel, with careful handling and clear updates from kitchen to handoff.
             </p>
             <div className="mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center">

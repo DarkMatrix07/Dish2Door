@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+@theme inline {
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-space-mono);
+  --text-sm: 0.9rem;
+  --text-sm--line-height: 1.5rem;
+}
+
 :root {
   --background: #fffaf2;
   --foreground: #17130e;
@@ -31,11 +38,33 @@ body {
     radial-gradient(circle at top left, rgba(244, 185, 66, 0.2), transparent 36rem),
     linear-gradient(180deg, #fffaf2 0%, #f7efdf 100%);
   color: var(--foreground);
-  font-family: "Aptos", "Segoe UI Variable", "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: var(--font-manrope), "Segoe UI", sans-serif;
+  font-size: 1rem;
+  font-weight: 450;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-manrope), "Segoe UI", sans-serif;
+  font-optical-sizing: auto;
+  text-wrap: balance;
+}
+
+p,
+li,
+dd {
+  text-wrap: pretty;
+}
+
+.font-mono {
+  letter-spacing: 0.015em;
+}
 ::selection {
   background: #f6b73c;
   color: #171713;

@@ -109,7 +109,7 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
           <motion.section key="locked" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mx-auto grid max-w-[1200px] gap-12 px-5 py-14 sm:px-8 lg:min-h-[620px] lg:grid-cols-[1fr_28rem] lg:items-center lg:gap-20 lg:px-12 lg:py-20">
             <div>
               <div className="flex items-center gap-3 text-sm font-semibold text-[#746c5f]"><span className="h-px w-9 bg-[#d97706]" /> Private order access</div>
-              <h1 className="mt-6 max-w-2xl text-5xl font-black leading-[0.92] tracking-[-0.055em] sm:text-7xl">Your order.<br /><span className="text-[#c65d24]">Only for you.</span></h1>
+              <h1 className="mt-6 max-w-2xl text-5xl font-black leading-[0.92] tracking-[-0.055em] sm:text-7xl lg:text-8xl">Your order.<br /><span className="text-[#c65d24]">Only for you.</span></h1>
               <p className="mt-7 max-w-xl text-lg leading-8 text-[#6c6458]">Use the four-digit passcode sent with your tracking link. No account or login is needed.</p>
               <div className="mt-9 flex flex-wrap gap-5 text-sm font-bold text-[#625b50]"><span className="flex items-center gap-2"><ShieldCheck size={17} className="text-[#c65d24]" /> Private details</span><span className="flex items-center gap-2"><MapPin size={17} className="text-[#c65d24]" /> Live status</span></div>
             </div>

@@ -179,8 +179,8 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
           <div className="mx-auto max-w-[1440px] px-5 pb-12 pt-32 sm:px-8 lg:px-12 lg:pb-16 lg:pt-40">
             <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}>
               <div className="flex items-center gap-3 text-sm font-semibold text-[#746c5f]"><span className="h-px w-9 bg-[#d97706]" /> Today&apos;s kitchens</div>
-              <h1 className="mt-6 max-w-5xl text-[clamp(3rem,7vw,6.8rem)] font-black leading-[0.9] tracking-[-0.055em] text-balance">Pick a kitchen.<br /><span className="text-[#c65d24]">Find your favourite.</span></h1>
-              <p className="mt-7 max-w-xl text-lg leading-8 text-[#6c6458]">Browse restaurants serving campus today. Choose one kitchen, then build your order exactly how you like it.</p>
+              <h1 className="mt-6 max-w-5xl text-[clamp(3.25rem,7.4vw,7.4rem)] font-black leading-[0.9] tracking-[-0.055em] text-balance">Pick a kitchen.<br /><span className="text-[#c65d24]">Find your favourite.</span></h1>
+              <p className="mt-7 max-w-2xl text-lg leading-8 text-[#6c6458] sm:text-xl sm:leading-9">Browse restaurants serving campus today. Choose one kitchen, then build your order exactly how you like it.</p>
             </motion.div>
           </div>
         ) : (

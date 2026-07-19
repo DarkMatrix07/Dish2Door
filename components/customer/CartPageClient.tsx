@@ -199,7 +199,7 @@ export function CartPageClient({ settings }: { settings: Settings }) {
         <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-32 sm:px-8 lg:px-12 lg:pb-14 lg:pt-40">
           <Link href="/menu" className="inline-flex items-center gap-2 text-sm font-bold text-[#6c6458] transition hover:text-[#c65d24]"><ArrowLeft size={16} /> Continue browsing</Link>
           <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div><h1 className="text-5xl font-black leading-none tracking-[-0.055em] sm:text-7xl">Your order.</h1><p className="mt-4 max-w-xl text-lg leading-8 text-[#6c6458]">Review every detail before payment. We will send your private tracking link after confirmation.</p></div>
+            <div><h1 className="text-5xl font-black leading-none tracking-[-0.055em] sm:text-7xl lg:text-8xl">Your order.</h1><p className="mt-4 max-w-xl text-lg leading-8 text-[#6c6458]">Review every detail before payment. We will send your private tracking link after confirmation.</p></div>
             {cart.length ? <p className="font-mono text-xs text-[#817a70]">{cart.reduce((sum, item) => sum + item.quantity, 0).toString().padStart(2, "0")} ITEMS</p> : null}
           </div>
         </div>
