@@ -7,8 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
+import { HostelPicker } from "@/components/customer/HostelPicker";
 import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
-import { HOSTEL_BLOCKS } from "@/lib/hostels";
 import { getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
@@ -242,7 +242,7 @@ export function CartPageClient({ settings }: { settings: Settings }) {
                 <label className="text-sm font-bold">Full name<input className={`${fieldClass} mt-2`} autoComplete="name" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} placeholder="Your name" /></label>
                 <label className="text-sm font-bold">Phone number<input className={`${fieldClass} mt-2`} inputMode="tel" autoComplete="tel" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} placeholder="10-digit number" /></label>
                 <label className="text-sm font-bold sm:col-span-2">Email address<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} placeholder="you@example.com" /></label>
-                <AnimatePresence>{customer.deliveryType === "HOSTEL" ? <motion.label initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm font-bold sm:col-span-2">Hostel block<select className={`${fieldClass} mt-2`} value={customer.hostelBlock} onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })}><option value="">Select your hostel</option>{HOSTEL_BLOCKS.map((block) => <option key={block} value={block}>{block}</option>)}</select></motion.label> : null}</AnimatePresence>
+                <AnimatePresence>{customer.deliveryType === "HOSTEL" ? <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="sm:col-span-2"><HostelPicker value={customer.hostelBlock} onChange={(hostelBlock) => setCustomer({ ...customer, hostelBlock })} /></motion.div> : null}</AnimatePresence>
               </div>
 
               <div className="mt-8">
