@@ -46,23 +46,27 @@ function loadRazorpayScript() {
 
 const fieldClass = "h-12 w-full rounded-md border border-black/12 bg-white/75 px-4 text-sm font-medium text-[#171713] outline-none transition placeholder:text-[#a29b90] focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10";
 
-export function CartPageClient({ settings }: { settings: Settings }) {
+export function CartPageClient({ settings, serverNowMs }: { settings: Settings; serverNowMs: number }) {
   const [cart, setCart] = useState<StoredCartItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
   const [indiaMinutes, setIndiaMinutes] = useState<number | null>(null);
+  // Anchor slot cutoffs to the server clock, not the (possibly wrong) device clock.
+  // The device clock's rate is fine; only its absolute offset can be off, so we
+  // correct by the server-vs-device delta captured once on mount.
+  const [clockOffsetMs] = useState(() => serverNowMs - Date.now());
   const [confirmEmailOpen, setConfirmEmailOpen] = useState(false);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON" });
 
   useEffect(() => setCart(readStoredCart()), []);
 
   useEffect(() => {
-    const updateIndiaTime = () => setIndiaMinutes(getIndiaMinutes());
+    const updateIndiaTime = () => setIndiaMinutes(getIndiaMinutes(new Date(Date.now() + clockOffsetMs)));
     updateIndiaTime();
     const timer = window.setInterval(updateIndiaTime, 30_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [clockOffsetMs]);
 
   useEffect(() => {
     if (indiaMinutes === null) return;

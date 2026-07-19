@@ -34,5 +34,5 @@ export default async function CartPage() {
     return <ClosedOrders message={settings.closedMessage} contactNumber={settings.contactNumber} />;
   }
 
-  return <CartPageClient settings={settings} />;
+  return <CartPageClient settings={settings} serverNowMs={Date.now()} />;
 }
