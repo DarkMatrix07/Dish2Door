@@ -303,6 +303,8 @@ model SystemSettings {
   paymentChargeFixedPaise  Int      @default(0)
   notifyEmail              Boolean  @default(true)
   notifyWhatsapp           Boolean  @default(true)
+  orderingOpenMinute       Int      @default(360)
+  orderingCloseMinute      Int      @default(1380)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 }

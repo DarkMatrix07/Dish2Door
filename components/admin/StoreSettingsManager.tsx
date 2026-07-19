@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/AdminShell";
-import { type Settings, saveSettings } from "@/components/admin/settings-shared";
+import { type Settings, minutesToTimeInput, saveSettings, timeInputToMinutes } from "@/components/admin/settings-shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,21 @@ export function StoreSettingsManager({ initialSettings }: { initialSettings: Set
           Contact number shown when closed
           <Input className="mt-2" value={settings.contactNumber} onChange={(event) => setSettings({ ...settings, contactNumber: event.target.value })} />
         </label>
+
+        <div>
+          <p className="mb-2 text-sm font-semibold text-neutral-600">Daily ordering hours (IST)</p>
+          <p className="mb-2 text-xs text-neutral-500">Customers can only place online orders within this window. Outside it (e.g. overnight), ordering is closed.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-semibold text-neutral-500">
+              Opens at
+              <Input className="mt-1" type="time" value={minutesToTimeInput(settings.orderingOpenMinute)} onChange={(event) => setSettings({ ...settings, orderingOpenMinute: timeInputToMinutes(event.target.value) })} />
+            </label>
+            <label className="text-xs font-semibold text-neutral-500">
+              Closes at
+              <Input className="mt-1" type="time" value={minutesToTimeInput(settings.orderingCloseMinute)} onChange={(event) => setSettings({ ...settings, orderingCloseMinute: timeInputToMinutes(event.target.value) })} />
+            </label>
+          </div>
+        </div>
 
         <Button disabled={saving} onClick={save}>
           {saving ? "Saving..." : "Save settings"}

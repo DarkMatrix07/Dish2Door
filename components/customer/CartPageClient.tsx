@@ -9,7 +9,7 @@ import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { HostelPicker } from "@/components/customer/HostelPicker";
 import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
-import { getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
+import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
 type Settings = {
@@ -46,7 +46,17 @@ function loadRazorpayScript() {
 
 const fieldClass = "h-12 w-full rounded-md border border-black/12 bg-white/75 px-4 text-sm font-medium text-[#171713] outline-none transition placeholder:text-[#a29b90] focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10";
 
-export function CartPageClient({ settings, serverNowMs }: { settings: Settings; serverNowMs: number }) {
+export function CartPageClient({
+  settings,
+  serverNowMs,
+  windowOpenMinute,
+  windowCloseMinute
+}: {
+  settings: Settings;
+  serverNowMs: number;
+  windowOpenMinute: number;
+  windowCloseMinute: number;
+}) {
   const [cart, setCart] = useState<StoredCartItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [couponCode, setCouponCode] = useState("");
@@ -134,7 +144,10 @@ export function CartPageClient({ settings, serverNowMs }: { settings: Settings; 
     }
   }
 
+  const orderingClosed = indiaMinutes !== null && (indiaMinutes < windowOpenMinute || indiaMinutes >= windowCloseMinute);
+
   function validateCheckoutDetails() {
+    if (orderingClosed) return toast.error(`Ordering is open between ${formatIndiaMinutes(windowOpenMinute)} and ${formatIndiaMinutes(windowCloseMinute)}.`);
     if (!cart.length) return toast.error("Your cart is empty.");
     if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address.");
@@ -251,12 +264,17 @@ export function CartPageClient({ settings, serverNowMs }: { settings: Settings; 
 
               <div className="mt-8">
                 <p className="text-sm font-bold">Order slot</p>
+                {orderingClosed ? (
+                  <div className="mt-2 rounded-md border border-[#8a342c]/20 bg-[#8a342c]/[0.06] px-4 py-3 text-sm font-semibold text-[#8a342c]">
+                    Ordering is closed right now. We accept orders between {formatIndiaMinutes(windowOpenMinute)} and {formatIndiaMinutes(windowCloseMinute)} (IST).
+                  </div>
+                ) : null}
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {([
                     { value: "AFTERNOON", label: "Afternoon", ...ORDER_SLOT_DETAILS.AFTERNOON },
                     { value: "NIGHT", label: "Night", ...ORDER_SLOT_DETAILS.NIGHT },
                   ] as const).map((slot) => {
-                    const unavailable = indiaMinutes === null || indiaMinutes >= slot.cutoffMinutes;
+                    const unavailable = orderingClosed || indiaMinutes === null || indiaMinutes >= slot.cutoffMinutes;
                     return (
                     <button
                       key={slot.value}
@@ -282,7 +300,7 @@ export function CartPageClient({ settings, serverNowMs }: { settings: Settings; 
             <div className="mt-6 border-y border-black/10 py-5"><label className="text-sm font-bold">Have a coupon?</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button></div>{coupon ? <p className="mt-3 flex items-center gap-2 text-sm font-bold text-[#34705a]"><Check size={14} /> {coupon.code} gives {coupon.discountPercent}% off</p> : null}</div>
             <div className="mt-6 space-y-3 text-sm text-[#625b50]"><div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(settings.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
             <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><span className="text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
-            <button type="button" disabled={busy} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"><span>{busy ? "Starting payment..." : "Pay securely"}</span><ArrowRight size={18} /></button>
+            <button type="button" disabled={busy || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span><ArrowRight size={18} /></button>
             <p className="mt-4 text-xs leading-5 text-[#817a70]">After payment, your tracking link and private 4-digit passcode are sent by WhatsApp and email.</p>
           </aside>
         </section>

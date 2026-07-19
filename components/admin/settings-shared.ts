@@ -6,7 +6,20 @@ export type Settings = {
   hostelDeliveryFeePaise: number;
   paymentChargePercentBps: number;
   paymentChargeFixedPaise: number;
+  orderingOpenMinute: number;
+  orderingCloseMinute: number;
 };
+
+export function minutesToTimeInput(minutes: number) {
+  const clamped = ((minutes % 1440) + 1440) % 1440;
+  return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
+}
+
+export function timeInputToMinutes(value: string) {
+  const [h, m] = value.split(":").map((part) => Number(part));
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
 
 export function paiseToRupees(value: number) {
   return String(value / 100);

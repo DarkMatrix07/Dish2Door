@@ -14,6 +14,8 @@ export default async function CartPage() {
     paymentChargePercentBps: 250,
     paymentChargeFixedPaise: 0
   };
+  let orderingOpenMinute = 360;
+  let orderingCloseMinute = 1380;
 
   try {
     const dbSettings = await getSettings();
@@ -26,6 +28,8 @@ export default async function CartPage() {
       paymentChargePercentBps: dbSettings.paymentChargePercentBps,
       paymentChargeFixedPaise: dbSettings.paymentChargeFixedPaise
     };
+    orderingOpenMinute = dbSettings.orderingOpenMinute;
+    orderingCloseMinute = dbSettings.orderingCloseMinute;
   } catch {
     // Keep the cart review usable before Postgres is running locally.
   }
@@ -34,5 +38,12 @@ export default async function CartPage() {
     return <ClosedOrders message={settings.closedMessage} contactNumber={settings.contactNumber} />;
   }
 
-  return <CartPageClient settings={settings} serverNowMs={Date.now()} />;
+  return (
+    <CartPageClient
+      settings={settings}
+      serverNowMs={Date.now()}
+      windowOpenMinute={orderingOpenMinute}
+      windowCloseMinute={orderingCloseMinute}
+    />
+  );
 }

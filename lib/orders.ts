@@ -12,6 +12,7 @@ import { calculateTotals } from "@/lib/money";
 import { generatePasscode, generateTrackingCode, hashPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
 import type { FullOrder } from "@/lib/order-types";
+import { assertOrderingWindowOpen } from "@/lib/order-slots";
 import { getSettings } from "@/lib/settings";
 import { todayLabel } from "@/lib/utils";
 import { sendOrderEventNotifications } from "@/lib/notifications";
@@ -113,6 +114,8 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
   if (!settings.ordersOpen) {
     throw new Error("Orders are closed");
   }
+
+  assertOrderingWindowOpen(settings.orderingOpenMinute, settings.orderingCloseMinute);
 
   return prisma.$transaction(async (tx) => {
     const session = await getOrCreateCurrentSession();
