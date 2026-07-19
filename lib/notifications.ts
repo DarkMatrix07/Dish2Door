@@ -175,10 +175,20 @@ export async function sendOrderEventNotifications(orderId: string, event: Notifi
   const settings = await getSettings();
   const tasks: Promise<unknown>[] = [];
 
-  if (settings.notifyEmail) {
+  if (settings.notifyEmail && order.customerEmail) {
     tasks.push(sendSingleOrderNotification(order.id, NotificationChannel.EMAIL, event, passcode));
   } else {
-    tasks.push(logNotification(order.id, NotificationChannel.EMAIL, event, NotificationStatus.SKIPPED, "Email notifications are turned off"));
+    // No point attempting (and endlessly retrying) email when the order has no
+    // address — e.g. manual orders where email is optional. Skip, don't fail.
+    tasks.push(
+      logNotification(
+        order.id,
+        NotificationChannel.EMAIL,
+        event,
+        NotificationStatus.SKIPPED,
+        settings.notifyEmail ? "No email address on this order" : "Email notifications are turned off"
+      )
+    );
   }
 
   if (settings.notifyWhatsapp) {
