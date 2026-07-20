@@ -156,7 +156,10 @@ export async function processDueNotificationRetries() {
       nextRetryAt: { lte: new Date() },
       retryCount: { lt: NOTIFICATION_MAX_AUTO_RETRIES },
       channel: { in: [NotificationChannel.EMAIL, NotificationChannel.WHATSAPP] },
-      orderId: { not: null }
+      orderId: { not: null },
+      // Review reminders run on their own fixed schedule and a failed one deliberately
+      // consumes its slot, so they must never be auto-retried on top of that.
+      event: { not: NotificationEvent.REVIEW_REMINDER }
     },
     select: { id: true },
     orderBy: { nextRetryAt: "asc" },

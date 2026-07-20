@@ -52,6 +52,9 @@ enum NotificationEvent {
   ORDER_CREATED
   REACHED_CAMPUS
   DELIVERED
+  // Follow-up chasing a rating on a delivered order. Sent on a fixed schedule over
+  // the 2 days after delivery and stops the moment the customer rates.
+  REVIEW_REMINDER
 }
 
 enum NotificationStatus {

@@ -7,6 +7,7 @@ export async function register() {
   const { cleanupStalePendingOrders } = await import("@/lib/orders");
   const { processDueNotificationRetries } = await import("@/lib/notifications");
   const { revertExpiredEveryoneMode } = await import("@/lib/spin-promo");
+  const { sendDueReviewReminders } = await import("@/lib/review-reminders");
 
   const runCleanup = () =>
     cleanupStalePendingOrders().catch((error) => {
@@ -34,4 +35,14 @@ export async function register() {
   // End the "wheel for everyone" promo once its ordering window has closed.
   setTimeout(runSpinPromoRevert, 20_000);
   setInterval(runSpinPromoRevert, 60_000);
+
+  const runReviewReminders = () =>
+    sendDueReviewReminders().catch((error) => {
+      console.error("[reviews] reminder sweep failed:", error);
+    });
+
+  // Chase ratings on delivered orders. Reminder times are hours apart, so a 10-minute
+  // sweep is ample and keeps the email rate low.
+  setTimeout(runReviewReminders, 45_000);
+  setInterval(runReviewReminders, 10 * 60_000);
 }

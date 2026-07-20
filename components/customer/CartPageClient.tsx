@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Gift, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -77,13 +77,6 @@ export function CartPageClient({
   const [identityGateOpen, setIdentityGateOpen] = useState(false);
   const [identityDraft, setIdentityDraft] = useState({ name: "", phone: "", email: "" });
   const [wheelOpen, setWheelOpen] = useState(false);
-  // Progress towards the next wheel, shown as a nudge so reviewing feels worth it.
-  const [spinProgress, setSpinProgress] = useState<{
-    reviewed: number;
-    required: number;
-    remaining: number;
-    unratedOrders: number;
-  } | null>(null);
 
   useEffect(() => setCart(readStoredCart()), []);
 
@@ -96,7 +89,6 @@ export function CartPageClient({
       });
       if (!response.ok) return;
       const data = await response.json();
-      setSpinProgress(data.progress ?? null);
       if (data.eligible) {
         setWheelOpen(true);
       } else if (data.reward?.couponCode) {
@@ -370,34 +362,6 @@ export function CartPageClient({
           </motion.div>
 
           <aside className="h-fit rounded-2xl bg-white p-5 shadow-[0_24px_70px_rgba(58,43,22,0.09)] lg:sticky lg:top-6 sm:p-6">
-            {spinProgress && spinProgress.remaining > 0 && !coupon ? (
-              <div className="mb-5 rounded-xl border border-[#f6b73c]/45 bg-[#fff8e8] p-4">
-                <p className="flex items-center gap-2 text-sm font-black text-[#171713]">
-                  <Gift size={16} className="text-[#c65d24]" />
-                  {spinProgress.reviewed} of {spinProgress.required} reviews done
-                </p>
-                <div className="mt-3 flex gap-1.5" aria-hidden>
-                  {Array.from({ length: spinProgress.required }).map((_, step) => (
-                    <span
-                      key={step}
-                      className={`h-1.5 flex-1 rounded-full ${step < spinProgress.reviewed ? "bg-[#c65d24]" : "bg-[#e7d9bd]"}`}
-                    />
-                  ))}
-                </div>
-                <p className="mt-3 text-xs leading-5 text-[#716a5f]">
-                  {spinProgress.unratedOrders > 0 ? (
-                    <>
-                      Rate {spinProgress.unratedOrders === 1 ? "your last order" : `your ${spinProgress.unratedOrders} unrated orders`} to get{" "}
-                      {spinProgress.remaining === 1 ? "your spin" : `${spinProgress.remaining} steps closer`} on the discount wheel.
-                    </>
-                  ) : (
-                    <>
-                      Rate {spinProgress.remaining === 1 ? "one more order" : `${spinProgress.remaining} more orders`} after delivery to unlock a spin on the discount wheel.
-                    </>
-                  )}
-                </p>
-              </div>
-            ) : null}
             <div className="flex items-center justify-between"><h2 className="text-2xl font-black tracking-[-0.035em]">Payment summary</h2><ShieldCheck size={21} className="text-[#c65d24]" /></div>
             <div className="mt-6 border-y border-black/10 py-5"><label className="text-sm font-bold">Have a coupon?</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button></div>{coupon ? <p className="mt-3 flex items-center gap-2 text-sm font-bold text-[#34705a]"><Check size={14} /> {coupon.code} gives {coupon.discountPercent}% off</p> : null}</div>
             <div className="mt-6 space-y-3 text-sm text-[#625b50]"><div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(settings.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>

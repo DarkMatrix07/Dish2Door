@@ -11,6 +11,7 @@ import {
   shouldRevertEveryoneMode,
   WHEEL_SEGMENTS
 } from "../lib/spin-wheel";
+import { dueReminderIndex } from "../lib/review-schedule";
 
 
 test("everyone mode allows exactly one decision per day", () => {
@@ -34,6 +35,25 @@ test("reviews-until-spin drives the cart progress nudge", () => {
   assert.equal(reviewsUntilSpin(2), 1);
   assert.equal(reviewsUntilSpin(3), 0);
   assert.equal(reviewsUntilSpin(9), 0);
+});
+
+test("review reminders fire on schedule, cap at 3, and never chase old orders", () => {
+  const delivered = new Date("2026-07-20T06:00:00.000Z");
+  const at = (hours: number) => new Date(delivered.getTime() + hours * 60 * 60 * 1000);
+
+  // Nothing before the first offset (6h), then reminder 0 is due.
+  assert.equal(dueReminderIndex(delivered, 0, at(5)), null);
+  assert.equal(dueReminderIndex(delivered, 0, at(6)), 0);
+  // Second (24h) and third (44h) only once the previous ones have been sent.
+  assert.equal(dueReminderIndex(delivered, 1, at(23)), null);
+  assert.equal(dueReminderIndex(delivered, 1, at(24)), 1);
+  assert.equal(dueReminderIndex(delivered, 2, at(44)), 2);
+  // Hard cap: a 4th reminder never fires.
+  assert.equal(dueReminderIndex(delivered, 3, at(47)), null);
+  // Outside the 48h window nothing is sent — this is what stops a backlog of old
+  // unrated orders being emailed the moment this ships.
+  assert.equal(dueReminderIndex(delivered, 0, at(49)), null);
+  assert.equal(dueReminderIndex(delivered, 0, at(24 * 30)), null);
 });
 
 test("everyone-mode promo reverts once its ordering window closes", () => {
