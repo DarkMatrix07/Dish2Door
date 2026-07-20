@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export const HOSTEL_BLOCKS = [
   "MH-1",
   "MH-2",
@@ -19,3 +21,11 @@ const hostelBlockSet = new Set<string>(HOSTEL_BLOCKS);
 export function isHostelBlock(value: string): value is HostelBlock {
   return hostelBlockSet.has(value);
 }
+
+// Checkout forms keep hostelBlock in state as "" until a block is picked, so a gate
+// order posts an empty string. A bare z.enum().optional() rejects "" (optional only
+// allows undefined), which failed every gate order — treat ""/null as "not provided".
+export const optionalHostelBlockSchema = z.preprocess(
+  (value) => (value === "" || value === null ? undefined : value),
+  z.enum(HOSTEL_BLOCKS).optional()
+);

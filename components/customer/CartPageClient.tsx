@@ -315,7 +315,7 @@ export function CartPageClient({
               <h2 className="text-3xl font-black tracking-[-0.04em]">Where should we send it?</h2>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: "We bring it to your block" }].map((option) => (
-                  <button key={option.value} type="button" onClick={() => setCustomer({ ...customer, deliveryType: option.value })} className={`relative rounded-xl border p-5 text-left transition ${customer.deliveryType === option.value ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}>
+                  <button key={option.value} type="button" onClick={() => setCustomer({ ...customer, deliveryType: option.value, hostelBlock: option.value === "HOSTEL" ? customer.hostelBlock : "" })} className={`relative rounded-xl border p-5 text-left transition ${customer.deliveryType === option.value ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}>
                     <MapPin size={20} className={customer.deliveryType === option.value ? "text-[#f6b73c]" : "text-[#c65d24]"} /><span className="mt-5 block font-black">{option.title}</span><span className={`mt-1 block text-sm ${customer.deliveryType === option.value ? "text-white/55" : "text-[#716a5f]"}`}>{option.copy}</span>{customer.deliveryType === option.value ? <Check className="absolute right-4 top-4 text-[#f6b73c]" size={17} /> : null}
                   </button>
                 ))}

@@ -9,9 +9,9 @@ export const ORDER_SLOT_DETAILS = {
     deliveryLabel: "Deliver by 2:00 PM",
   },
   NIGHT: {
-    cutoffMinutes: 17 * 60 + 30,
-    cutoffLabel: "Order before 5:30 PM",
-    deliveryLabel: "Deliver by 7:30 PM",
+    cutoffMinutes: 22 * 60,
+    cutoffLabel: "Order before 10:00 PM",
+    deliveryLabel: "Deliver by 11:30 PM",
   },
 } satisfies Record<OrderSlot, { cutoffMinutes: number; cutoffLabel: string; deliveryLabel: string }>;
 
@@ -55,6 +55,6 @@ export function assertOrderingWindowOpen(openMinute: number, closeMinute: number
 
 export function assertOrderSlotAvailable(slot: OrderSlot, date = new Date()) {
   if (!isOrderSlotAvailable(slot, date)) {
-    throw new Error(`${slot === "AFTERNOON" ? "Afternoon" : "Night"} orders closed at ${slot === "AFTERNOON" ? "12:30 PM" : "5:30 PM"}. Please choose an available slot.`);
+    throw new Error(`${slot === "AFTERNOON" ? "Afternoon" : "Night"} orders closed at ${formatIndiaMinutes(ORDER_SLOT_DETAILS[slot].cutoffMinutes)}. Please choose an available slot.`);
   }
 }

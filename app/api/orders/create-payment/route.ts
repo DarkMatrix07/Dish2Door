@@ -6,7 +6,7 @@ import { createPendingOnlineOrder } from "@/lib/orders";
 import { assertOrderSlotAvailable } from "@/lib/order-slots";
 import { createRazorpayClient } from "@/lib/razorpay";
 import { env } from "@/lib/env";
-import { HOSTEL_BLOCKS } from "@/lib/hostels";
+import { optionalHostelBlockSchema } from "@/lib/hostels";
 
 const bodySchema = z.object({
   customer: z.object({
@@ -14,7 +14,7 @@ const bodySchema = z.object({
     email: z.string().email(),
     phone: z.string().min(8),
     deliveryType: z.nativeEnum(DeliveryType),
-    hostelBlock: z.enum(HOSTEL_BLOCKS).optional(),
+    hostelBlock: optionalHostelBlockSchema,
     couponCode: z.string().optional(),
     orderSlot: z.nativeEnum(OrderSlot)
   }).superRefine((customer, context) => {
@@ -68,6 +68,14 @@ export async function POST(request: Request) {
       }
     });
   } catch (error) {
+    // A ZodError's .message is a raw JSON dump of every issue — surface the first
+    // field message instead so the customer sees something readable.
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.issues[0]?.message ?? "Please check your order details." },
+        { status: 400 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Could not create payment";
     const isDatabaseConnectionError =
       message.includes("ECONNREFUSED") || message.includes("Can't reach database server");
