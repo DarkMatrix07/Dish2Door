@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, SpinOutcome } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
@@ -40,8 +40,10 @@ function rewardResponse(reward: { discountPercent: number; couponCode: string })
 }
 
 // Server-authoritative spin: the client never chooses its own discount. We verify
-// eligibility, pick the winning face by weight, and issue a one-time coupon. The
-// unique phone constraint on SpinReward makes the "one spin per phone" rule atomic.
+// eligibility, pick the winning face by weight, and issue a one-time coupon. Two DB
+// constraints make the limits atomic rather than check-then-write: SpinUsage's unique
+// (phone, spinDay) caps it at one spin per number per IST day, and SpinReward's
+// partial unique index allows only one un-redeemed, un-expired reward per number.
 export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
@@ -110,12 +112,13 @@ export async function POST(request: Request) {
           }
         }),
         prisma.spinUsage.create({
-          data: { phone, spinDay, outcome: "SPUN" }
+          data: { phone, spinDay, outcome: SpinOutcome.SPUN }
         })
       ]);
     } catch (error) {
-      // Concurrent spin from the same phone lost the race against the partial unique
-      // index (one outstanding spin per phone) — return the winner's reward.
+      // Lost a race against one of the two unique constraints above: either a
+      // concurrent spin already issued the reward (return it), or this number has
+      // already used today's spin (409).
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         const winner = await getActiveSpinReward(phone);
         if (winner) return rewardResponse(winner);

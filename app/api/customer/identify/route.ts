@@ -13,8 +13,10 @@ const schema = z.object({
 
 // Called when a customer opens the cart. Returns whether the discount wheel should
 // be offered, based on the *effective* reviewed-order count (real reviewed orders
-// minus the loyalty baseline, so the counter restarts after each redeemed spin).
-// Never mutates.
+// minus the loyalty baseline, so the counter restarts after each redeemed spin) and
+// the daily spin cap. It never grants or consumes a spin, but it is not strictly
+// read-only: getActiveSpinReward lazily stamps expiredAt on a reward whose coupon has
+// lapsed, which frees the partial unique slot for a future spin.
 export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());

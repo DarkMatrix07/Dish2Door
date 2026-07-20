@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, SpinOutcome } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getActiveSpinReward } from "@/lib/spin-rewards";
@@ -10,10 +10,11 @@ const schema = z.object({
 });
 
 // Called when a customer closes the wheel without spinning. This deliberately uses up
-// their chance for this cycle: we set wheelConsumed (blocks the "for everyone" mode
-// from re-offering) and move the loyalty baseline up to the current reviewed-order
-// count (zeroes the 3-6 count-mode window). A redeemed spin later resets both. If the
-// customer already holds an unredeemed reward, do nothing — they keep that coupon.
+// their chance: we record a FORFEITED SpinUsage row for today (the authoritative daily
+// cap) and move the loyalty baseline up to the current reviewed-order count, which
+// zeroes the 3-6 regulars window so they must earn it again. wheelConsumed is written
+// only as an audit breadcrumb — no eligibility check reads it. If the customer already
+// holds an un-redeemed reward, do nothing: they keep that coupon.
 export async function POST(request: Request) {
   try {
     const { phone: rawPhone } = schema.parse(await request.json());
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
 
     try {
       await prisma.$transaction([
-        prisma.spinUsage.create({ data: { phone, spinDay, outcome: "FORFEITED" } }),
+        prisma.spinUsage.create({ data: { phone, spinDay, outcome: SpinOutcome.FORFEITED } }),
         prisma.customerLoyalty.upsert({
           where: { phone },
           create: { phone, spinBaseline: reviewedCount, wheelConsumed: true },

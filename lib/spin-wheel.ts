@@ -1,6 +1,8 @@
-// The discount wheel is offered to loyal-but-not-yet-regular customers: those who
-// have placed between MIN and MAX *reviewed* orders (only orders a customer rated
-// count towards the total). Outside that window the wheel is never shown.
+// By default the discount wheel is offered to loyal-but-not-yet-regular customers:
+// those who have placed between MIN and MAX *reviewed* orders (only orders a customer
+// rated count towards the total). The admin setting `spinWheelForEveryone` overrides
+// this window and offers the wheel to every customer; either way a number gets at
+// most one spin per IST day. See qualifiesForSpin below.
 export const SPIN_MIN_FEEDBACK_ORDERS = 3;
 export const SPIN_MAX_FEEDBACK_ORDERS = 6;
 

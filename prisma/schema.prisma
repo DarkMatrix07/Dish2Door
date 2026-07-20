@@ -346,12 +346,18 @@ model SpinReward {
 // One authoritative wheel decision per normalized phone number and IST calendar
 // day. Both spinning and deliberately forfeiting create a row, and the compound
 // unique constraint makes the daily limit safe under concurrent requests.
+// Whether the customer took their daily spin or gave it up by closing the wheel.
+enum SpinOutcome {
+  SPUN
+  FORFEITED
+}
+
 model SpinUsage {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   phone     String
   spinDay   String
-  outcome   String
-  createdAt DateTime @default(now())
+  outcome   SpinOutcome
+  createdAt DateTime    @default(now())
 
   @@unique([phone, spinDay])
   @@index([spinDay])
@@ -364,8 +370,9 @@ model SpinUsage {
 model CustomerLoyalty {
   phone         String   @id
   spinBaseline  Int      @default(0)
-  // Retained for compatibility with the earlier cycle model. SpinUsage now enforces
-  // the daily cap; spinBaseline remains authoritative for regular-only campaigns.
+  // Vestigial: written on spin/forfeit as an audit breadcrumb but NOT read by any
+  // eligibility check. SpinUsage enforces the daily cap and spinBaseline gates the
+  // regulars-only window. Do not add logic that depends on this field.
   wheelConsumed Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
