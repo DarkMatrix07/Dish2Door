@@ -46,16 +46,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
     }
 
-    const existing = await prisma.spinReward.findUnique({ where: { phone } });
-    if (existing) {
-      // Already spun — hand back the same result (idempotent) rather than re-rolling.
-      return rewardResponse(existing);
+    const outstanding = await prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } });
+    if (outstanding) {
+      // Unredeemed spin already exists — hand back the same result (idempotent).
+      return rewardResponse(outstanding);
     }
 
-    const orderCount = await prisma.order.count({
-      where: { customerPhone: { contains: phone }, rating: { isNot: null } }
-    });
-    if (!isSpinEligible(orderCount)) {
+    const [reviewedCount, loyalty] = await Promise.all([
+      prisma.order.count({ where: { customerPhone: { contains: phone }, rating: { isNot: null } } }),
+      prisma.customerLoyalty.findUnique({ where: { phone } })
+    ]);
+    const effectiveCount = Math.max(0, reviewedCount - (loyalty?.spinBaseline ?? 0));
+    if (!isSpinEligible(effectiveCount)) {
       return NextResponse.json({ error: "This account is not eligible for a spin right now." }, { status: 403 });
     }
 
@@ -97,9 +99,10 @@ export async function POST(request: Request) {
         })
       ]);
     } catch (error) {
-      // Concurrent spin from the same phone lost the race — return the winner's reward.
+      // Concurrent spin from the same phone lost the race against the partial unique
+      // index (one outstanding spin per phone) — return the winner's reward.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        const winner = await prisma.spinReward.findUnique({ where: { phone } });
+        const winner = await prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } });
         if (winner) return rewardResponse(winner);
       }
       throw error;

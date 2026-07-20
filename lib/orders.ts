@@ -13,6 +13,7 @@ import { generatePasscode, generateTrackingCode, hashPasscode } from "@/lib/orde
 import { orderInclude } from "@/lib/order-select";
 import type { FullOrder } from "@/lib/order-types";
 import { assertOrderingWindowOpen } from "@/lib/order-slots";
+import { normalizePhone } from "@/lib/spin-wheel";
 import { getSettings } from "@/lib/settings";
 import { todayLabel } from "@/lib/utils";
 import { sendOrderEventNotifications } from "@/lib/notifications";
@@ -235,10 +236,37 @@ export async function confirmOnlineOrder(orderId: string, payment: {
       where: { code: order.couponCode },
       data: { usedCount: { increment: 1 } }
     });
+    await redeemSpinRewardIfAny(order.couponCode, order.customerPhone);
   }
 
   dispatchNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
   return { order, passcode: passcode as string | null };
+}
+
+// If the coupon just used on a paid order is an outstanding spin-wheel reward for
+// this phone, mark it redeemed and reset the loyalty baseline to the current
+// reviewed-order count. That zeroes the *wheel-eligibility* counter (so the customer
+// must earn 3-6 new reviewed orders to spin again) while leaving the real order
+// history untouched. Non-wheel coupons match no reward and are a no-op.
+async function redeemSpinRewardIfAny(couponCode: string, customerPhone: string) {
+  const phone = normalizePhone(customerPhone);
+  const reward = await prisma.spinReward.findFirst({
+    where: { couponCode, phone, redeemedAt: null }
+  });
+  if (!reward) return;
+
+  const reviewedCount = await prisma.order.count({
+    where: { customerPhone: { contains: phone }, rating: { isNot: null } }
+  });
+
+  await prisma.$transaction([
+    prisma.spinReward.update({ where: { id: reward.id }, data: { redeemedAt: new Date() } }),
+    prisma.customerLoyalty.upsert({
+      where: { phone },
+      create: { phone, spinBaseline: reviewedCount },
+      update: { spinBaseline: reviewedCount }
+    })
+  ]);
 }
 
 // Used by the Razorpay webhook: map a Razorpay order id back to our order via the

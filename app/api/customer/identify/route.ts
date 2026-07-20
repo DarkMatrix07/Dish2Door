@@ -9,8 +9,10 @@ const schema = z.object({
   phone: z.string().min(8).max(20)
 });
 
-// Called when a customer opens the cart. Returns how many *reviewed* orders this
-// phone has placed and whether the discount wheel should be offered. Never mutates.
+// Called when a customer opens the cart. Returns whether the discount wheel should
+// be offered, based on the *effective* reviewed-order count (real reviewed orders
+// minus the loyalty baseline, so the counter restarts after each redeemed spin).
+// Never mutates.
 export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
@@ -19,27 +21,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
     }
 
-    const [orderCount, existingReward] = await Promise.all([
+    const [reviewedCount, loyalty, outstanding] = await Promise.all([
       prisma.order.count({
         where: { customerPhone: { contains: phone }, rating: { isNot: null } }
       }),
-      prisma.spinReward.findUnique({ where: { phone } })
+      prisma.customerLoyalty.findUnique({ where: { phone } }),
+      prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } })
     ]);
 
-    // A customer who already spun keeps their coupon until it is redeemed, so we
-    // hand it back for auto-apply. They are never offered another spin.
-    const reward = existingReward && !existingReward.redeemedAt
+    const effectiveCount = Math.max(0, reviewedCount - (loyalty?.spinBaseline ?? 0));
+
+    // A customer with an unredeemed spin keeps that coupon (auto-applied) and is not
+    // offered another spin until they use it.
+    const reward = outstanding
       ? {
-          discountPercent: existingReward.discountPercent,
-          couponCode: existingReward.couponCode,
-          segmentIndex: segmentIndexForPercent(existingReward.discountPercent)
+          discountPercent: outstanding.discountPercent,
+          couponCode: outstanding.couponCode,
+          segmentIndex: segmentIndexForPercent(outstanding.discountPercent)
         }
       : null;
 
     return NextResponse.json({
-      orderCount,
-      alreadySpun: Boolean(existingReward),
-      eligible: isSpinEligible(orderCount) && !existingReward,
+      orderCount: effectiveCount,
+      totalReviewed: reviewedCount,
+      hasOutstandingReward: Boolean(outstanding),
+      eligible: isSpinEligible(effectiveCount) && !outstanding,
       reward
     });
   } catch (error) {

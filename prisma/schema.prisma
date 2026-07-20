@@ -323,12 +323,13 @@ model Coupon {
 }
 
 // A returning customer (identified by phone) who has placed enough *reviewed*
-// orders may spin the discount wheel exactly once. The won discount is issued as a
-// one-time Coupon (couponCode) so it flows through the normal checkout; this row
-// records that the phone has already spun so the wheel is never offered again.
+// orders may spin the discount wheel. The won discount is issued as a one-time
+// Coupon (couponCode) so it flows through the normal checkout. Each spin is one row
+// (a log); a partial unique index (phone WHERE redeemedAt IS NULL, defined in the
+// migration) allows at most ONE outstanding/unredeemed spin per phone at a time.
 model SpinReward {
   id              String    @id @default(cuid())
-  phone           String    @unique
+  phone           String
   email           String?
   name            String?
   discountPercent Int
@@ -336,5 +337,17 @@ model SpinReward {
   createdAt       DateTime  @default(now())
   redeemedAt      DateTime?
 
+  @@index([phone])
   @@index([couponCode])
+}
+
+// Per-phone loyalty baseline. The wheel-eligibility count is (reviewed orders -
+// spinBaseline), so redeeming a wheel coupon can reset the eligibility counter to
+// zero (by setting spinBaseline to the current reviewed-order count) WITHOUT ever
+// deleting or altering the customer's real order history.
+model CustomerLoyalty {
+  phone        String   @id
+  spinBaseline Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
