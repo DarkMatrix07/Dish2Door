@@ -272,8 +272,8 @@ async function redeemSpinRewardIfAny(couponCode: string, customerPhone: string) 
     prisma.spinReward.update({ where: { id: reward.id }, data: { redeemedAt: new Date() } }),
     prisma.customerLoyalty.upsert({
       where: { phone },
-      create: { phone, spinBaseline: reviewedCount },
-      update: { spinBaseline: reviewedCount }
+      create: { phone, spinBaseline: reviewedCount, wheelConsumed: false },
+      update: { spinBaseline: reviewedCount, wheelConsumed: false }
     })
   ]);
 }

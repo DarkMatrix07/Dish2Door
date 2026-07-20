@@ -25,6 +25,22 @@ export function isSpinEligible(feedbackOrderCount: number) {
   return feedbackOrderCount >= SPIN_MIN_FEEDBACK_ORDERS && feedbackOrderCount <= SPIN_MAX_FEEDBACK_ORDERS;
 }
 
+// Whether a customer *qualifies* to be offered a spin this cycle (ignores whether they
+// currently hold an unredeemed reward — the caller checks that separately). In the
+// "for everyone" promo mode any customer qualifies until they take or forfeit their
+// spin (wheelConsumed); otherwise the normal 3-6 reviewed-order window applies.
+export function qualifiesForSpin({
+  effectiveCount,
+  wheelConsumed,
+  forEveryone
+}: {
+  effectiveCount: number;
+  wheelConsumed: boolean;
+  forEveryone: boolean;
+}) {
+  return forEveryone ? !wheelConsumed : isSpinEligible(effectiveCount);
+}
+
 // Given a uniform random number in [0, 1), return the index into WHEEL_SEGMENTS of
 // the winning face, respecting each face's weight.
 export function pickWeightedSegmentIndex(random: number) {

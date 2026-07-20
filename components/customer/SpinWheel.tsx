@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Gift, PartyPopper, X } from "lucide-react";
+import { AlertTriangle, Gift, PartyPopper, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { CustomerIdentity } from "@/lib/customer-identity";
@@ -40,6 +40,29 @@ export function SpinWheel({
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [reward, setReward] = useState<Reward | null>(null);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const [forfeiting, setForfeiting] = useState(false);
+
+  function handleCloseClick() {
+    // Closing after a win keeps the coupon (it is saved server-side and auto-applies
+    // later), so no warning. Closing before spinning gives up the one-time chance.
+    if (reward) return onClose();
+    setConfirmingClose(true);
+  }
+
+  async function confirmForfeit() {
+    setForfeiting(true);
+    try {
+      await fetch("/api/customer/spin/forfeit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: identity.phone })
+      });
+    } catch {
+      // Best-effort; close regardless.
+    }
+    onClose();
+  }
 
   async function spin() {
     if (spinning || reward) return;
@@ -89,7 +112,7 @@ export function SpinWheel({
           <button
             type="button"
             aria-label="Close"
-            onClick={onClose}
+            onClick={handleCloseClick}
             className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full text-[#716a5f] transition hover:bg-black/5 hover:text-[#171713]"
           >
             <X size={19} />
@@ -172,10 +195,39 @@ export function SpinWheel({
           </button>
         )}
 
-        {!reward ? (
-          <button type="button" onClick={onClose} disabled={spinning} className="mt-3 text-xs font-bold text-[#817a70] underline-offset-2 transition hover:text-[#171713] hover:underline disabled:opacity-50">
-            Maybe later
-          </button>
+        {confirmingClose ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 z-20 grid place-items-center rounded-3xl bg-[#fffdf8]/95 p-6 backdrop-blur-sm sm:p-8"
+          >
+            <div className="text-center">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[#fbe3c4] text-[#c65d24]">
+                <AlertTriangle size={24} />
+              </span>
+              <h3 className="mt-4 text-2xl font-black tracking-[-0.03em]">Give up your spin?</h3>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#716a5f]">
+                This is a one-time chance. If you close now your spin is used up — you won&apos;t be able to claim this discount later.
+              </p>
+              <div className="mt-6 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingClose(false)}
+                  className="cart-dark-link flex min-h-14 w-full items-center justify-center rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24]"
+                >
+                  Keep my spin
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmForfeit}
+                  disabled={forfeiting}
+                  className="min-h-11 w-full rounded-md px-5 text-sm font-bold text-[#a3564b] transition hover:bg-[#a3564b]/8 disabled:opacity-60"
+                >
+                  {forfeiting ? "Closing…" : "Give it up"}
+                </button>
+              </div>
+            </div>
+          </motion.div>
         ) : null}
       </motion.div>
     </motion.div>

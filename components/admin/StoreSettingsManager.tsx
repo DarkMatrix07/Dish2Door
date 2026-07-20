@@ -69,6 +69,28 @@ export function StoreSettingsManager({ initialSettings }: { initialSettings: Set
           </div>
         </div>
 
+        <div>
+          <p className="mb-2 text-sm font-semibold text-neutral-600">Discount wheel</p>
+          <p className="mb-2 text-xs text-neutral-500">
+            By default the spin wheel is only offered to regulars (3–6 reviewed orders). Turn this on to offer a
+            spin to every customer at checkout, regardless of how many orders they&apos;ve placed.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={settings.spinWheelForEveryone ? "default" : "outline"}
+              onClick={() => setSettings({ ...settings, spinWheelForEveryone: true })}
+            >
+              Everyone
+            </Button>
+            <Button
+              variant={!settings.spinWheelForEveryone ? "default" : "outline"}
+              onClick={() => setSettings({ ...settings, spinWheelForEveryone: false })}
+            >
+              Regulars only
+            </Button>
+          </div>
+        </div>
+
         <Button disabled={saving} onClick={save}>
           {saving ? "Saving..." : "Save settings"}
         </Button>

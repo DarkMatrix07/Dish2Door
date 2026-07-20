@@ -305,6 +305,7 @@ model SystemSettings {
   notifyWhatsapp           Boolean  @default(true)
   orderingOpenMinute       Int      @default(360)
   orderingCloseMinute      Int      @default(1380)
+  spinWheelForEveryone     Boolean  @default(false)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 }
@@ -346,8 +347,13 @@ model SpinReward {
 // zero (by setting spinBaseline to the current reviewed-order count) WITHOUT ever
 // deleting or altering the customer's real order history.
 model CustomerLoyalty {
-  phone        String   @id
-  spinBaseline Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  phone         String   @id
+  spinBaseline  Int      @default(0)
+  // True once the customer has taken (or forfeited by closing) their spin for the
+  // current cycle. Used by the "wheel for everyone" mode to avoid re-offering after a
+  // spin/close; reset to false when a wheel coupon is redeemed. Count-mode gating uses
+  // spinBaseline instead, so it ignores this flag.
+  wheelConsumed Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

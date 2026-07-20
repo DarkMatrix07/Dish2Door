@@ -13,7 +13,8 @@ const schema = z.object({
   paymentChargePercentBps: z.number().int().min(0).max(10000),
   paymentChargeFixedPaise: z.number().int().min(0).max(100000),
   orderingOpenMinute: z.number().int().min(0).max(1439).optional(),
-  orderingCloseMinute: z.number().int().min(0).max(1439).optional()
+  orderingCloseMinute: z.number().int().min(0).max(1439).optional(),
+  spinWheelForEveryone: z.boolean().optional()
 });
 
 export async function GET() {

@@ -8,6 +8,7 @@ export type Settings = {
   paymentChargeFixedPaise: number;
   orderingOpenMinute: number;
   orderingCloseMinute: number;
+  spinWheelForEveryone: boolean;
 };
 
 export function minutesToTimeInput(minutes: number) {

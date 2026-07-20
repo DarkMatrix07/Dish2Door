@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { isSpinEligible, normalizePhone, segmentIndexForPercent } from "@/lib/spin-wheel";
+import { getSettings } from "@/lib/settings";
+import { normalizePhone, qualifiesForSpin, segmentIndexForPercent } from "@/lib/spin-wheel";
 
 const schema = z.object({
   name: z.string().min(1).max(80).optional(),
@@ -21,15 +22,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
     }
 
-    const [reviewedCount, loyalty, outstanding] = await Promise.all([
+    const [reviewedCount, loyalty, outstanding, settings] = await Promise.all([
       prisma.order.count({
         where: { customerPhone: { contains: phone }, rating: { isNot: null } }
       }),
       prisma.customerLoyalty.findUnique({ where: { phone } }),
-      prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } })
+      prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } }),
+      getSettings()
     ]);
 
     const effectiveCount = Math.max(0, reviewedCount - (loyalty?.spinBaseline ?? 0));
+    const qualifies = qualifiesForSpin({
+      effectiveCount,
+      wheelConsumed: loyalty?.wheelConsumed ?? false,
+      forEveryone: settings.spinWheelForEveryone
+    });
 
     // A customer with an unredeemed spin keeps that coupon (auto-applied) and is not
     // offered another spin until they use it.
@@ -45,7 +52,7 @@ export async function POST(request: Request) {
       orderCount: effectiveCount,
       totalReviewed: reviewedCount,
       hasOutstandingReward: Boolean(outstanding),
-      eligible: isSpinEligible(effectiveCount) && !outstanding,
+      eligible: qualifies && !outstanding,
       reward
     });
   } catch (error) {

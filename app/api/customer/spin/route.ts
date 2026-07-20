@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { getSettings } from "@/lib/settings";
 import {
-  isSpinEligible,
   normalizePhone,
   pickWeightedSegmentIndex,
+  qualifiesForSpin,
   segmentIndexForPercent,
   WHEEL_SEGMENTS
 } from "@/lib/spin-wheel";
@@ -52,12 +53,18 @@ export async function POST(request: Request) {
       return rewardResponse(outstanding);
     }
 
-    const [reviewedCount, loyalty] = await Promise.all([
+    const [reviewedCount, loyalty, settings] = await Promise.all([
       prisma.order.count({ where: { customerPhone: { contains: phone }, rating: { isNot: null } } }),
-      prisma.customerLoyalty.findUnique({ where: { phone } })
+      prisma.customerLoyalty.findUnique({ where: { phone } }),
+      getSettings()
     ]);
     const effectiveCount = Math.max(0, reviewedCount - (loyalty?.spinBaseline ?? 0));
-    if (!isSpinEligible(effectiveCount)) {
+    const qualifies = qualifiesForSpin({
+      effectiveCount,
+      wheelConsumed: loyalty?.wheelConsumed ?? false,
+      forEveryone: settings.spinWheelForEveryone
+    });
+    if (!qualifies) {
       return NextResponse.json({ error: "This account is not eligible for a spin right now." }, { status: 403 });
     }
 
