@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgePercent, BarChart3, BellRing, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Settings, Star, UserRoundCheck, UtensilsCrossed, X } from "lucide-react";
+import { BadgePercent, BarChart3, BellRing, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Settings, Star, UserRoundCheck, Users, UtensilsCrossed, X } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,8 @@ const NAV: NavEntry[] = [
   { type: "link", href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { type: "group", label: "Orders", icon: ClipboardList, children: [{ href: "/admin/orders", label: "Live orders" }, { href: "/admin/orders/today", label: "Today's orders" }, { href: "/admin/orders/new", label: "New manual order" }] },
   { type: "group", label: "Catalogue", icon: UtensilsCrossed, children: [{ href: "/admin/menu/restaurants", label: "Restaurants" }, { href: "/admin/menu/items", label: "Menu items" }] },
-  { type: "group", label: "Offers", icon: BadgePercent, children: [{ href: "/admin/offers/discounts", label: "Item discounts" }, { href: "/admin/offers/coupons", label: "Coupons" }] },
+  { type: "group", label: "Offers", icon: BadgePercent, children: [{ href: "/admin/offers/discounts", label: "Item discounts" }, { href: "/admin/offers/coupons", label: "Coupons" }, { href: "/admin/rewards", label: "Discount wheel" }] },
+  { type: "link", href: "/admin/customers", label: "Customers", icon: Users },
   { type: "link", href: "/admin/delivery-persons", label: "Delivery", icon: UserRoundCheck },
   { type: "link", href: "/admin/ratings", label: "Ratings", icon: Star },
   { type: "link", href: "/admin/notifications", label: "Notifications", icon: BellRing },
