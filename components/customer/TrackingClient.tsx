@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Check, CheckCircle2, LockKeyhole, Mail, MapPin, ReceiptText, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Gift, LockKeyhole, Mail, MapPin, ReceiptText, ShieldCheck, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -94,6 +94,9 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
 
   const isCancelled = order?.status === "CANCELLED";
   const currentIndex = order ? statusIndex(order.status) : 0;
+  // Review-chasing emails link straight here, so when a delivered order is still
+  // unrated the rating card goes at the top rather than below the timeline and items.
+  const needsRating = order?.status === "DELIVERED" && !order.rating;
 
   return (
     <main id="main-content" className="min-h-screen bg-[#f7f3eb] text-[#171713]">
@@ -136,6 +139,54 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <div className="sm:text-right"><p className="text-sm font-bold text-[#817a70]">Total paid</p><p className="mt-1 text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(order.totalPaise)}</p></div>
             </div>
 
+            {needsRating ? (
+              <section className="mt-10 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(58,43,22,0.08)]">
+                <div className="flex items-center gap-3 border-b border-black/8 bg-[#fff8e8] px-6 py-4 sm:px-8">
+                  <Gift size={18} className="shrink-0 text-[#c65d24]" />
+                  <p className="text-sm font-black leading-5">
+                    Rate this order — every 3 reviews unlocks a spin on the discount wheel.
+                  </p>
+                </div>
+                <div className="p-6 sm:p-8">
+                  <h2 className="text-3xl font-black tracking-[-0.04em]">How was your order?</h2>
+                  <p className="mt-3 max-w-lg leading-6 text-[#716a5f]">
+                    Takes about ten seconds, and it tells the kitchen and the delivery team what to fix.
+                  </p>
+
+                  <div className="mt-8 grid gap-8 sm:mt-10 sm:grid-cols-2">
+                    <StarRating
+                      label="Food rating"
+                      value={rating.foodRating}
+                      onChange={(value) => setRating({ ...rating, foodRating: value })}
+                    />
+                    <StarRating
+                      label="Delivery rating"
+                      value={rating.deliveryRating}
+                      onChange={(value) => setRating({ ...rating, deliveryRating: value })}
+                    />
+                  </div>
+
+                  <label className="mt-9 block text-sm font-bold">
+                    Optional review
+                    <textarea
+                      className="mt-3 min-h-28 w-full resize-y rounded-md border border-black/12 bg-[#f7f3eb] p-4 font-normal leading-6 outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
+                      placeholder="Tell us what worked well"
+                      value={rating.review}
+                      onChange={(event) => setRating({ ...rating, review: event.target.value })}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={submitRating}
+                    className="tracking-dark-link mt-7 flex min-h-12 w-full items-center justify-center rounded-md bg-[#171713] px-6 py-3.5 font-black transition hover:bg-[#c65d24] sm:w-auto"
+                  >
+                    Submit rating
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
             {isCancelled ? (
               <div className="mt-10 rounded-xl border border-[#8a342c]/20 bg-[#8a342c]/8 p-6"><h2 className="text-xl font-black text-[#6f2923]">This order was cancelled</h2><p className="mt-2 max-w-2xl leading-7 text-[#7c4a45]">If you paid online, the team will process the applicable refund. Contact support if you need help with this order.</p></div>
             ) : (
@@ -160,10 +211,6 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <section><div className="flex items-center gap-3"><ReceiptText size={20} className="text-[#c65d24]" /><h2 className="text-2xl font-black tracking-[-0.035em]">Your items</h2></div><div className="mt-5 border-y border-black/12">{order.items.map((item) => <div key={item.id} className="grid grid-cols-[2.5rem_1fr_auto] gap-3 border-b border-black/8 py-4 text-sm last:border-0"><span className="font-mono text-[#817a70]">{item.quantity}x</span><span className="font-bold">{item.nameSnapshot}</span><span className="font-black tabular-nums">{formatPaise(item.linePaise)}</span></div>)}</div></section>
               <aside className="h-fit rounded-xl bg-white p-5"><h2 className="font-black">Delivery details</h2><dl className="mt-4 space-y-4 text-sm"><div><dt className="text-[#817a70]">Delivering to</dt><dd className="mt-1 font-bold">{order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Campus gate"}</dd></div><div><dt className="text-[#817a70]">Contact</dt><dd className="mt-1 font-bold">{order.customerPhone}</dd></div>{order.orderSlot ? <div><dt className="text-[#817a70]">Order slot</dt><dd className="mt-1 font-bold">{order.orderSlot === "NIGHT" ? "Night" : "Afternoon"}</dd></div> : null}</dl></aside>
             </div>
-
-            {order.status === "DELIVERED" && !order.rating ? (
-              <section className="mt-12 rounded-2xl bg-white p-6 shadow-[0_24px_70px_rgba(58,43,22,0.08)] sm:p-8"><h2 className="text-3xl font-black tracking-[-0.04em]">How was your order?</h2><p className="mt-2 text-[#716a5f]">Your feedback helps improve the kitchen and delivery experience.</p><div className="mt-7 grid gap-7 sm:grid-cols-2"><StarRating label="Food rating" value={rating.foodRating} onChange={(value) => setRating({ ...rating, foodRating: value })} /><StarRating label="Delivery rating" value={rating.deliveryRating} onChange={(value) => setRating({ ...rating, deliveryRating: value })} /></div><label className="mt-7 block text-sm font-bold">Optional review<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-black/12 bg-[#f7f3eb] p-4 font-normal outline-none focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10" placeholder="Tell us what worked well" value={rating.review} onChange={(event) => setRating({ ...rating, review: event.target.value })} /></label><button type="button" onClick={submitRating} className="tracking-dark-link mt-4 min-h-12 rounded-md bg-[#171713] px-6 font-black transition hover:bg-[#c65d24]">Submit rating</button></section>
-            ) : null}
 
             {order.rating ? <div className="mt-10 flex items-center gap-3 rounded-xl border border-[#34705a]/20 bg-[#34705a]/8 p-5 font-bold text-[#285d4a]"><CheckCircle2 size={19} /> Thanks for rating this order.</div> : null}
           </motion.section>

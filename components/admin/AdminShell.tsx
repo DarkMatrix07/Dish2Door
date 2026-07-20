@@ -138,11 +138,14 @@ export function AdminShell({ children, userName }: { children: React.ReactNode; 
 }
 
 export function PageContainer({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <section className={cn("mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10", className)}>{children}</section>;
+  // space-y here gives every admin page a consistent vertical rhythm; without it
+  // stacked stat grids and section cards sit flush against each other.
+  return <section className={cn("mx-auto max-w-[1440px] space-y-4 px-4 py-6 sm:space-y-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10", className)}>{children}</section>;
 }
 
 export function AdminPageHeader({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children?: React.ReactNode }) {
-  return <div className="mb-6 flex flex-col gap-5 border-b border-black/10 pb-6 sm:mb-8 sm:pb-8 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-bold text-[#b65a20]">{eyebrow}</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">{title}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-[#70727a] sm:text-base">{description}</p></div>{children ? <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{children}</div> : null}</div>;
+  // No bottom margin: PageContainer's space-y owns the gap to the next block.
+  return <div className="flex flex-col gap-5 border-b border-black/10 pb-6 sm:pb-8 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-bold text-[#b65a20]">{eyebrow}</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">{title}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-[#70727a] sm:text-base">{description}</p></div>{children ? <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{children}</div> : null}</div>;
 }
 
 export function StatCard({ label, value, helper }: { label: string; value: React.ReactNode; helper?: string }) {
