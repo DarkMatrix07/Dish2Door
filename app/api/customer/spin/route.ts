@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
+import { getActiveSpinReward } from "@/lib/spin-rewards";
 import {
+  getIndiaSpinDay,
+  isValidIndianMobile,
   normalizePhone,
   pickWeightedSegmentIndex,
   qualifiesForSpin,
@@ -43,26 +46,28 @@ export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
     const phone = normalizePhone(body.phone);
-    if (phone.length < 8) {
+    if (!isValidIndianMobile(phone)) {
       return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
     }
 
-    const outstanding = await prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } });
+    const spinDay = getIndiaSpinDay();
+    const outstanding = await getActiveSpinReward(phone);
     if (outstanding) {
       // Unredeemed spin already exists — hand back the same result (idempotent).
       return rewardResponse(outstanding);
     }
 
-    const [reviewedCount, loyalty, settings] = await Promise.all([
-      prisma.order.count({ where: { customerPhone: { contains: phone }, rating: { isNot: null } } }),
+    const [reviewedCount, loyalty, usage, settings] = await Promise.all([
+      prisma.order.count({ where: { customerPhone: phone, rating: { isNot: null } } }),
       prisma.customerLoyalty.findUnique({ where: { phone } }),
+      prisma.spinUsage.findUnique({ where: { phone_spinDay: { phone, spinDay } } }),
       getSettings()
     ]);
     const effectiveCount = Math.max(0, reviewedCount - (loyalty?.spinBaseline ?? 0));
     const qualifies = qualifiesForSpin({
       effectiveCount,
-      wheelConsumed: loyalty?.wheelConsumed ?? false,
-      forEveryone: settings.spinWheelForEveryone
+      forEveryone: settings.spinWheelForEveryone,
+      usedToday: Boolean(usage)
     });
     if (!qualifies) {
       return NextResponse.json({ error: "This account is not eligible for a spin right now." }, { status: 403 });
@@ -103,14 +108,21 @@ export async function POST(request: Request) {
             discountPercent,
             couponCode
           }
+        }),
+        prisma.spinUsage.create({
+          data: { phone, spinDay, outcome: "SPUN" }
         })
       ]);
     } catch (error) {
       // Concurrent spin from the same phone lost the race against the partial unique
       // index (one outstanding spin per phone) — return the winner's reward.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        const winner = await prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } });
+        const winner = await getActiveSpinReward(phone);
         if (winner) return rewardResponse(winner);
+        const used = await prisma.spinUsage.findUnique({ where: { phone_spinDay: { phone, spinDay } } });
+        if (used) {
+          return NextResponse.json({ error: "This number has already used today's spin." }, { status: 409 });
+        }
       }
       throw error;
     }

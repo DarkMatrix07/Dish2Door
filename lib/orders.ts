@@ -13,7 +13,7 @@ import { generatePasscode, generateTrackingCode, hashPasscode } from "@/lib/orde
 import { orderInclude } from "@/lib/order-select";
 import type { FullOrder } from "@/lib/order-types";
 import { assertOrderingWindowOpen } from "@/lib/order-slots";
-import { normalizePhone } from "@/lib/spin-wheel";
+import { isValidIndianMobile, normalizePhone } from "@/lib/spin-wheel";
 import { getSettings } from "@/lib/settings";
 import { todayLabel } from "@/lib/utils";
 import { sendOrderEventNotifications } from "@/lib/notifications";
@@ -32,6 +32,12 @@ export type CustomerDetails = {
   couponCode?: string;
   orderSlot?: OrderSlot;
 };
+
+function requireNormalizedPhone(value: string) {
+  const phone = normalizePhone(value);
+  if (!isValidIndianMobile(phone)) throw new Error("Enter a valid 10-digit Indian mobile number");
+  return phone;
+}
 
 // Notifications can be slow or flaky (WhatsApp/SMTP). Order mutations update the
 // database, return immediately, and deliver notifications in the background so no
@@ -111,6 +117,7 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
 
 export async function createPendingOnlineOrder(details: CustomerDetails, items: OrderItemInput[]) {
   const settings = await getSettings();
+  const customerPhone = requireNormalizedPhone(details.phone);
 
   if (!settings.ordersOpen) {
     throw new Error("Orders are closed");
@@ -130,7 +137,7 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     // copying the code and using it (or sharing it) on a different account.
     if (coupon) {
       const boundReward = await tx.spinReward.findFirst({ where: { couponCode: coupon.code } });
-      if (boundReward && normalizePhone(boundReward.phone) !== normalizePhone(details.phone)) {
+      if (boundReward && normalizePhone(boundReward.phone) !== customerPhone) {
         throw new Error("This reward coupon is linked to the phone number that won it and can't be used on another account.");
       }
     }
@@ -151,7 +158,7 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
         trackingCode,
         customerName: details.name,
         customerEmail: details.email,
-        customerPhone: details.phone,
+        customerPhone,
         deliveryType: details.deliveryType,
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,
@@ -213,43 +220,48 @@ export async function confirmOnlineOrder(orderId: string, payment: {
   const passcode = generatePasscode();
   const passcodeHash = await hashPasscode(passcode);
 
-  const claim = await prisma.order.updateMany({
-    where: { id: orderId, paymentStatus: PaymentStatus.PENDING },
-    data: { paymentStatus: PaymentStatus.PAID_ONLINE, trackingPasscodeHash: passcodeHash }
-  });
-
-  if (claim.count === 0) {
-    // Already confirmed (or not a pending online order) — return current state.
-    const existing = await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
-    if (!existing) throw new Error("Order not found");
-    return { order: existing, passcode: null as string | null };
-  }
-
-  const order = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      payment: {
-        update: {
-          status: PaymentStatus.PAID_ONLINE,
-          razorpayOrderId: payment.razorpayOrderId,
-          razorpayPaymentId: payment.razorpayPaymentId,
-          razorpaySignature: payment.razorpaySignature
-        }
-      }
-    },
-    include: orderInclude
-  });
-
-  if (order.couponCode) {
-    await prisma.coupon.update({
-      where: { code: order.couponCode },
-      data: { usedCount: { increment: 1 } }
+  const result = await prisma.$transaction(async (tx) => {
+    const claim = await tx.order.updateMany({
+      where: { id: orderId, paymentStatus: PaymentStatus.PENDING },
+      data: { paymentStatus: PaymentStatus.PAID_ONLINE, trackingPasscodeHash: passcodeHash }
     });
-    await redeemSpinRewardIfAny(order.couponCode, order.customerPhone);
-  }
 
-  dispatchNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
-  return { order, passcode: passcode as string | null };
+    if (claim.count === 0) {
+      const existing = await tx.order.findUnique({ where: { id: orderId }, include: orderInclude });
+      if (!existing) throw new Error("Order not found");
+      return { order: existing, claimed: false };
+    }
+
+    const order = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        payment: {
+          update: {
+            status: PaymentStatus.PAID_ONLINE,
+            razorpayOrderId: payment.razorpayOrderId,
+            razorpayPaymentId: payment.razorpayPaymentId,
+            razorpaySignature: payment.razorpaySignature
+          }
+        }
+      },
+      include: orderInclude
+    });
+
+    if (order.couponCode) {
+      await tx.coupon.update({
+        where: { code: order.couponCode },
+        data: { usedCount: { increment: 1 } }
+      });
+      await redeemSpinRewardIfAny(tx, order.couponCode, order.customerPhone);
+    }
+
+    return { order, claimed: true };
+  });
+
+  if (!result.claimed) return { order: result.order, passcode: null as string | null };
+
+  dispatchNotifications(result.order.id, NotificationEvent.ORDER_CREATED, passcode);
+  return { order: result.order, passcode: passcode as string | null };
 }
 
 // If the coupon just used on a paid order is an outstanding spin-wheel reward for
@@ -257,25 +269,23 @@ export async function confirmOnlineOrder(orderId: string, payment: {
 // reviewed-order count. That zeroes the *wheel-eligibility* counter (so the customer
 // must earn 3-6 new reviewed orders to spin again) while leaving the real order
 // history untouched. Non-wheel coupons match no reward and are a no-op.
-async function redeemSpinRewardIfAny(couponCode: string, customerPhone: string) {
+async function redeemSpinRewardIfAny(tx: Prisma.TransactionClient, couponCode: string, customerPhone: string) {
   const phone = normalizePhone(customerPhone);
-  const reward = await prisma.spinReward.findFirst({
-    where: { couponCode, phone, redeemedAt: null }
+  const reward = await tx.spinReward.findFirst({
+    where: { couponCode, phone, redeemedAt: null, expiredAt: null }
   });
   if (!reward) return;
 
-  const reviewedCount = await prisma.order.count({
-    where: { customerPhone: { contains: phone }, rating: { isNot: null } }
+  const reviewedCount = await tx.order.count({
+    where: { customerPhone: phone, rating: { isNot: null } }
   });
 
-  await prisma.$transaction([
-    prisma.spinReward.update({ where: { id: reward.id }, data: { redeemedAt: new Date() } }),
-    prisma.customerLoyalty.upsert({
-      where: { phone },
-      create: { phone, spinBaseline: reviewedCount, wheelConsumed: false },
-      update: { spinBaseline: reviewedCount, wheelConsumed: false }
-    })
-  ]);
+  await tx.spinReward.update({ where: { id: reward.id }, data: { redeemedAt: new Date() } });
+  await tx.customerLoyalty.upsert({
+    where: { phone },
+    create: { phone, spinBaseline: reviewedCount, wheelConsumed: false },
+    update: { spinBaseline: reviewedCount, wheelConsumed: false }
+  });
 }
 
 // Used by the Razorpay webhook: map a Razorpay order id back to our order via the
@@ -293,6 +303,7 @@ export async function confirmOnlineOrderByRazorpayOrderId(razorpayOrderId: strin
 
 export async function createManualOrder(details: CustomerDetails, items: OrderItemInput[], paymentStatus: PaymentStatus) {
   const settings = await getSettings();
+  const customerPhone = requireNormalizedPhone(details.phone);
   const passcode = generatePasscode();
   const passcodeHash = await hashPasscode(passcode);
 
@@ -308,7 +319,7 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
         trackingPasscodeHash: passcodeHash,
         customerName: details.name,
         customerEmail: details.email,
-        customerPhone: details.phone,
+        customerPhone,
         deliveryType: details.deliveryType,
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,

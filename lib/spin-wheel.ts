@@ -25,20 +25,42 @@ export function isSpinEligible(feedbackOrderCount: number) {
   return feedbackOrderCount >= SPIN_MIN_FEEDBACK_ORDERS && feedbackOrderCount <= SPIN_MAX_FEEDBACK_ORDERS;
 }
 
-// Whether a customer *qualifies* to be offered a spin this cycle (ignores whether they
-// currently hold an unredeemed reward — the caller checks that separately). In the
-// "for everyone" promo mode any customer qualifies until they take or forfeit their
-// spin (wheelConsumed); otherwise the normal 3-6 reviewed-order window applies.
+// Whether a customer qualifies for a new spin. The daily usage row is authoritative
+// in every mode; regulars must additionally be inside the reviewed-order window.
 export function qualifiesForSpin({
   effectiveCount,
-  wheelConsumed,
-  forEveryone
+  forEveryone,
+  usedToday
 }: {
   effectiveCount: number;
-  wheelConsumed: boolean;
   forEveryone: boolean;
+  usedToday: boolean;
 }) {
-  return forEveryone ? !wheelConsumed : isSpinEligible(effectiveCount);
+  if (usedToday) return false;
+  return forEveryone || isSpinEligible(effectiveCount);
+}
+
+// India has a fixed UTC+05:30 offset and no daylight-saving changes. A string is
+// stored instead of a timestamp so the database can enforce one use per IST day.
+export function getIndiaSpinDay(now = new Date()) {
+  const INDIA_OFFSET_MS = 330 * 60 * 1000;
+  return new Date(now.getTime() + INDIA_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+type CouponState = {
+  active: boolean;
+  expiresAt: Date | null;
+  maxUses: number | null;
+  usedCount: number;
+};
+
+export function isSpinCouponUsable(coupon: CouponState | null, now = new Date()) {
+  return Boolean(
+    coupon &&
+      coupon.active &&
+      (!coupon.expiresAt || coupon.expiresAt > now) &&
+      (coupon.maxUses === null || coupon.usedCount < coupon.maxUses)
+  );
 }
 
 // Given a uniform random number in [0, 1), return the index into WHEEL_SEGMENTS of
@@ -62,4 +84,8 @@ export function segmentIndexForPercent(percent: number) {
 // last 10 digits so lookups and the one-spin-per-phone rule are stable.
 export function normalizePhone(phone: string) {
   return phone.replace(/\D/g, "").slice(-10);
+}
+
+export function isValidIndianMobile(phone: string) {
+  return /^[6-9]\d{9}$/.test(normalizePhone(phone));
 }

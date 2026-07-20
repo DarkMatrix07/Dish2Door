@@ -327,7 +327,7 @@ model Coupon {
 // orders may spin the discount wheel. The won discount is issued as a one-time
 // Coupon (couponCode) so it flows through the normal checkout. Each spin is one row
 // (a log); a partial unique index (phone WHERE redeemedAt IS NULL, defined in the
-// migration) allows at most ONE outstanding/unredeemed spin per phone at a time.
+// migration) allows at most one active, unredeemed/unexpired reward per phone.
 model SpinReward {
   id              String    @id @default(cuid())
   phone           String
@@ -337,9 +337,24 @@ model SpinReward {
   couponCode      String
   createdAt       DateTime  @default(now())
   redeemedAt      DateTime?
+  expiredAt       DateTime?
 
   @@index([phone])
   @@index([couponCode])
+}
+
+// One authoritative wheel decision per normalized phone number and IST calendar
+// day. Both spinning and deliberately forfeiting create a row, and the compound
+// unique constraint makes the daily limit safe under concurrent requests.
+model SpinUsage {
+  id        String   @id @default(cuid())
+  phone     String
+  spinDay   String
+  outcome   String
+  createdAt DateTime @default(now())
+
+  @@unique([phone, spinDay])
+  @@index([spinDay])
 }
 
 // Per-phone loyalty baseline. The wheel-eligibility count is (reviewed orders -
@@ -349,10 +364,8 @@ model SpinReward {
 model CustomerLoyalty {
   phone         String   @id
   spinBaseline  Int      @default(0)
-  // True once the customer has taken (or forfeited by closing) their spin for the
-  // current cycle. Used by the "wheel for everyone" mode to avoid re-offering after a
-  // spin/close; reset to false when a wheel coupon is redeemed. Count-mode gating uses
-  // spinBaseline instead, so it ignores this flag.
+  // Retained for compatibility with the earlier cycle model. SpinUsage now enforces
+  // the daily cap; spinBaseline remains authoritative for regular-only campaigns.
   wheelConsumed Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

@@ -119,7 +119,7 @@ export function CartPageClient({
     const email = identityDraft.email.trim();
     const phone = identityDraft.phone.trim();
     if (name.length < 2) return toast.error("Please enter your name.");
-    if (phone.replace(/\D/g, "").length < 10) return toast.error("Enter a valid 10-digit phone number.");
+    if (!/^[6-9]\d{9}$/.test(phone.replace(/\D/g, "").slice(-10))) return toast.error("Enter a valid 10-digit Indian mobile number.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Enter a valid email address.");
 
     const who: CustomerIdentity = { name, email, phone };

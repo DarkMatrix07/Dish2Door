@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { normalizePhone } from "@/lib/spin-wheel";
+import { getActiveSpinReward } from "@/lib/spin-rewards";
+import { getIndiaSpinDay, isValidIndianMobile, normalizePhone } from "@/lib/spin-wheel";
 
 const schema = z.object({
   phone: z.string().min(8).max(20)
@@ -16,28 +18,42 @@ export async function POST(request: Request) {
   try {
     const { phone: rawPhone } = schema.parse(await request.json());
     const phone = normalizePhone(rawPhone);
-    if (phone.length < 8) {
+    if (!isValidIndianMobile(phone)) {
       return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
     }
 
-    const outstanding = await prisma.spinReward.findFirst({ where: { phone, redeemedAt: null } });
+    const spinDay = getIndiaSpinDay();
+    const outstanding = await getActiveSpinReward(phone);
     if (outstanding) {
       return NextResponse.json({ ok: true, keptReward: true });
     }
 
     const reviewedCount = await prisma.order.count({
-      where: { customerPhone: { contains: phone }, rating: { isNot: null } }
+      where: { customerPhone: phone, rating: { isNot: null } }
     });
 
-    await prisma.customerLoyalty.upsert({
-      where: { phone },
-      create: { phone, spinBaseline: reviewedCount, wheelConsumed: true },
-      update: { spinBaseline: reviewedCount, wheelConsumed: true }
-    });
+    try {
+      await prisma.$transaction([
+        prisma.spinUsage.create({ data: { phone, spinDay, outcome: "FORFEITED" } }),
+        prisma.customerLoyalty.upsert({
+          where: { phone },
+          create: { phone, spinBaseline: reviewedCount, wheelConsumed: true },
+          update: { spinBaseline: reviewedCount, wheelConsumed: true }
+        })
+      ]);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return NextResponse.json({ ok: true, alreadyUsed: true });
+      }
+      throw error;
+    }
 
     return NextResponse.json({ ok: true });
-  } catch {
-    // Forfeiting is best-effort; never surface an error that would trap the modal open.
-    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const invalid = error instanceof z.ZodError;
+    return NextResponse.json(
+      { error: invalid ? "Enter a valid phone number." : "Could not give up the spin. Please try again." },
+      { status: invalid ? 400 : 500 }
+    );
   }
 }

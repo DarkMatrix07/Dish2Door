@@ -53,15 +53,18 @@ export function SpinWheel({
   async function confirmForfeit() {
     setForfeiting(true);
     try {
-      await fetch("/api/customer/spin/forfeit", {
+      const response = await fetch("/api/customer/spin/forfeit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: identity.phone })
       });
-    } catch {
-      // Best-effort; close regardless.
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Could not give up the spin.");
+      onClose();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not give up the spin.");
+      setForfeiting(false);
     }
-    onClose();
   }
 
   async function spin() {
@@ -124,7 +127,7 @@ export function SpinWheel({
         </span>
         <h2 className="mt-4 text-3xl font-black tracking-[-0.04em]">You unlocked a spin!</h2>
         <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#716a5f]">
-          Thanks for being a regular. Spin the wheel for a discount on this order.
+          Your daily Dish2Door spin is ready. Try your luck for a discount on this order.
         </p>
 
         <div className="relative mx-auto mt-6 h-[280px] w-[280px]">
