@@ -125,6 +125,15 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     const coupon = details.couponCode
       ? await tx.coupon.findUnique({ where: { code: details.couponCode.toUpperCase() } })
       : null;
+    // Spin-wheel coupons are bound to the phone that won them. If a code has a
+    // matching SpinReward, only that phone may redeem it — this blocks a winner from
+    // copying the code and using it (or sharing it) on a different account.
+    if (coupon) {
+      const boundReward = await tx.spinReward.findFirst({ where: { couponCode: coupon.code } });
+      if (boundReward && normalizePhone(boundReward.phone) !== normalizePhone(details.phone)) {
+        throw new Error("This reward coupon is linked to the phone number that won it and can't be used on another account.");
+      }
+    }
     const validCoupon =
       coupon &&
       coupon.active &&
