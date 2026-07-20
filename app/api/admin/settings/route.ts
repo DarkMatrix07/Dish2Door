@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { DEFAULT_SETTINGS_ID, getSettings } from "@/lib/settings";
+import { promoUntilDayFromNow } from "@/lib/spin-promo";
 
 const schema = z.object({
   ordersOpen: z.boolean(),
@@ -30,10 +31,23 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = schema.parse(await request.json());
+  const current = await getSettings();
+
+  // Switching the everyone-mode promo on stamps the day its ordering window close
+  // should end it; switching it off clears the stamp. Saving other settings while the
+  // promo runs must not extend it, so only a false -> true transition re-stamps.
+  const closeMinute = body.orderingCloseMinute ?? current.orderingCloseMinute;
+  const promoFields =
+    body.spinWheelForEveryone === undefined || body.spinWheelForEveryone === current.spinWheelForEveryone
+      ? {}
+      : body.spinWheelForEveryone
+        ? { spinWheelEveryoneUntilDay: promoUntilDayFromNow(closeMinute) }
+        : { spinWheelEveryoneUntilDay: null };
+
   const settings = await prisma.systemSettings.upsert({
     where: { id: DEFAULT_SETTINGS_ID },
-    update: body,
-    create: { id: DEFAULT_SETTINGS_ID, ...body }
+    update: { ...body, ...promoFields },
+    create: { id: DEFAULT_SETTINGS_ID, ...body, ...promoFields }
   });
 
   return NextResponse.json({ settings });

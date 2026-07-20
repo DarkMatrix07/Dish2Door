@@ -39,6 +39,21 @@ function requireNormalizedPhone(value: string) {
   return phone;
 }
 
+// Every order attaches to the Customer spine, keyed by normalized phone. Name/email
+// are refreshed from the latest order so the customer record stays current, and the
+// row must exist before the order is written because Order.customerId references it.
+async function upsertOrderCustomer(
+  tx: Prisma.TransactionClient,
+  phone: string,
+  details: { name: string; email?: string }
+) {
+  await tx.customer.upsert({
+    where: { phone },
+    create: { phone, name: details.name || null, email: details.email || null },
+    update: { name: details.name || undefined, email: details.email || undefined }
+  });
+}
+
 // Notifications can be slow or flaky (WhatsApp/SMTP). Order mutations update the
 // database, return immediately, and deliver notifications in the background so no
 // admin/customer action is ever blocked on an external provider.
@@ -153,12 +168,15 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
       : 0;
     const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, settings, true, couponDiscountPaise);
 
+    await upsertOrderCustomer(tx, customerPhone, details);
+
     const order = await tx.order.create({
       data: {
         trackingCode,
         customerName: details.name,
         customerEmail: details.email,
         customerPhone,
+        customerId: customerPhone,
         deliveryType: details.deliveryType,
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,
@@ -252,7 +270,7 @@ export async function confirmOnlineOrder(orderId: string, payment: {
         where: { code: order.couponCode },
         data: { usedCount: { increment: 1 } }
       });
-      await redeemSpinRewardIfAny(tx, order.couponCode, order.customerPhone);
+      await redeemSpinRewardIfAny(tx, order.couponCode, order.customerPhone, order.id);
     }
 
     return { order, claimed: true };
@@ -265,23 +283,32 @@ export async function confirmOnlineOrder(orderId: string, payment: {
 }
 
 // If the coupon just used on a paid order is an outstanding spin-wheel reward for
-// this phone, mark it redeemed and reset the loyalty baseline to the current
-// reviewed-order count. That zeroes the *wheel-eligibility* counter (so the customer
-// must earn 3-6 new reviewed orders to spin again) while leaving the real order
-// history untouched. Non-wheel coupons match no reward and are a no-op.
-async function redeemSpinRewardIfAny(tx: Prisma.TransactionClient, couponCode: string, customerPhone: string) {
+// this phone, mark it redeemed (recording which order spent it) and reset the loyalty
+// baseline to the current reviewed-order count. That zeroes the wheel-eligibility
+// counter, so the customer must review another 3 orders to earn the next spin, while
+// leaving the real order history untouched. Non-wheel coupons are a no-op.
+async function redeemSpinRewardIfAny(
+  tx: Prisma.TransactionClient,
+  couponCode: string,
+  customerPhone: string,
+  orderId: string
+) {
   const phone = normalizePhone(customerPhone);
   const reward = await tx.spinReward.findFirst({
     where: { couponCode, phone, redeemedAt: null, expiredAt: null }
   });
   if (!reward) return;
 
-  const reviewedCount = await tx.order.count({
-    where: { customerPhone: phone, rating: { isNot: null } }
-  });
+  const [reviewedCount, customer] = await Promise.all([
+    tx.order.count({ where: { customerPhone: phone, rating: { isNot: null } } }),
+    tx.customer.findUnique({ where: { phone } })
+  ]);
 
-  await tx.spinReward.update({ where: { id: reward.id }, data: { redeemedAt: new Date() } });
-  await tx.customerLoyalty.upsert({
+  await tx.spinReward.update({
+    where: { id: reward.id },
+    data: { redeemedAt: new Date(), orderId, baselineBefore: customer?.spinBaseline ?? 0 }
+  });
+  await tx.customer.upsert({
     where: { phone },
     create: { phone, spinBaseline: reviewedCount, wheelConsumed: false },
     update: { spinBaseline: reviewedCount, wheelConsumed: false }
@@ -313,6 +340,8 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
     const resolved = await resolveItems(tx, items);
     const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, settings, false);
 
+    await upsertOrderCustomer(tx, customerPhone, details);
+
     return tx.order.create({
       data: {
         trackingCode,
@@ -320,6 +349,7 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
         customerName: details.name,
         customerEmail: details.email,
         customerPhone,
+        customerId: customerPhone,
         deliveryType: details.deliveryType,
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,
@@ -501,15 +531,58 @@ export async function cancelOrder(orderId: string, refund: boolean) {
 
   const shouldRefund = refund && existing.paymentStatus === PaymentStatus.PAID_ONLINE;
 
-  return prisma.order.update({
-    where: { id: orderId },
-    data: {
-      status: OrderStatus.CANCELLED,
-      paymentStatus: shouldRefund ? PaymentStatus.REFUNDED : existing.paymentStatus,
-      ...(shouldRefund ? { payment: { update: { status: PaymentStatus.REFUNDED } } } : {})
-    },
-    include: orderInclude
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.CANCELLED,
+        paymentStatus: shouldRefund ? PaymentStatus.REFUNDED : existing.paymentStatus,
+        ...(shouldRefund ? { payment: { update: { status: PaymentStatus.REFUNDED } } } : {})
+      },
+      include: orderInclude
+    });
+
+    await restoreSpinRewardForCancelledOrder(tx, order.id, order.couponCode);
+    return order;
   });
+}
+
+// Cancelling an order gives back any spin-wheel reward it consumed: the coupon becomes
+// usable again and the reward returns to "outstanding", so the customer keeps a prize
+// they legitimately won instead of silently losing it with the order.
+async function restoreSpinRewardForCancelledOrder(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  couponCode: string | null
+) {
+  if (!couponCode) return;
+  const reward = await tx.spinReward.findFirst({
+    where: { orderId, couponCode, redeemedAt: { not: null } }
+  });
+  if (!reward) return;
+
+  // Another live reward already exists for this phone (the partial unique index allows
+  // only one), so reopening this one would violate it. Leave it redeemed.
+  const live = await tx.spinReward.findFirst({
+    where: { phone: reward.phone, redeemedAt: null, expiredAt: null }
+  });
+  if (live) return;
+
+  await tx.spinReward.update({
+    where: { id: reward.id },
+    data: { redeemedAt: null, orderId: null }
+  });
+  await tx.coupon.updateMany({
+    where: { code: couponCode, usedCount: { gt: 0 } },
+    data: { usedCount: { decrement: 1 } }
+  });
+  // Rewind the cycle to exactly where it was before this reward was spent.
+  if (reward.baselineBefore !== null) {
+    await tx.customer.updateMany({
+      where: { phone: reward.phone },
+      data: { spinBaseline: reward.baselineBefore }
+    });
+  }
 }
 
 export async function getOrderForNotification(orderId: string) {

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { Prisma, SpinOutcome } from "@prisma/client";
+import { Prisma, SpinMode, SpinOutcome } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { getSettings } from "@/lib/settings";
 import { getActiveSpinReward } from "@/lib/spin-rewards";
 import { getIndiaSpinDay, isValidIndianMobile, normalizePhone } from "@/lib/spin-wheel";
 
@@ -33,14 +34,18 @@ export async function POST(request: Request) {
       where: { customerPhone: phone, rating: { isNot: null } }
     });
 
+    const settings = await getSettings();
+    const mode = settings.spinWheelForEveryone ? SpinMode.EVERYONE : SpinMode.REGULARS;
+
     try {
       await prisma.$transaction([
-        prisma.spinUsage.create({ data: { phone, spinDay, outcome: SpinOutcome.FORFEITED } }),
-        prisma.customerLoyalty.upsert({
+        // Customer first: SpinUsage references it.
+        prisma.customer.upsert({
           where: { phone },
           create: { phone, spinBaseline: reviewedCount, wheelConsumed: true },
           update: { spinBaseline: reviewedCount, wheelConsumed: true }
-        })
+        }),
+        prisma.spinUsage.create({ data: { phone, spinDay, outcome: SpinOutcome.FORFEITED, mode } })
       ]);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma, SpinOutcome } from "@prisma/client";
+import { Prisma, SpinMode, SpinOutcome } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
     const [reviewedCount, loyalty, usage, settings] = await Promise.all([
       prisma.order.count({ where: { customerPhone: phone, rating: { isNot: null } } }),
-      prisma.customerLoyalty.findUnique({ where: { phone } }),
+      prisma.customer.findUnique({ where: { phone } }),
       prisma.spinUsage.findUnique({ where: { phone_spinDay: { phone, spinDay } } }),
       getSettings()
     ]);
@@ -90,8 +90,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Could not issue your reward. Please try again." }, { status: 500 });
     }
 
+    const mode = settings.spinWheelForEveryone ? SpinMode.EVERYONE : SpinMode.REGULARS;
+
     try {
       await prisma.$transaction([
+        // Must come first: SpinReward and SpinUsage both reference Customer.
+        prisma.customer.upsert({
+          where: { phone },
+          create: { phone, name: body.name || null, email: body.email || null },
+          update: { name: body.name || undefined, email: body.email || undefined }
+        }),
         prisma.coupon.create({
           data: {
             code: couponCode,
@@ -112,7 +120,7 @@ export async function POST(request: Request) {
           }
         }),
         prisma.spinUsage.create({
-          data: { phone, spinDay, outcome: SpinOutcome.SPUN }
+          data: { phone, spinDay, outcome: SpinOutcome.SPUN, mode }
         })
       ]);
     } catch (error) {

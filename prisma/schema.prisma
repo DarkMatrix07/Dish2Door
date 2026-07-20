@@ -224,6 +224,11 @@ model Order {
   items                 OrderItem[]
   payment               Payment?
   rating                Rating?
+  // Links the order to the Customer spine. Nullable so an order is never blocked by
+  // a missing customer row; populated from the normalized phone on every write.
+  customerId            String?
+  customer              Customer?    @relation(fields: [customerId], references: [phone], onDelete: SetNull)
+  spinRewards           SpinReward[]
   notificationLogs      NotificationLog[]
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
@@ -231,6 +236,7 @@ model Order {
   @@index([restaurantId])
   @@index([sessionId])
   @@index([status])
+  @@index([customerId])
   @@index([deliveryType, deliveryReleased])
 }
 
@@ -306,6 +312,12 @@ model SystemSettings {
   orderingOpenMinute       Int      @default(360)
   orderingCloseMinute      Int      @default(1380)
   spinWheelForEveryone     Boolean  @default(false)
+  // IST day (YYYY-MM-DD) whose ordering-window close ends the everyone-mode promo,
+  // computed when it is switched on. Enabling after the window has already closed
+  // rolls this to the next day so the promo always gets a real day of traffic. A
+  // background job flips the promo off once this day's close passes, so it can never
+  // be left on by accident.
+  spinWheelEveryoneUntilDay String?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 }
@@ -338,9 +350,20 @@ model SpinReward {
   createdAt       DateTime  @default(now())
   redeemedAt      DateTime?
   expiredAt       DateTime?
+  // The order this reward was actually spent on, set at redemption. Previously this
+  // could only be reconstructed by string-matching couponCode against Order.
+  orderId         String?
+  // The customer's spinBaseline immediately before this reward was redeemed. Redeeming
+  // moves the baseline to an absolute count, so this is the only way to restore the
+  // exact previous cycle if the order is later cancelled.
+  baselineBefore  Int?
+
+  customer        Customer  @relation(fields: [phone], references: [phone], onDelete: Cascade)
+  order           Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@index([phone])
   @@index([couponCode])
+  @@index([orderId])
 }
 
 // One authoritative wheel decision per normalized phone number and IST calendar
@@ -352,12 +375,22 @@ enum SpinOutcome {
   FORFEITED
 }
 
+// Which rule granted the spin: the 3-reviewed-orders loyalty loop, or the admin's
+// "wheel for everyone" promo. Recorded per spin so promo days stay auditable.
+enum SpinMode {
+  REGULARS
+  EVERYONE
+}
+
 model SpinUsage {
   id        String      @id @default(cuid())
   phone     String
   spinDay   String
   outcome   SpinOutcome
+  mode      SpinMode
   createdAt DateTime    @default(now())
+
+  customer  Customer    @relation(fields: [phone], references: [phone], onDelete: Cascade)
 
   @@unique([phone, spinDay])
   @@index([spinDay])
@@ -367,13 +400,25 @@ model SpinUsage {
 // spinBaseline), so redeeming a wheel coupon can reset the eligibility counter to
 // zero (by setting spinBaseline to the current reviewed-order count) WITHOUT ever
 // deleting or altering the customer's real order history.
-model CustomerLoyalty {
-  phone         String   @id
-  spinBaseline  Int      @default(0)
+// One row per customer, keyed by their normalized 10-digit phone. This is the spine
+// everything else hangs off: orders, spins and rewards all point here. Counts ("how
+// many orders so far", "how many reviewed") are deliberately NOT stored — they are
+// derived from Order/Rating so they can never drift when an order is cancelled.
+model Customer {
+  phone         String       @id
+  name          String?
+  email         String?
+  // Reviewed-order count at the customer's last claimed/forfeited spin. Wheel
+  // eligibility uses (reviewed orders - spinBaseline), so it restarts at 0 each cycle.
+  spinBaseline  Int          @default(0)
   // Vestigial: written on spin/forfeit as an audit breadcrumb but NOT read by any
-  // eligibility check. SpinUsage enforces the daily cap and spinBaseline gates the
-  // regulars-only window. Do not add logic that depends on this field.
-  wheelConsumed Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  // eligibility check. Do not add logic that depends on this field.
+  wheelConsumed Boolean      @default(false)
+  firstSeenAt   DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  orders        Order[]
+  spins         SpinUsage[]
+  rewards       SpinReward[]
 }

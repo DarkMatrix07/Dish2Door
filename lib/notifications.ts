@@ -24,10 +24,12 @@ function eventCopy(event: NotificationEvent) {
       body: "Your order has reached campus. Please follow the delivery or gate collection instructions."
     };
   }
+  // Ratings are what unlock the discount wheel, so the delivered message says so —
+  // this is the main prompt that turns a delivery into feedback.
   return {
     headline: "Your order is delivered",
-    subject: "Your campus food order was delivered",
-    body: "Your order has been marked delivered. You can now rate the food and delivery experience."
+    subject: "Your campus food order was delivered — rate it to earn a discount",
+    body: "Your order has been marked delivered. Rate the food and delivery using your tracking link — every 3 rated orders unlocks a spin on our discount wheel."
   };
 }
 

@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
+import { OrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { getActiveSpinReward } from "@/lib/spin-rewards";
-import { getIndiaSpinDay, isValidIndianMobile, normalizePhone, qualifiesForSpin, segmentIndexForPercent } from "@/lib/spin-wheel";
+import {
+  getIndiaSpinDay,
+  isValidIndianMobile,
+  normalizePhone,
+  qualifiesForSpin,
+  reviewsUntilSpin,
+  segmentIndexForPercent,
+  SPIN_ORDERS_PER_REWARD
+} from "@/lib/spin-wheel";
 
 const schema = z.object({
   name: z.string().min(1).max(80).optional(),
@@ -27,11 +36,15 @@ export async function POST(request: Request) {
 
     const spinDay = getIndiaSpinDay();
     const outstanding = await getActiveSpinReward(phone);
-    const [reviewedCount, loyalty, usage, settings] = await Promise.all([
+    const [reviewedCount, unratedOrders, loyalty, usage, settings] = await Promise.all([
       prisma.order.count({
         where: { customerPhone: phone, rating: { isNot: null } }
       }),
-      prisma.customerLoyalty.findUnique({ where: { phone } }),
+      // Delivered orders they could still rate — the concrete action behind the nudge.
+      prisma.order.count({
+        where: { customerPhone: phone, status: OrderStatus.DELIVERED, rating: { is: null } }
+      }),
+      prisma.customer.findUnique({ where: { phone } }),
       prisma.spinUsage.findUnique({ where: { phone_spinDay: { phone, spinDay } } }),
       getSettings()
     ]);
@@ -53,12 +66,26 @@ export async function POST(request: Request) {
         }
       : null;
 
+    // Progress towards the next wheel, so the cart can nudge: "2 of 3 reviews — 1 more
+    // unlocks your spin". Only meaningful in regulars mode; in everyone-mode the wheel
+    // is already unlocked so there is nothing to work towards.
+    const reviewsNeeded = reviewsUntilSpin(effectiveCount);
+    const progress = settings.spinWheelForEveryone
+      ? null
+      : {
+          reviewed: Math.min(effectiveCount, SPIN_ORDERS_PER_REWARD),
+          required: SPIN_ORDERS_PER_REWARD,
+          remaining: reviewsNeeded,
+          unratedOrders
+        };
+
     return NextResponse.json({
       orderCount: effectiveCount,
       totalReviewed: reviewedCount,
       hasOutstandingReward: Boolean(outstanding),
       usedToday: Boolean(usage),
       eligible: qualifies && !outstanding,
+      progress,
       reward
     });
   } catch (error) {

@@ -1,10 +1,13 @@
-// By default the discount wheel is offered to loyal-but-not-yet-regular customers:
-// those who have placed between MIN and MAX *reviewed* orders (only orders a customer
-// rated count towards the total). The admin setting `spinWheelForEveryone` overrides
-// this window and offers the wheel to every customer; either way a number gets at
-// most one spin per IST day. See qualifiesForSpin below.
-export const SPIN_MIN_FEEDBACK_ORDERS = 3;
-export const SPIN_MAX_FEEDBACK_ORDERS = 6;
+// The discount wheel runs as a repeating loyalty loop: every 4th order earns a spin.
+// Only orders the customer actually *rated* count towards it, so the wheel doubles as
+// the incentive to leave feedback. The admin setting `spinWheelForEveryone` overrides
+// the loop and offers the wheel to every customer for the day; either way a number
+// gets at most one spin per IST day. See qualifiesForSpin below.
+// A customer unlocks the wheel once they have this many *reviewed* orders in the
+// current cycle, i.e. their 4th order carries the discount. Redeeming (or forfeiting)
+// resets the cycle to 0, so it repeats every 4 orders for as long as they keep
+// ordering — there is deliberately no upper cap that ages out loyal customers.
+export const SPIN_ORDERS_PER_REWARD = 3;
 
 // Wheel faces run 2% -> 16% in steps of 2. Two intentional design constraints:
 //  1. Display order is jumbled, NOT ascending, so neighbours aren't 2/4/6.
@@ -24,7 +27,14 @@ export const WHEEL_SEGMENTS = [
 export const WHEEL_TOTAL_WEIGHT = WHEEL_SEGMENTS.reduce((sum, segment) => sum + segment.weight, 0);
 
 export function isSpinEligible(feedbackOrderCount: number) {
-  return feedbackOrderCount >= SPIN_MIN_FEEDBACK_ORDERS && feedbackOrderCount <= SPIN_MAX_FEEDBACK_ORDERS;
+  return feedbackOrderCount >= SPIN_ORDERS_PER_REWARD;
+}
+
+// How many more reviewed orders the customer needs before the wheel unlocks. Drives
+// the "2 of 3 reviews — 1 more unlocks your spin" nudge in the cart, which is what
+// makes people actually leave feedback.
+export function reviewsUntilSpin(feedbackOrderCount: number) {
+  return Math.max(0, SPIN_ORDERS_PER_REWARD - feedbackOrderCount);
 }
 
 // Whether a customer qualifies for a new spin. The daily usage row is authoritative
@@ -47,6 +57,40 @@ export function qualifiesForSpin({
 export function getIndiaSpinDay(now = new Date()) {
   const INDIA_OFFSET_MS = 330 * 60 * 1000;
   return new Date(now.getTime() + INDIA_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+// --- "wheel for everyone" promo lifetime (pure rules; the DB action lives in
+// lib/spin-promo.ts so this module stays import-free and unit-testable) ---
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// The IST day whose ordering-window close should end a promo switched on right now.
+// If the window is still open we end at today's close; if it has already closed, roll
+// to tomorrow so the promo gets a real day of traffic instead of reverting seconds later.
+export function everyoneModeUntilDay(closeMinute: number, nowMinute: number, now = new Date()) {
+  const openNow = nowMinute < closeMinute;
+  return getIndiaSpinDay(openNow ? now : new Date(now.getTime() + DAY_MS));
+}
+
+export function shouldRevertEveryoneMode({
+  forEveryone,
+  untilDay,
+  today,
+  nowMinute,
+  closeMinute
+}: {
+  forEveryone: boolean;
+  untilDay: string | null;
+  today: string;
+  nowMinute: number;
+  closeMinute: number;
+}) {
+  if (!forEveryone) return false;
+  // No end day recorded — leave it alone rather than switching off a promo the admin
+  // may be relying on.
+  if (!untilDay) return false;
+  if (today > untilDay) return true;
+  return today === untilDay && nowMinute >= closeMinute;
 }
 
 type CouponState = {

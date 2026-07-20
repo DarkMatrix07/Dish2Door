@@ -6,6 +6,7 @@ export async function register() {
 
   const { cleanupStalePendingOrders } = await import("@/lib/orders");
   const { processDueNotificationRetries } = await import("@/lib/notifications");
+  const { revertExpiredEveryoneMode } = await import("@/lib/spin-promo");
 
   const runCleanup = () =>
     cleanupStalePendingOrders().catch((error) => {
@@ -24,4 +25,13 @@ export async function register() {
   // Retry failed email and WhatsApp deliveries once they have waited 10 minutes.
   setTimeout(runNotificationRetries, 30_000);
   setInterval(runNotificationRetries, 60_000);
+
+  const runSpinPromoRevert = () =>
+    revertExpiredEveryoneMode().catch((error) => {
+      console.error("[spin] everyone-mode revert failed:", error);
+    });
+
+  // End the "wheel for everyone" promo once its ordering window has closed.
+  setTimeout(runSpinPromoRevert, 20_000);
+  setInterval(runSpinPromoRevert, 60_000);
 }
