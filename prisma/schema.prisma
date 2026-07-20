@@ -321,3 +321,20 @@ model Coupon {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+// A returning customer (identified by phone) who has placed enough *reviewed*
+// orders may spin the discount wheel exactly once. The won discount is issued as a
+// one-time Coupon (couponCode) so it flows through the normal checkout; this row
+// records that the phone has already spun so the wheel is never offered again.
+model SpinReward {
+  id              String    @id @default(cuid())
+  phone           String    @unique
+  email           String?
+  name            String?
+  discountPercent Int
+  couponCode      String
+  createdAt       DateTime  @default(now())
+  redeemedAt      DateTime?
+
+  @@index([couponCode])
+}

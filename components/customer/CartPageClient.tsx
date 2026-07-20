@@ -8,7 +8,9 @@ import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { HostelPicker } from "@/components/customer/HostelPicker";
+import { SpinWheel } from "@/components/customer/SpinWheel";
 import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
+import { readStoredIdentity, writeStoredIdentity, type CustomerIdentity } from "@/lib/customer-identity";
 import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
@@ -69,7 +71,71 @@ export function CartPageClient({
   const [confirmEmailOpen, setConfirmEmailOpen] = useState(false);
   const [customer, setCustomer] = useState({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON" });
 
+  // We take the customer's name/phone/email before showing the cart so we can look
+  // up their order history and (if they qualify) offer the loyalty discount wheel.
+  const [identity, setIdentity] = useState<CustomerIdentity | null>(null);
+  const [identityGateOpen, setIdentityGateOpen] = useState(false);
+  const [identityDraft, setIdentityDraft] = useState({ name: "", phone: "", email: "" });
+  const [wheelOpen, setWheelOpen] = useState(false);
+
   useEffect(() => setCart(readStoredCart()), []);
+
+  async function checkSpinEligibility(who: CustomerIdentity) {
+    try {
+      const response = await fetch("/api/customer/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(who)
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.eligible) {
+        setWheelOpen(true);
+      } else if (data.reward?.couponCode) {
+        // Returning winner who hasn't redeemed yet — re-apply their coupon quietly.
+        setCoupon({ code: data.reward.couponCode, discountPercent: data.reward.discountPercent });
+        setCouponCode(data.reward.couponCode);
+      }
+    } catch {
+      // Eligibility is a bonus; never block checkout if the lookup fails.
+    }
+  }
+
+  // On first load, restore a known identity (and re-check eligibility) or open the gate.
+  useEffect(() => {
+    const stored = readStoredIdentity();
+    if (stored) {
+      setIdentity(stored);
+      setCustomer((current) => ({ ...current, name: stored.name, email: stored.email, phone: stored.phone }));
+      void checkSpinEligibility(stored);
+    } else {
+      setIdentityGateOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function submitIdentity() {
+    const name = identityDraft.name.trim();
+    const email = identityDraft.email.trim();
+    const phone = identityDraft.phone.trim();
+    if (name.length < 2) return toast.error("Please enter your name.");
+    if (phone.replace(/\D/g, "").length < 10) return toast.error("Enter a valid 10-digit phone number.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Enter a valid email address.");
+
+    const who: CustomerIdentity = { name, email, phone };
+    writeStoredIdentity(who);
+    setIdentity(who);
+    setCustomer((current) => ({ ...current, name, email, phone }));
+    setIdentityGateOpen(false);
+    void checkSpinEligibility(who);
+  }
+
+  function applyWheelReward(reward: { discountPercent: number; couponCode: string }) {
+    setCoupon({ code: reward.couponCode, discountPercent: reward.discountPercent });
+    setCouponCode(reward.couponCode);
+    setWheelOpen(false);
+    toast.success(`${reward.discountPercent}% off applied to your order!`);
+  }
 
   useEffect(() => {
     const updateIndiaTime = () => setIndiaMinutes(getIndiaMinutes(new Date(Date.now() + clockOffsetMs)));
@@ -341,6 +407,48 @@ export function CartPageClient({
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {identityGateOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[110] grid place-items-end bg-[#171713]/60 p-0 backdrop-blur-sm sm:place-items-center sm:p-5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="identity-gate-title"
+              initial={{ opacity: 0, y: 28, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 360, damping: 30 }}
+              className="w-full max-w-lg rounded-t-2xl bg-[#fffdf8] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] sm:rounded-2xl sm:p-7"
+            >
+              <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#f6b73c] text-[#171713]"><ShoppingBag size={22} /></span>
+              <h2 id="identity-gate-title" className="mt-5 text-3xl font-black tracking-[-0.04em]">Let&apos;s get your details</h2>
+              <p className="mt-2 text-sm leading-6 text-[#716a5f]">We use these to send your tracking link — and regulars sometimes unlock a surprise.</p>
+              <form
+                className="mt-6 space-y-4"
+                onSubmit={(event) => { event.preventDefault(); submitIdentity(); }}
+              >
+                <label className="block text-sm font-bold">Full name<input className={`${fieldClass} mt-2`} autoComplete="name" value={identityDraft.name} onChange={(event) => setIdentityDraft({ ...identityDraft, name: event.target.value })} placeholder="Your name" /></label>
+                <label className="block text-sm font-bold">Phone number<input className={`${fieldClass} mt-2`} inputMode="tel" autoComplete="tel" value={identityDraft.phone} onChange={(event) => setIdentityDraft({ ...identityDraft, phone: event.target.value })} placeholder="10-digit number" /></label>
+                <label className="block text-sm font-bold">Email address<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={identityDraft.email} onChange={(event) => setIdentityDraft({ ...identityDraft, email: event.target.value })} placeholder="you@example.com" /></label>
+                <button type="submit" className="cart-dark-link flex min-h-14 w-full items-center justify-center gap-3 rounded-md bg-[#171713] px-4 py-3 font-black transition hover:bg-[#c65d24]">Continue to cart <ArrowRight size={16} /></button>
+              </form>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {wheelOpen && identity ? (
+          <SpinWheel identity={identity} onWin={applyWheelReward} onClose={() => setWheelOpen(false)} />
+        ) : null}
+      </AnimatePresence>
+
       <SiteFooter />
     </main>
   );
