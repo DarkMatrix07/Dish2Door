@@ -7,6 +7,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orderEmailHtml, sendOrderEmail } from "@/lib/mail";
+import { generateReviewPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
 import { getSettings } from "@/lib/settings";
 import {
@@ -67,7 +68,12 @@ export async function sendDueReviewReminders(now = new Date()) {
     const copy = reminderCopy(reviewsUntilSpin(effectiveCount));
 
     try {
-      await sendOrderEmail(order, copy.subject, orderEmailHtml(order, copy.headline, copy.body));
+      const reviewPasscode = generateReviewPasscode(order.trackingCode);
+      await sendOrderEmail(
+        order,
+        copy.subject,
+        orderEmailHtml(order, copy.headline, copy.body, reviewPasscode, "Rate your order")
+      );
       await prisma.notificationLog.create({
         data: {
           orderId: order.id,

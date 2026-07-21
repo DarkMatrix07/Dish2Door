@@ -11,7 +11,13 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, "&#39;");
 }
 
-export function orderEmailHtml(order: FullOrder, headline: string, body: string, passcode?: string) {
+export function orderEmailHtml(
+  order: FullOrder,
+  headline: string,
+  body: string,
+  passcode?: string,
+  ctaLabel = "Track your order"
+) {
   const trackingUrl = `${env.NEXT_PUBLIC_APP_URL}/orders/${order.trackingCode}`;
   const items = order.items
     .map(
@@ -81,7 +87,7 @@ export function orderEmailHtml(order: FullOrder, headline: string, body: string,
                 ${passcodeBlock}
 
                 <p style="margin:24px 0 0;text-align:center;">
-                  <a href="${trackingUrl}" style="display:inline-block;background:#f59e0b;color:#111827;padding:13px 22px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:900;">Track your order</a>
+                  <a href="${trackingUrl}" style="display:inline-block;background:#f59e0b;color:#111827;padding:13px 22px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:900;">${escapeHtml(ctaLabel)}</a>
                 </p>
               </td>
             </tr>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { OrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { verifyPasscode } from "@/lib/order-codes";
+import { verifyOrderPasscode } from "@/lib/order-codes";
 import { clearRateLimit, rateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     return NextResponse.json({ error: "Rating already submitted" }, { status: 400 });
   }
 
-  const ok = await verifyPasscode(body.passcode, order.trackingPasscodeHash);
+  const ok = await verifyOrderPasscode(body.passcode, order.trackingPasscodeHash, order.trackingCode, true);
   if (!ok) {
     return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
   }
