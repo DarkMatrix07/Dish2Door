@@ -8,11 +8,9 @@ export const ORDER_SLOT_DETAILS = {
     cutoffLabel: "Order before 12:30 PM",
     deliveryLabel: "Deliver by 2:00 PM",
   },
-  // TEMPORARY: night cutoff extended to midnight for testing. Revert to
-  // 17 * 60 + 45 / "Order before 5:45 PM".
   NIGHT: {
-    cutoffMinutes: 23 * 60 + 59,
-    cutoffLabel: "Order before 11:59 PM",
+    cutoffMinutes: 17 * 60 + 45,
+    cutoffLabel: "Order before 5:45 PM",
     deliveryLabel: "Deliver by 7:30 PM",
   },
 } satisfies Record<OrderSlot, { cutoffMinutes: number; cutoffLabel: string; deliveryLabel: string }>;
