@@ -47,6 +47,9 @@ export function DeliveryDashboard({
   const [orders, setOrders] = useState(initialOrders);
   const [currentStats, setCurrentStats] = useState(stats);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
+  const [confirming, setConfirming] = useState<Order | null>(null);
+  const [handover, setHandover] = useState({ receivedBy: "", deliveryNote: "" });
+  const [submitting, setSubmitting] = useState(false);
 
   const grouped = useMemo(() => {
     if (groupBy === "none") return null;
@@ -71,10 +74,19 @@ export function DeliveryDashboard({
     }
   }
 
-  async function delivered(id: string) {
+  // Marking delivered is irreversible from this side and triggers the customer's
+  // "delivered" email, so it goes through an explicit confirmation step.
+  async function confirmDelivered() {
+    if (!confirming || submitting) return;
+    const id = confirming.id;
+    setSubmitting(true);
     try {
-      const response = await fetch(`/api/delivery/orders/${id}/delivered`, { method: "POST" });
-      const data = await response.json();
+      const response = await fetch(`/api/delivery/orders/${id}/delivered`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receivedBy: handover.receivedBy, deliveryNote: handover.deliveryNote })
+      });
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not mark delivered");
       setOrders((current) => current.filter((order) => order.id !== id));
       setCurrentStats((current) => ({
@@ -84,9 +96,18 @@ export function DeliveryDashboard({
         deliveredTotal: current.deliveredTotal + 1
       }));
       toast.success("Marked delivered");
+      setConfirming(null);
+      setHandover({ receivedBy: "", deliveryNote: "" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not mark delivered");
+    } finally {
+      setSubmitting(false);
     }
+  }
+
+  function openConfirm(order: Order) {
+    setHandover({ receivedBy: "", deliveryNote: "" });
+    setConfirming(order);
   }
 
   function orderCard(order: Order) {
@@ -117,7 +138,7 @@ export function DeliveryDashboard({
               Mark reached
             </Button>
           ) : (
-            <Button className="flex-1 bg-amber-300 text-neutral-950 hover:bg-amber-200" onClick={() => delivered(order.id)}>
+            <Button className="flex-1 bg-amber-300 text-neutral-950 hover:bg-amber-200" onClick={() => openConfirm(order)}>
               Delivered
             </Button>
           )}
@@ -175,6 +196,76 @@ export function DeliveryDashboard({
 
       {orders.length === 0 ? (
         <Card className="mt-8 border-white/10 bg-white/10 p-8 text-center text-white/70">No hostel deliveries are assigned right now.</Card>
+      ) : null}
+
+      {confirming ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-end bg-black/70 p-0 backdrop-blur-sm sm:place-items-center sm:p-5"
+          onClick={() => (submitting ? null : setConfirming(null))}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-delivery-title"
+            onClick={(event) => event.stopPropagation()}
+            className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-neutral-900 p-6 text-white shadow-2xl sm:rounded-3xl"
+          >
+            <h2 id="confirm-delivery-title" className="text-2xl font-black">Confirm delivery</h2>
+            <p className="mt-2 text-sm leading-6 text-white/60">
+              This marks the order delivered and emails the customer. It cannot be undone from here.
+            </p>
+
+            <div className="mt-5 rounded-2xl bg-white/10 p-4 text-sm">
+              <p className="text-lg font-black">{confirming.customerName}</p>
+              <p className="mt-1 text-white/70">
+                Hostel {confirming.hostelBlock} · {confirming.trackingCode}
+              </p>
+              <p className="mt-1 text-white/70">{confirming.restaurant.name} · {formatPaise(confirming.totalPaise)}</p>
+              <p className="mt-3 border-t border-white/10 pt-3 text-white/80">
+                {confirming.items.map((item) => `${item.quantity}x ${item.nameSnapshot}`).join(", ")}
+              </p>
+            </div>
+
+            <label className="mt-5 block text-sm font-bold">
+              Received by <span className="font-medium text-white/50">(optional)</span>
+              <input
+                value={handover.receivedBy}
+                onChange={(event) => setHandover({ ...handover, receivedBy: event.target.value })}
+                placeholder="Name of who took the order"
+                maxLength={80}
+                className="mt-2 h-12 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-white outline-none placeholder:text-white/35 focus:border-amber-300"
+              />
+            </label>
+
+            <label className="mt-4 block text-sm font-bold">
+              Note <span className="font-medium text-white/50">(optional)</span>
+              <textarea
+                value={handover.deliveryNote}
+                onChange={(event) => setHandover({ ...handover, deliveryNote: event.target.value })}
+                placeholder="Left at reception, customer not reachable, etc."
+                maxLength={300}
+                className="mt-2 min-h-20 w-full resize-y rounded-xl border border-white/15 bg-white/10 p-3 text-white outline-none placeholder:text-white/35 focus:border-amber-300"
+              />
+            </label>
+
+            <div className="mt-6 flex gap-3">
+              <Button
+                className="flex-1 bg-white/10 text-white hover:bg-white/20"
+                disabled={submitting}
+                onClick={() => setConfirming(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-amber-300 text-neutral-950 hover:bg-amber-200"
+                disabled={submitting}
+                onClick={confirmDelivered}
+              >
+                {submitting ? "Confirming…" : "Yes, delivered"}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </section>
   );

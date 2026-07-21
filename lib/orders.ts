@@ -445,7 +445,12 @@ export async function markDeliveryReached(orderId: string, assignedHostelBlocks:
   return order;
 }
 
-export async function markDelivered(orderId: string, deliveredById: string, assignedHostelBlocks: string[]) {
+export async function markDelivered(
+  orderId: string,
+  deliveredById: string,
+  assignedHostelBlocks: string[],
+  handover: { receivedBy?: string; deliveryNote?: string } = {}
+) {
   const order = await prisma.$transaction(async (tx) => {
     const existing = await tx.order.findFirst({
       where: {
@@ -466,7 +471,9 @@ export async function markDelivered(orderId: string, deliveredById: string, assi
       data: {
         status: OrderStatus.DELIVERED,
         deliveredById,
-        deliveredAt: new Date()
+        deliveredAt: new Date(),
+        receivedBy: handover.receivedBy?.trim() || null,
+        deliveryNote: handover.deliveryNote?.trim() || null
       },
       include: orderInclude
     });

@@ -9,8 +9,8 @@ export const ORDER_SLOT_DETAILS = {
     deliveryLabel: "Deliver by 2:00 PM",
   },
   NIGHT: {
-    cutoffMinutes: 17 * 60 + 30,
-    cutoffLabel: "Order before 5:30 PM",
+    cutoffMinutes: 17 * 60 + 45,
+    cutoffLabel: "Order before 5:45 PM",
     deliveryLabel: "Deliver by 7:30 PM",
   },
 } satisfies Record<OrderSlot, { cutoffMinutes: number; cutoffLabel: string; deliveryLabel: string }>;

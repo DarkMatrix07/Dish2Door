@@ -220,6 +220,10 @@ model Order {
   deliveredAt           DateTime?
   deliveredById         String?
   deliveredBy           User?        @relation("DeliveredBy", fields: [deliveredById], references: [id])
+  // Captured on the delivery person's confirmation step: who actually took the food
+  // and any handover note. Gives a record to check when a customer disputes delivery.
+  receivedBy            String?
+  deliveryNote          String?
   restaurantId          String
   restaurant            Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
   sessionId             String
