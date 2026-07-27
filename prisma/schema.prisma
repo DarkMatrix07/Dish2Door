@@ -148,6 +148,7 @@ model Restaurant {
   updatedAt   DateTime   @updatedAt
   courses     Course[]
   menuItems   MenuItem[]
+  combos      Combo[]
   orders      Order[]
 }
 
@@ -176,11 +177,47 @@ model MenuItem {
   courseId     String
   course       Course     @relation(fields: [courseId], references: [id], onDelete: Restrict)
   orderItems   OrderItem[]
+  comboItems   ComboItem[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@index([restaurantId])
   @@index([courseId])
+}
+
+// A fixed-price bundle of menu items from ONE restaurant. The admin sets the bundle
+// price directly (comboPricePaise); the "deal" is that price vs the sum of the
+// component items' live prices. At checkout a combo collapses into a SINGLE order
+// line (OrderItem with menuItemId null) priced at comboPricePaise — the component
+// list is captured into the line's nameSnapshot for the kitchen/customer record.
+model Combo {
+  id               String      @id @default(cuid())
+  name             String
+  description      String?
+  imageUrl         String?
+  comboPricePaise  Int
+  active           Boolean     @default(true)
+  sortOrder        Int         @default(0)
+  restaurantId     String
+  restaurant       Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items            ComboItem[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([restaurantId])
+}
+
+model ComboItem {
+  id         String   @id @default(cuid())
+  comboId    String
+  combo      Combo    @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+
+  @@unique([comboId, menuItemId])
+  @@index([comboId])
+  @@index([menuItemId])
 }
 
 model OrderSession {

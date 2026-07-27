@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Minus, Plus, Search, ShoppingBag, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, ArrowRight, Minus, Plus, Search, ShoppingBag, Sparkles, UtensilsCrossed } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -23,6 +23,17 @@ type MenuItem = {
 
 type Course = { id: string; name: string };
 
+type ComboLine = { id: string; quantity: number; menuItem: Pick<MenuItem, "id" | "name" | "imageUrl" | "available"> };
+
+type Combo = {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  comboPricePaise: number;
+  items: ComboLine[];
+};
+
 type Restaurant = {
   id: string;
   name: string;
@@ -30,7 +41,13 @@ type Restaurant = {
   imageUrl: string | null;
   courses: Course[];
   menuItems: MenuItem[];
+  combos: Combo[];
 };
+
+function comboRealTotal(combo: Combo, menuItems: MenuItem[]) {
+  const priceById = new Map(menuItems.map((item) => [item.id, discountedPrice(item)]));
+  return combo.items.reduce((sum, line) => sum + (priceById.get(line.menuItem.id) ?? 0) * line.quantity, 0);
+}
 
 const RESTAURANT_FALLBACK = "/dish2door-home-hero.png";
 const ITEM_FALLBACK = "/dish2door-home-hero.png";
@@ -103,6 +120,48 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
     persistCart(nextCart);
   }
 
+  function addCombo(combo: Combo) {
+    if (!activeRestaurant) return;
+    const existingRestaurantId = cart[0]?.restaurantId;
+    if (existingRestaurantId && existingRestaurantId !== activeRestaurant.id) {
+      toast.error("Your cart already has food from another restaurant.");
+      return;
+    }
+    const cartId = `combo:${combo.id}`;
+    const existing = cart.find((cartItem) => cartItem.id === cartId);
+    const contents = combo.items.map((line) => `${line.quantity}× ${line.menuItem.name}`).join(", ");
+    const nextCart: StoredCartItem[] = existing
+      ? cart.map((cartItem) => cartItem.id === cartId ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem)
+      : [...cart, {
+          id: cartId,
+          kind: "combo",
+          comboId: combo.id,
+          name: combo.name,
+          description: contents,
+          pricePaise: combo.comboPricePaise,
+          discountPercent: 0,
+          imageUrl: combo.imageUrl ?? combo.items[0]?.menuItem.imageUrl ?? null,
+          available: true,
+          quantity: 1,
+          restaurantId: activeRestaurant.id,
+          restaurantName: activeRestaurant.name
+        }];
+    persistCart(nextCart);
+  }
+
+  function updateComboQuantity(combo: Combo, delta: number) {
+    const cartId = `combo:${combo.id}`;
+    const existing = cart.find((cartItem) => cartItem.id === cartId);
+    if (!existing && delta > 0) {
+      addCombo(combo);
+      return;
+    }
+    persistCart(
+      cart.map((cartItem) => cartItem.id === cartId ? { ...cartItem, quantity: cartItem.quantity + delta } : cartItem)
+        .filter((cartItem) => cartItem.quantity > 0)
+    );
+  }
+
   function updateQuantity(item: MenuItem, delta: number) {
     const existing = cart.find((cartItem) => cartItem.id === item.id);
     if (!existing && delta > 0) {
@@ -170,6 +229,62 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
       </motion.article>
     );
   }
+
+  function ComboCard({ combo }: { combo: Combo }) {
+    const cartId = `combo:${combo.id}`;
+    const quantity = cart.find((cartItem) => cartItem.id === cartId)?.quantity ?? 0;
+    const realTotal = activeRestaurant ? comboRealTotal(combo, activeRestaurant.menuItems) : 0;
+    const savings = Math.max(0, realTotal - combo.comboPricePaise);
+    const savingsPercent = realTotal > 0 ? Math.round((savings / realTotal) * 100) : 0;
+    const available = combo.items.every((line) => line.menuItem.available);
+
+    return (
+      <motion.article
+        layout
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="group relative overflow-hidden rounded-2xl border border-[#171713]/10 bg-white/70 p-5 shadow-[0_12px_40px_rgba(23,23,19,0.06)] sm:p-6"
+      >
+        <div className="grid grid-cols-[1fr_7.25rem] gap-5 sm:grid-cols-[1fr_9rem]">
+          <div className="flex min-w-0 flex-col items-start">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-md bg-[#171713] px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#f6b73c]"><Sparkles size={11} /> Combo</span>
+              {savingsPercent > 0 ? <span className="rounded-md bg-[#f6b73c] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#171713]">Save {savingsPercent}%</span> : null}
+            </div>
+            <h3 className="mt-3 text-lg font-black tracking-[-0.025em] sm:text-xl">{combo.name}</h3>
+            <ul className="mt-2 space-y-0.5 text-sm leading-6 text-[#716a5f]">
+              {combo.items.map((line) => (
+                <li key={line.id} className="flex items-center gap-1.5"><span className="font-black tabular-nums text-[#171713]">{line.quantity}×</span> {line.menuItem.name}</li>
+              ))}
+            </ul>
+            <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+              <span className="text-lg font-black tabular-nums text-[#171713]">{formatPaise(combo.comboPricePaise)}</span>
+              {savings > 0 ? <span className="text-sm tabular-nums text-[#9a9388] line-through">{formatPaise(realTotal)}</span> : null}
+            </div>
+          </div>
+          <div className="relative min-h-32 pb-5">
+            <img alt={combo.name} className={`h-28 w-full rounded-xl object-cover sm:h-32 ${available ? "" : "grayscale opacity-60"}`} src={combo.imageUrl ?? combo.items[0]?.menuItem.imageUrl ?? ITEM_FALLBACK} />
+            <div className="absolute bottom-0 right-0">
+              {!available ? (
+                <span className="grid h-10 min-w-24 place-items-center rounded-md bg-[#e9e5dd] px-4 text-sm font-black text-[#9c968c]">Sold out</span>
+              ) : quantity > 0 ? (
+                <div className="flex h-10 items-center rounded-md bg-[#171713] text-white shadow-[0_8px_24px_rgba(23,23,19,0.16)]">
+                  <button type="button" aria-label={`Decrease ${combo.name}`} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 active:scale-95" onClick={() => updateComboQuantity(combo, -1)}><Minus size={15} /></button>
+                  <span className="w-7 text-center text-sm font-black tabular-nums">{quantity}</span>
+                  <button type="button" aria-label={`Increase ${combo.name}`} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 active:scale-95" onClick={() => updateComboQuantity(combo, 1)}><Plus size={15} /></button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => addCombo(combo)} className="h-10 min-w-24 rounded-md border border-black/15 bg-white px-5 text-sm font-black text-[#171713] transition duration-200 hover:border-[#f6b73c] hover:bg-[#f6b73c] active:scale-[0.98]">Add</button>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.article>
+    );
+  }
+
+  const combos = activeRestaurant?.combos ?? [];
+  const showCombos = !query.trim() && combos.length > 0 && (activeCourseId === "all" || activeCourseId === "combos");
 
   return (
     <main id="main-content" className="min-h-screen overflow-x-hidden bg-[#f7f3eb] text-[#171713]">
@@ -243,7 +358,7 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
                 <div className="relative"><Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#817a70]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${activeRestaurant.name}`} className="h-12 w-full rounded-md border border-black/12 bg-white/70 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10" /></div>
                 {!query.trim() ? (
                   <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-                    {[{ id: "all", name: "All dishes" }, ...activeRestaurant.courses].map((course) => (
+                    {[{ id: "all", name: "All dishes" }, ...(combos.length ? [{ id: "combos", name: "Combos" }] : []), ...activeRestaurant.courses].map((course) => (
                       <button key={course.id} type="button" onClick={() => setActiveCourseId(course.id)} className={`shrink-0 rounded-md px-4 py-2 text-sm font-bold transition ${activeCourseId === course.id ? "bg-[#171713] text-white" : "border border-black/12 bg-transparent text-[#625b50] hover:border-black/30"}`}>{course.name}</button>
                     ))}
                   </div>
@@ -251,13 +366,19 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
               </div>
 
               <div className="pt-8">
-                {sections.map((section) => (
+                {showCombos ? (
+                  <section className="mb-12">
+                    <div className="flex items-end justify-between gap-4 pb-4"><div><h2 className="flex items-center gap-2 text-3xl font-black tracking-[-0.04em]"><Sparkles size={22} className="text-[#c65d24]" /> Combos</h2><p className="mt-1 text-sm text-[#716a5f]">Bundled to save — grab a full meal for less.</p></div><span className="pb-1 font-mono text-xs text-[#8c857a]">{combos.length.toString().padStart(2, "0")}</span></div>
+                    <div className="grid gap-4 sm:grid-cols-2">{combos.map((combo) => <ComboCard key={combo.id} combo={combo} />)}</div>
+                  </section>
+                ) : null}
+                {activeCourseId !== "combos" ? sections.map((section) => (
                   <section key={section.id} className="mb-12">
                     <div className="flex items-end justify-between gap-4 pb-2"><h2 className="text-3xl font-black tracking-[-0.04em]">{section.name}</h2><span className="pb-1 font-mono text-xs text-[#8c857a]">{section.items.length.toString().padStart(2, "0")}</span></div>
                     {section.items.map((item) => <MenuItemCard key={item.id} item={item} />)}
                   </section>
-                ))}
-                {!sections.length ? <div className="grid min-h-64 place-items-center border-y border-black/10 text-center"><div><Search className="mx-auto text-[#a49d92]" /><h2 className="mt-4 text-xl font-black">No matching dishes</h2><p className="mt-2 text-sm text-[#716a5f]">Try another name or choose a different category.</p></div></div> : null}
+                )) : null}
+                {!sections.length && !showCombos ? <div className="grid min-h-64 place-items-center border-y border-black/10 text-center"><div><Search className="mx-auto text-[#a49d92]" /><h2 className="mt-4 text-xl font-black">No matching dishes</h2><p className="mt-2 text-sm text-[#716a5f]">Try another name or choose a different category.</p></div></div> : null}
               </div>
             </div>
           </motion.section>

@@ -16,7 +16,7 @@ const NAV: NavEntry[] = [
   { type: "link", href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { type: "link", href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { type: "group", label: "Orders", icon: ClipboardList, children: [{ href: "/admin/orders", label: "Live orders" }, { href: "/admin/orders/today", label: "Today's orders" }, { href: "/admin/orders/new", label: "New manual order" }] },
-  { type: "group", label: "Catalogue", icon: UtensilsCrossed, children: [{ href: "/admin/menu/restaurants", label: "Restaurants" }, { href: "/admin/menu/items", label: "Menu items" }] },
+  { type: "group", label: "Catalogue", icon: UtensilsCrossed, children: [{ href: "/admin/menu/restaurants", label: "Restaurants" }, { href: "/admin/menu/items", label: "Menu items" }, { href: "/admin/menu/combos", label: "Combos" }] },
   { type: "group", label: "Offers", icon: BadgePercent, children: [{ href: "/admin/offers/discounts", label: "Item discounts" }, { href: "/admin/offers/coupons", label: "Coupons" }, { href: "/admin/rewards", label: "Discount wheel" }] },
   { type: "link", href: "/admin/customers", label: "Customers", icon: Users },
   { type: "link", href: "/admin/delivery-persons", label: "Delivery", icon: UserRoundCheck },

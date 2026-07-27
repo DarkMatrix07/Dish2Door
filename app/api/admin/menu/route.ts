@@ -109,8 +109,51 @@ const schema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("item.delete"),
     id: z.string()
+  }),
+  z.object({
+    action: z.literal("combo.create"),
+    restaurantId: z.string(),
+    name: z.string().min(2).max(80),
+    description: z.string().max(300).optional(),
+    imageUrl: imageUrlSchema.optional(),
+    comboPricePaise: z.number().int().min(100),
+    items: z
+      .array(z.object({ menuItemId: z.string().min(1), quantity: z.number().int().min(1).max(20).default(1) }))
+      .min(2, "A combo needs at least two items")
+  }),
+  z.object({
+    action: z.literal("combo.update"),
+    id: z.string(),
+    name: z.string().min(2).max(80).optional(),
+    description: z.string().max(300).nullable().optional(),
+    imageUrl: imageUrlSchema.nullable().optional(),
+    comboPricePaise: z.number().int().min(100).optional(),
+    items: z
+      .array(z.object({ menuItemId: z.string().min(1), quantity: z.number().int().min(1).max(20).default(1) }))
+      .min(2, "A combo needs at least two items")
+      .optional()
+  }),
+  z.object({
+    action: z.literal("combo.active"),
+    id: z.string(),
+    active: z.boolean()
+  }),
+  z.object({
+    action: z.literal("combo.delete"),
+    id: z.string()
   })
 ]);
+
+const comboInclude = { items: { include: { menuItem: true } } } as const;
+
+// Guards that every menu item in a combo really belongs to the combo's restaurant, so
+// a combo can never mix kitchens (checkout enforces this too, but fail early & clearly).
+async function assertItemsBelongToRestaurant(restaurantId: string, menuItemIds: string[]) {
+  const count = await prisma.menuItem.count({ where: { id: { in: menuItemIds }, restaurantId } });
+  if (count !== new Set(menuItemIds).size) {
+    throw new Error("Every combo item must belong to the selected restaurant.");
+  }
+}
 
 export async function GET() {
   const user = await requireApiRole(["ADMIN"]);
@@ -295,6 +338,65 @@ export async function POST(request: Request) {
       data: { available: body.available }
     });
     return NextResponse.json({ item });
+  }
+
+  if (body.action === "combo.create") {
+    await assertItemsBelongToRestaurant(body.restaurantId, body.items.map((line) => line.menuItemId));
+    const combo = await prisma.combo.create({
+      data: {
+        restaurantId: body.restaurantId,
+        name: body.name,
+        description: body.description,
+        imageUrl: body.imageUrl,
+        comboPricePaise: body.comboPricePaise,
+        items: { create: body.items.map((line) => ({ menuItemId: line.menuItemId, quantity: line.quantity })) }
+      },
+      include: comboInclude
+    });
+    return NextResponse.json({ combo });
+  }
+
+  if (body.action === "combo.update") {
+    const existing = await prisma.combo.findUnique({ where: { id: body.id } });
+    if (!existing) throw new Error("That combo was already removed. Refresh and try again.");
+    if (body.items) {
+      await assertItemsBelongToRestaurant(existing.restaurantId, body.items.map((line) => line.menuItemId));
+    }
+    // Replacing the item set is a delete-all + recreate inside one transaction so a
+    // combo is never left half-updated.
+    const combo = await prisma.$transaction(async (tx) => {
+      await tx.combo.update({
+        where: { id: body.id },
+        data: {
+          name: body.name,
+          description: body.description,
+          imageUrl: body.imageUrl,
+          comboPricePaise: body.comboPricePaise
+        }
+      });
+      if (body.items) {
+        await tx.comboItem.deleteMany({ where: { comboId: body.id } });
+        await tx.comboItem.createMany({
+          data: body.items.map((line) => ({ comboId: body.id, menuItemId: line.menuItemId, quantity: line.quantity }))
+        });
+      }
+      return tx.combo.findUnique({ where: { id: body.id }, include: comboInclude });
+    });
+    return NextResponse.json({ combo });
+  }
+
+  if (body.action === "combo.active") {
+    const combo = await prisma.combo.update({
+      where: { id: body.id },
+      data: { active: body.active },
+      include: comboInclude
+    });
+    return NextResponse.json({ combo });
+  }
+
+  if (body.action === "combo.delete") {
+    const combo = await prisma.combo.delete({ where: { id: body.id } });
+    return NextResponse.json({ combo });
   }
 
   const item = await prisma.menuItem.delete({

@@ -18,8 +18,12 @@ import { getSettings } from "@/lib/settings";
 import { todayLabel } from "@/lib/utils";
 import { sendOrderEventNotifications } from "@/lib/notifications";
 
+// A cart line is either a single menu item or a fixed-price combo (exactly one of
+// menuItemId / comboId is set). Combos collapse into one order line at their bundle
+// price; menu items price as (price - item discount) as before.
 export type OrderItemInput = {
-  menuItemId: string;
+  menuItemId?: string;
+  comboId?: string;
   quantity: number;
 };
 
@@ -87,41 +91,95 @@ async function uniqueTrackingCode(tx: Prisma.TransactionClient) {
   throw new Error("Could not generate a unique tracking code");
 }
 
+type ResolvedLine = {
+  menuItemId: string | null;
+  nameSnapshot: string;
+  pricePaise: number;
+  quantity: number;
+  linePaise: number;
+};
+
+// Turns cart inputs (menu items and/or combos) into authoritative order lines. Prices
+// are always taken from the DB — never trusted from the client. A combo becomes ONE
+// line at its bundle price, with its contents baked into nameSnapshot. Everything must
+// belong to a single restaurant.
 async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[]) {
   if (items.length === 0) {
     throw new Error("Cart is empty");
   }
 
-  const ids = items.map((item) => item.menuItemId);
-  const menuItems = await tx.menuItem.findMany({
-    where: {
-      id: { in: ids },
-      available: true,
-      restaurant: { active: true }
-    },
-    include: { restaurant: true }
-  });
+  const menuInputs = items.filter((input) => input.menuItemId);
+  const comboInputs = items.filter((input) => input.comboId);
+  if (menuInputs.length + comboInputs.length !== items.length) {
+    throw new Error("Invalid cart line");
+  }
 
-  if (menuItems.length !== ids.length) {
+  const menuIds = menuInputs.map((input) => input.menuItemId as string);
+  const comboIds = comboInputs.map((input) => input.comboId as string);
+
+  const [menuItems, combos] = await Promise.all([
+    menuIds.length
+      ? tx.menuItem.findMany({
+          where: { id: { in: menuIds }, available: true, restaurant: { active: true } }
+        })
+      : Promise.resolve([]),
+    comboIds.length
+      ? tx.combo.findMany({
+          where: { id: { in: comboIds }, active: true, restaurant: { active: true } },
+          include: { items: { include: { menuItem: true } } }
+        })
+      : Promise.resolve([])
+  ]);
+
+  if (menuItems.length !== new Set(menuIds).size) {
     throw new Error("A selected item is out of stock or its restaurant is inactive. Refresh and choose an available item.");
   }
-
-  const restaurantId = menuItems[0]?.restaurantId;
-  if (!restaurantId || menuItems.some((item) => item.restaurantId !== restaurantId)) {
-    throw new Error("One order can contain items from only one restaurant");
+  if (combos.length !== new Set(comboIds).size) {
+    throw new Error("A selected combo is no longer available. Refresh and try again.");
   }
 
-  const itemMap = new Map(menuItems.map((item) => [item.id, item]));
-  const orderItems = items.map((input) => {
-    const item = itemMap.get(input.menuItemId);
-    if (!item) throw new Error("Invalid menu item");
+  // Every line — menu items and combo components alike — must share one restaurant.
+  const restaurantIds = new Set<string>([
+    ...menuItems.map((item) => item.restaurantId),
+    ...combos.map((combo) => combo.restaurantId)
+  ]);
+  if (restaurantIds.size !== 1) {
+    throw new Error("One order can contain items from only one restaurant");
+  }
+  const restaurantId = [...restaurantIds][0];
+
+  const menuMap = new Map(menuItems.map((item) => [item.id, item]));
+  const comboMap = new Map(combos.map((combo) => [combo.id, combo]));
+
+  const orderItems: ResolvedLine[] = items.map((input) => {
     const quantity = Math.max(1, Math.floor(input.quantity));
+
+    if (input.comboId) {
+      const combo = comboMap.get(input.comboId);
+      if (!combo) throw new Error("Invalid combo");
+      if (combo.items.length === 0) throw new Error(`"${combo.name}" is not available right now.`);
+      // A combo is only sellable while every component item is in stock.
+      const soldOut = combo.items.find((line) => !line.menuItem.available);
+      if (soldOut) throw new Error(`"${combo.name}" is unavailable — ${soldOut.menuItem.name} is sold out.`);
+      const contents = combo.items.map((line) => `${line.quantity}× ${line.menuItem.name}`).join(", ");
+      return {
+        menuItemId: null,
+        nameSnapshot: `${combo.name} (${contents})`,
+        pricePaise: combo.comboPricePaise,
+        quantity,
+        linePaise: combo.comboPricePaise * quantity
+      };
+    }
+
+    const item = menuMap.get(input.menuItemId as string);
+    if (!item) throw new Error("Invalid menu item");
+    const unit = Math.round(item.pricePaise * (1 - item.discountPercent / 100));
     return {
       menuItemId: item.id,
       nameSnapshot: item.name,
-      pricePaise: Math.round(item.pricePaise * (1 - item.discountPercent / 100)),
+      pricePaise: unit,
       quantity,
-      linePaise: Math.round(item.pricePaise * (1 - item.discountPercent / 100)) * quantity
+      linePaise: unit * quantity
     };
   });
 

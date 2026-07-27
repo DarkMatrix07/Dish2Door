@@ -13,7 +13,12 @@ async function getMenuData() {
         where: { active: true },
         include: {
           courses: { orderBy: { sortOrder: "asc" } },
-          menuItems: { orderBy: { name: "asc" } }
+          menuItems: { orderBy: { name: "asc" } },
+          combos: {
+            where: { active: true },
+            include: { items: { include: { menuItem: true }, orderBy: { menuItem: { name: "asc" } } } },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }]
+          }
         },
         orderBy: { name: "asc" }
       })

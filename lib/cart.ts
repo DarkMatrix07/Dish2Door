@@ -1,7 +1,11 @@
 export const CART_STORAGE_KEY = "dish2door_cart";
 
 export type StoredCartItem = {
+  // For a menu item this is the MenuItem id. For a combo it is `combo:<comboId>` so
+  // the two id spaces never collide in the cart. `kind` disambiguates at checkout.
   id: string;
+  kind?: "item" | "combo";
+  comboId?: string;
   name: string;
   description: string | null;
   pricePaise: number;

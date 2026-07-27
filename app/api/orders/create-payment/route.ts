@@ -27,10 +27,16 @@ const bodySchema = z.object({
     }
   }),
   items: z.array(
-    z.object({
-      menuItemId: z.string().min(1),
-      quantity: z.number().int().min(1).max(20)
-    })
+    z
+      .object({
+        menuItemId: z.string().min(1).optional(),
+        comboId: z.string().min(1).optional(),
+        quantity: z.number().int().min(1).max(20)
+      })
+      // Each line is exactly one thing: a menu item or a combo, never both/neither.
+      .refine((line) => Boolean(line.menuItemId) !== Boolean(line.comboId), {
+        message: "Each cart line must be a single item or a single combo"
+      })
   ).min(1)
 });
 

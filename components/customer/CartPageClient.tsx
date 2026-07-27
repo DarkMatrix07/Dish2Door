@@ -237,7 +237,7 @@ export function CartPageClient({
       const response = await fetch("/api/orders/create-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer: { ...customer, couponCode: coupon?.code }, items: cart.map((item) => ({ menuItemId: item.id, quantity: item.quantity })) })
+        body: JSON.stringify({ customer: { ...customer, couponCode: coupon?.code }, items: cart.map((item) => item.kind === "combo" && item.comboId ? { comboId: item.comboId, quantity: item.quantity } : { menuItemId: item.id, quantity: item.quantity }) })
       });
       const payment = await response.json();
       if (!response.ok) throw new Error(payment.error ?? "Could not start payment");
