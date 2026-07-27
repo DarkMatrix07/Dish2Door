@@ -14,16 +14,13 @@ const nextConfig: NextConfig = {
     ]
   },
   // Next serves /public with `Cache-Control: public, max-age=0`, so shared imagery was
-  // re-downloaded on every page view. These files are content-stable (renamed when they
-  // change) so they cache hard. /uploads is admin-managed and can be replaced under the
-  // same name, so it revalidates instead of being immutable.
+  // re-downloaded on every page view. Caching these hard is safe because every image
+  // URL is content-stable: bundled art is renamed when it changes, and menu uploads are
+  // written as `<timestamp>-<uuid>.webp`, so replacing an item's photo yields a NEW url
+  // rather than mutating an existing one.
   async headers() {
     const IMAGE_EXT = "jpg|jpeg|png|webp|avif|gif|svg|ico";
     return [
-      {
-        source: `/uploads/:path*.(${IMAGE_EXT})`,
-        headers: [{ key: "Cache-Control", value: "public, max-age=3600, stale-while-revalidate=86400" }]
-      },
       {
         source: `/:path*.(${IMAGE_EXT})`,
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
