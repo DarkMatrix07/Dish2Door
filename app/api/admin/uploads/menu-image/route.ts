@@ -2,9 +2,15 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { requireApiRole } from "@/lib/auth";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+// Uploads used to be written byte-for-byte, so phone photos of 3-5 MB were served
+// straight to customers on the menu. Menu images never render wider than ~600 CSS px,
+// so re-encode every upload to a bounded WebP — typically a 20-40x size reduction.
+const MAX_STORED_WIDTH = 1200;
+const WEBP_QUALITY = 76;
 
 // Detect the real image type from the file's magic bytes rather than trusting
 // the client-supplied MIME, so a non-image (e.g. an HTML/SVG payload) can't be
@@ -49,11 +55,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Only JPG, PNG, and WebP images are allowed" }, { status: 400 });
   }
 
+  // The magic-byte sniff above already proved this is a real raster image; sharp then
+  // re-encodes it, which also strips EXIF (including any GPS data from a phone photo).
+  let optimised: Buffer;
+  try {
+    optimised = await sharp(bytes)
+      .rotate() // honour EXIF orientation before that metadata is dropped
+      .resize({ width: MAX_STORED_WIDTH, withoutEnlargement: true })
+      .webp({ quality: WEBP_QUALITY })
+      .toBuffer();
+  } catch {
+    return NextResponse.json({ error: "That image could not be processed. Try a different file." }, { status: 400 });
+  }
+
   const uploadDir = path.join(process.cwd(), "public", "uploads", "menu");
-  const fileName = `${Date.now()}-${randomUUID()}.${extension}`;
+  const fileName = `${Date.now()}-${randomUUID()}.webp`;
 
   await mkdir(uploadDir, { recursive: true });
-  await writeFile(path.join(uploadDir, fileName), bytes);
+  await writeFile(path.join(uploadDir, fileName), optimised);
 
   return NextResponse.json({ imageUrl: `/uploads/menu/${fileName}` });
 }
