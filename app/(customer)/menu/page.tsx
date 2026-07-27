@@ -1,13 +1,16 @@
 import { ClosedOrders } from "@/components/customer/ClosedOrders";
 import { MenuClient } from "@/components/customer/MenuClient";
 import { prisma } from "@/lib/db";
+import { getFeaturedData } from "@/lib/featured";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
+const EMPTY_FEATURED = { topDishes: [], biryani: [], valuePicks: [], combos: [], totalOrders: 0 };
+
 async function getMenuData() {
   try {
-    const [settings, restaurants] = await Promise.all([
+    const [settings, restaurants, featured] = await Promise.all([
       getSettings(),
       prisma.restaurant.findMany({
         where: { active: true },
@@ -21,10 +24,11 @@ async function getMenuData() {
           }
         },
         orderBy: { name: "asc" }
-      })
+      }),
+      getFeaturedData()
     ]);
 
-    return { settings, restaurants };
+    return { settings, restaurants, featured };
   } catch {
     return {
       settings: {
@@ -32,17 +36,18 @@ async function getMenuData() {
         closedMessage: "Orders are closed for today.",
         contactNumber: "Contact admin"
       },
-      restaurants: []
+      restaurants: [],
+      featured: EMPTY_FEATURED
     };
   }
 }
 
 export default async function MenuPage() {
-  const { settings, restaurants } = await getMenuData();
+  const { settings, restaurants, featured } = await getMenuData();
 
   if (!settings.ordersOpen) {
     return <ClosedOrders message={settings.closedMessage} contactNumber={settings.contactNumber} />;
   }
 
-  return <MenuClient restaurants={restaurants} />;
+  return <MenuClient restaurants={restaurants} featured={featured} />;
 }

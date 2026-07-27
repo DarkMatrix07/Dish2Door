@@ -7,7 +7,9 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
+import { FeaturedShowcase } from "@/components/customer/FeaturedShowcase";
 import { readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
+import type { FeaturedCombo, FeaturedData, FeaturedDish } from "@/lib/featured";
 import { formatPaise } from "@/lib/utils";
 
 type MenuItem = {
@@ -60,12 +62,16 @@ function maxDiscountOf(restaurant: Restaurant) {
   return restaurant.menuItems.reduce((max, item) => Math.max(max, item.discountPercent ?? 0), 0);
 }
 
-export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
+export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[]; featured: FeaturedData }) {
   const [activeRestaurantId, setActiveRestaurantId] = useState("");
   const [activeCourseId, setActiveCourseId] = useState("all");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<StoredCartItem[]>([]);
+  // Landing view when no kitchen is open: the stats-driven Featured page, with the
+  // plain restaurant grid one tap away.
+  const [landingView, setLandingView] = useState<"featured" | "kitchens">("featured");
   const activeRestaurant = restaurants.find((restaurant) => restaurant.id === activeRestaurantId);
+  const hasFeatured = featured.topDishes.length > 0 || featured.combos.length > 0 || featured.biryani.length > 0;
 
   const sections = useMemo(() => {
     if (!activeRestaurant) return [];
@@ -105,55 +111,27 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function addToCart(item: MenuItem) {
-    if (!activeRestaurant) return;
+  // Single add path for every surface (menu list, combos, featured page). The cart is
+  // restricted to one restaurant, so the line carries its own restaurant identity
+  // rather than assuming whichever kitchen happens to be open.
+  function addLineToCart(line: StoredCartItem) {
     const existingRestaurantId = cart[0]?.restaurantId;
-    if (existingRestaurantId && existingRestaurantId !== activeRestaurant.id) {
+    if (existingRestaurantId && existingRestaurantId !== line.restaurantId) {
       toast.error("Your cart already has food from another restaurant.");
       return;
     }
-
-    const existing = cart.find((cartItem) => cartItem.id === item.id);
-    const nextCart: StoredCartItem[] = existing
-      ? cart.map((cartItem) => cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem)
-      : [...cart, { ...item, quantity: 1, restaurantId: activeRestaurant.id, restaurantName: activeRestaurant.name }];
-    persistCart(nextCart);
+    const existing = cart.find((cartItem) => cartItem.id === line.id);
+    persistCart(
+      existing
+        ? cart.map((cartItem) => cartItem.id === line.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem)
+        : [...cart, line]
+    );
   }
 
-  function addCombo(combo: Combo) {
-    if (!activeRestaurant) return;
-    const existingRestaurantId = cart[0]?.restaurantId;
-    if (existingRestaurantId && existingRestaurantId !== activeRestaurant.id) {
-      toast.error("Your cart already has food from another restaurant.");
-      return;
-    }
-    const cartId = `combo:${combo.id}`;
-    const existing = cart.find((cartItem) => cartItem.id === cartId);
-    const contents = combo.items.map((line) => `${line.quantity}× ${line.menuItem.name}`).join(", ");
-    const nextCart: StoredCartItem[] = existing
-      ? cart.map((cartItem) => cartItem.id === cartId ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem)
-      : [...cart, {
-          id: cartId,
-          kind: "combo",
-          comboId: combo.id,
-          name: combo.name,
-          description: contents,
-          pricePaise: combo.comboPricePaise,
-          discountPercent: 0,
-          imageUrl: combo.imageUrl ?? combo.items[0]?.menuItem.imageUrl ?? null,
-          available: true,
-          quantity: 1,
-          restaurantId: activeRestaurant.id,
-          restaurantName: activeRestaurant.name
-        }];
-    persistCart(nextCart);
-  }
-
-  function updateComboQuantity(combo: Combo, delta: number) {
-    const cartId = `combo:${combo.id}`;
+  function stepCartLine(cartId: string, delta: number, addWhenMissing: () => void) {
     const existing = cart.find((cartItem) => cartItem.id === cartId);
     if (!existing && delta > 0) {
-      addCombo(combo);
+      addWhenMissing();
       return;
     }
     persistCart(
@@ -162,16 +140,77 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
     );
   }
 
+  function quantityOf(cartId: string) {
+    return cart.find((cartItem) => cartItem.id === cartId)?.quantity ?? 0;
+  }
+
+  function addToCart(item: MenuItem) {
+    if (!activeRestaurant) return;
+    addLineToCart({ ...item, quantity: 1, restaurantId: activeRestaurant.id, restaurantName: activeRestaurant.name });
+  }
+
+  function featuredDishLine(dish: FeaturedDish): StoredCartItem {
+    return {
+      id: dish.id,
+      kind: "item",
+      name: dish.name,
+      description: dish.description,
+      pricePaise: dish.pricePaise,
+      discountPercent: dish.discountPercent,
+      imageUrl: dish.imageUrl,
+      available: true,
+      quantity: 1,
+      restaurantId: dish.restaurantId,
+      restaurantName: dish.restaurantName
+    };
+  }
+
+  function featuredComboLine(combo: FeaturedCombo): StoredCartItem {
+    return {
+      id: `combo:${combo.id}`,
+      kind: "combo",
+      comboId: combo.id,
+      name: combo.name,
+      description: combo.items.map((line) => `${line.quantity}× ${line.name}`).join(", "),
+      pricePaise: combo.comboPricePaise,
+      discountPercent: 0,
+      imageUrl: combo.imageUrl,
+      available: true,
+      quantity: 1,
+      restaurantId: combo.restaurantId,
+      restaurantName: combo.restaurantName
+    };
+  }
+
+  function openRestaurantById(restaurantId: string) {
+    const restaurant = restaurants.find((entry) => entry.id === restaurantId);
+    if (restaurant) openRestaurant(restaurant);
+  }
+
+  function addCombo(combo: Combo) {
+    if (!activeRestaurant) return;
+    addLineToCart({
+      id: `combo:${combo.id}`,
+      kind: "combo",
+      comboId: combo.id,
+      name: combo.name,
+      description: combo.items.map((line) => `${line.quantity}× ${line.menuItem.name}`).join(", "),
+      pricePaise: combo.comboPricePaise,
+      discountPercent: 0,
+      imageUrl: combo.imageUrl ?? combo.items[0]?.menuItem.imageUrl ?? null,
+      available: true,
+      quantity: 1,
+      restaurantId: activeRestaurant.id,
+      restaurantName: activeRestaurant.name
+    });
+  }
+
+  function updateComboQuantity(combo: Combo, delta: number) {
+    stepCartLine(`combo:${combo.id}`, delta, () => addCombo(combo));
+  }
+
   function updateQuantity(item: MenuItem, delta: number) {
-    const existing = cart.find((cartItem) => cartItem.id === item.id);
-    if (!existing && delta > 0) {
-      addToCart(item);
-      return;
-    }
-    persistCart(
-      cart.map((cartItem) => cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + delta } : cartItem)
-        .filter((cartItem) => cartItem.quantity > 0)
-    );
+    stepCartLine(item.id, delta, () => addToCart(item));
   }
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
@@ -291,12 +330,28 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
       <section className="relative border-b border-black/10">
         <SiteNav />
         {!activeRestaurant ? (
-          <div className="mx-auto max-w-[1440px] px-5 pb-12 pt-32 sm:px-8 lg:px-12 lg:pb-16 lg:pt-40">
-            <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}>
-              <div className="flex items-center gap-3 text-sm font-semibold text-[#746c5f]"><span className="h-px w-9 bg-[#d97706]" /> Today&apos;s kitchens</div>
-              <h1 className="mt-6 max-w-5xl text-[clamp(3.25rem,7.4vw,7.4rem)] font-black leading-[0.9] tracking-[-0.055em] text-balance">Pick a kitchen.<br /><span className="text-[#c65d24]">Find your favourite.</span></h1>
-              <p className="mt-7 max-w-2xl text-lg leading-8 text-[#6c6458] sm:text-xl sm:leading-9">Browse restaurants serving campus today. Choose one kitchen, then build your order exactly how you like it.</p>
-            </motion.div>
+          <div className="mx-auto max-w-[1440px] px-5 pt-28 sm:px-8 lg:px-12 lg:pt-32">
+            {hasFeatured ? (
+              <div className="inline-flex gap-1 rounded-xl border border-black/10 bg-white/60 p-1">
+                {([{ key: "featured", label: "Featured" }, { key: "kitchens", label: "All kitchens" }] as const).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setLandingView(tab.key)}
+                    className={`rounded-lg px-4 py-2 text-sm font-black transition sm:px-5 ${landingView === tab.key ? "bg-[#171713] text-white" : "text-[#6c6458] hover:text-[#171713]"}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {landingView === "kitchens" || !hasFeatured ? (
+              <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }} className="pb-12 pt-8 lg:pb-16">
+                <div className="flex items-center gap-3 text-sm font-semibold text-[#746c5f]"><span className="h-px w-9 bg-[#d97706]" /> Today&apos;s kitchens</div>
+                <h1 className="mt-6 max-w-5xl text-[clamp(3.25rem,7.4vw,7.4rem)] font-black leading-[0.9] tracking-[-0.055em] text-balance">Pick a kitchen.<br /><span className="text-[#c65d24]">Find your favourite.</span></h1>
+                <p className="mt-7 max-w-2xl text-lg leading-8 text-[#6c6458] sm:text-xl sm:leading-9">Browse restaurants serving campus today. Choose one kitchen, then build your order exactly how you like it.</p>
+              </motion.div>
+            ) : <div className="pb-7" />}
           </div>
         ) : (
           <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-28 sm:px-8 lg:px-12 lg:pb-10 lg:pt-32">
@@ -306,7 +361,20 @@ export function MenuClient({ restaurants }: { restaurants: Restaurant[] }) {
       </section>
 
       <AnimatePresence mode="wait">
-        {!activeRestaurant ? (
+        {!activeRestaurant && landingView === "featured" && hasFeatured ? (
+          <motion.section key="featured" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pt-8">
+            <FeaturedShowcase
+              data={featured}
+              quantityOf={quantityOf}
+              onAddDish={(dish) => addLineToCart(featuredDishLine(dish))}
+              onStepDish={(dish, delta) => stepCartLine(dish.id, delta, () => addLineToCart(featuredDishLine(dish)))}
+              onAddCombo={(combo) => addLineToCart(featuredComboLine(combo))}
+              onStepCombo={(combo, delta) => stepCartLine(`combo:${combo.id}`, delta, () => addLineToCart(featuredComboLine(combo)))}
+              onOpenRestaurant={openRestaurantById}
+              onBrowseKitchens={() => { setLandingView("kitchens"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            />
+          </motion.section>
+        ) : !activeRestaurant ? (
           <motion.section key="restaurants" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mx-auto max-w-[1440px] px-5 py-10 sm:px-8 lg:px-12 lg:py-16">
             {restaurants.length ? (
               <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
