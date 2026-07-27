@@ -12,6 +12,8 @@ const PAID: PaymentStatus[] = [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MAN
 // the list still reflects current tastes.
 const STATS_WINDOW_DAYS = 60;
 const VALUE_PICK_MAX_PAISE = 15_000; // ₹150 — most best-sellers land at ₹120–150.
+// Floor keeps single rotis/sides/drinks out of a rail that is meant to sell a meal.
+const VALUE_PICK_MIN_PAISE = 6_000;
 
 export type FeaturedDish = {
   id: string;
@@ -111,7 +113,12 @@ export async function getFeaturedData(): Promise<FeaturedData> {
 
   const topIds = new Set(topDishes.map((dish) => dish.id));
   const valuePicks = dishes
-    .filter((dish) => dish.finalPricePaise <= VALUE_PICK_MAX_PAISE && !topIds.has(dish.id))
+    .filter(
+      (dish) =>
+        dish.finalPricePaise <= VALUE_PICK_MAX_PAISE &&
+        dish.finalPricePaise >= VALUE_PICK_MIN_PAISE &&
+        !topIds.has(dish.id)
+    )
     .sort(byPopularity)
     .slice(0, 8);
 

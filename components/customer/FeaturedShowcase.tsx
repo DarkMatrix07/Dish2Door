@@ -221,7 +221,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
 
       {/* Value picks */}
       {data.valuePicks.length ? (
-        <Rail icon={<Wallet size={22} className="text-[#c65d24]" />} title="Easy on the wallet" subtitle="Full meals under ₹150, sorted by what students reorder most.">
+        <Rail icon={<Wallet size={22} className="text-[#c65d24]" />} title="Easy on the wallet" subtitle="Filling picks under ₹150, sorted by what students reorder most.">
           {data.valuePicks.map((dish) => <DishCard key={dish.id} dish={dish} />)}
         </Rail>
       ) : null}
