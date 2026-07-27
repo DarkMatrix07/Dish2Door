@@ -14,12 +14,34 @@ async function getMenuData() {
       getSettings(),
       prisma.restaurant.findMany({
         where: { active: true },
-        include: {
-          courses: { orderBy: { sortOrder: "asc" } },
-          menuItems: { orderBy: { name: "asc" } },
+        // Explicit selects: the client only needs these columns, and shipping the rest
+        // (timestamps, foreign keys) inflated the /menu RSC payload for 260+ items.
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          imageUrl: true,
+          courses: { select: { id: true, name: true }, orderBy: { sortOrder: "asc" } },
+          menuItems: {
+            select: {
+              id: true, name: true, description: true, pricePaise: true,
+              discountPercent: true, imageUrl: true, available: true, courseId: true
+            },
+            orderBy: { name: "asc" }
+          },
           combos: {
             where: { active: true },
-            include: { items: { include: { menuItem: true }, orderBy: { menuItem: { name: "asc" } } } },
+            select: {
+              id: true, name: true, description: true, imageUrl: true, comboPricePaise: true,
+              items: {
+                select: {
+                  id: true,
+                  quantity: true,
+                  menuItem: { select: { id: true, name: true, imageUrl: true, available: true } }
+                },
+                orderBy: { menuItem: { name: "asc" } }
+              }
+            },
             orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }]
           }
         },

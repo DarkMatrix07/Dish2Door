@@ -71,7 +71,11 @@ export async function getFeaturedData(): Promise<FeaturedData> {
     }),
     prisma.menuItem.findMany({
       where: { available: true, restaurant: { active: true } },
-      include: { restaurant: { select: { id: true, name: true } } }
+      select: {
+        id: true, name: true, description: true, imageUrl: true,
+        pricePaise: true, discountPercent: true,
+        restaurant: { select: { id: true, name: true } }
+      }
     }),
     prisma.combo.findMany({
       where: { active: true, restaurant: { active: true } },

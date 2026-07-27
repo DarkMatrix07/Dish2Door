@@ -7,7 +7,7 @@ import type { FeaturedCombo, FeaturedData, FeaturedDish } from "@/lib/featured";
 import { getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
-const ITEM_FALLBACK = "/dish2door-home-hero.png";
+const ITEM_FALLBACK = "/dish-placeholder.webp";
 
 type Props = {
   data: FeaturedData;
@@ -85,7 +85,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
         className="group relative flex w-60 shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-black/10 bg-white/70 transition hover:-translate-y-1 hover:shadow-[0_18px_50px_rgba(23,23,19,0.10)] sm:w-auto"
       >
         <div className="relative aspect-[4/3] overflow-hidden bg-[#ded8cd]">
-          <img alt={dish.name} src={dish.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" />
+          <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" />
           {rank ? <span className="absolute left-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-[#171713] text-xs font-black text-[#f6b73c]">#{rank}</span> : null}
           {dish.discountPercent ? <span className="absolute right-3 top-3 rounded-md bg-[#f6b73c] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#171713]">{dish.discountPercent}% off</span> : null}
         </div>
@@ -121,7 +121,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
         className="group relative flex w-60 shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#171713]/12 bg-[#171713] text-white transition hover:-translate-y-1 sm:w-auto"
       >
         <div className="relative aspect-[4/3] overflow-hidden bg-[#2a2a24]">
-          <img alt={combo.name} src={combo.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-[1.05]" />
+          <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-[1.05]" />
           <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-[#f6b73c] px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-[#171713]"><Sparkles size={11} /> Combo</span>
           {combo.savingsPercent > 0 ? <span className="absolute right-3 top-3 rounded-md bg-white px-2 py-1 text-[10px] font-black text-[#171713]">Save {combo.savingsPercent}%</span> : null}
         </div>
@@ -187,7 +187,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
               </p>
             </div>
             <div className="order-1 relative min-h-56 lg:order-2 lg:min-h-[24rem]">
-              <img alt={hero.name} src={hero.imageUrl ?? ITEM_FALLBACK} className="absolute inset-0 h-full w-full object-cover" />
+              <img loading="lazy" decoding="async" alt={hero.name} src={hero.imageUrl ?? ITEM_FALLBACK} className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#171713] via-[#171713]/25 to-transparent lg:bg-gradient-to-r" />
             </div>
           </div>

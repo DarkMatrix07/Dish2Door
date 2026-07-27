@@ -51,8 +51,8 @@ function comboRealTotal(combo: Combo, menuItems: MenuItem[]) {
   return combo.items.reduce((sum, line) => sum + (priceById.get(line.menuItem.id) ?? 0) * line.quantity, 0);
 }
 
-const RESTAURANT_FALLBACK = "/dish2door-home-hero.png";
-const ITEM_FALLBACK = "/dish2door-home-hero.png";
+const RESTAURANT_FALLBACK = "/dish-placeholder.webp";
+const ITEM_FALLBACK = "/dish-placeholder.webp";
 
 function discountedPrice(item: Pick<MenuItem, "pricePaise" | "discountPercent">) {
   return Math.round(item.pricePaise * (1 - (item.discountPercent ?? 0) / 100));
@@ -262,7 +262,7 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
           </div>
         </div>
         <div className="relative min-h-32 pb-5">
-          <img alt={item.name} className={`h-28 w-full rounded-xl object-cover sm:h-32 ${item.available ? "" : "grayscale opacity-60"}`} src={item.imageUrl ?? ITEM_FALLBACK} />
+          <img loading="lazy" decoding="async" alt={item.name} className={`h-28 w-full rounded-xl object-cover sm:h-32 ${item.available ? "" : "grayscale opacity-60"}`} src={item.imageUrl ?? ITEM_FALLBACK} />
           <div className="absolute bottom-0 right-0"><QuantityControl item={item} /></div>
         </div>
       </motion.article>
@@ -302,7 +302,7 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
             </div>
           </div>
           <div className="relative min-h-32 pb-5">
-            <img alt={combo.name} className={`h-28 w-full rounded-xl object-cover sm:h-32 ${available ? "" : "grayscale opacity-60"}`} src={combo.imageUrl ?? combo.items[0]?.menuItem.imageUrl ?? ITEM_FALLBACK} />
+            <img loading="lazy" decoding="async" alt={combo.name} className={`h-28 w-full rounded-xl object-cover sm:h-32 ${available ? "" : "grayscale opacity-60"}`} src={combo.imageUrl ?? combo.items[0]?.menuItem.imageUrl ?? ITEM_FALLBACK} />
             <div className="absolute bottom-0 right-0">
               {!available ? (
                 <span className="grid h-10 min-w-24 place-items-center rounded-md bg-[#e9e5dd] px-4 text-sm font-black text-[#9c968c]">Sold out</span>
@@ -390,7 +390,7 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
                       className="group text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#c65d24]"
                     >
                       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#ded8cd]">
-                        <img alt={restaurant.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" src={restaurant.imageUrl ?? RESTAURANT_FALLBACK} />
+                        <img loading="lazy" decoding="async" alt={restaurant.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" src={restaurant.imageUrl ?? RESTAURANT_FALLBACK} />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent" />
                         {maxDiscount > 0 ? <span className="absolute left-4 top-4 rounded-md bg-[#f6b73c] px-3 py-2 text-xs font-black text-[#171713]">Up to {maxDiscount}% off</span> : null}
                         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 text-white">
@@ -413,7 +413,7 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
           <motion.section key={activeRestaurant.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mx-auto grid max-w-[1440px] gap-10 px-5 pb-32 sm:px-8 lg:grid-cols-[21rem_1fr] lg:gap-16 lg:px-12">
             <aside className="lg:sticky lg:top-6 lg:h-fit">
               <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#ded8cd] lg:aspect-[4/5]">
-                <img alt={activeRestaurant.name} className="h-full w-full object-cover" src={activeRestaurant.imageUrl ?? RESTAURANT_FALLBACK} />
+                <img loading="lazy" decoding="async" alt={activeRestaurant.name} className="h-full w-full object-cover" src={activeRestaurant.imageUrl ?? RESTAURANT_FALLBACK} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 text-white"><p className="text-sm font-semibold text-[#f6b73c]">Now serving</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em]">{activeRestaurant.name}</h1></div>
               </div>

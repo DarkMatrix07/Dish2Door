@@ -14,7 +14,7 @@ export default function LoginPage() {
     <main className="min-h-[100dvh] bg-[#f4efe6] text-[#17130e] lg:grid lg:grid-cols-[minmax(0,1.08fr)_minmax(30rem,0.92fr)]">
       <section className="relative min-h-56 overflow-hidden sm:min-h-72 lg:min-h-[100dvh]" aria-label="Dish2Door staff portal">
         <Image
-          src="/dish2door-home-hero.png"
+          src="/dish2door-home-hero.webp"
           alt="Fresh wraps, biryani, fries, and cold coffee prepared for Dish2Door orders"
           fill
           priority

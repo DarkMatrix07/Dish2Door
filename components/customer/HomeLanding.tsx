@@ -47,7 +47,7 @@ export function HomeLanding() {
 
           <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.12, ease: [0.22, 1, 0.36, 1] }} className="relative min-h-[410px] lg:min-h-0">
             <div className="absolute inset-0 overflow-hidden rounded-[2rem] bg-[#2b251f] lg:rounded-[2.5rem]">
-              <div className="absolute inset-0 scale-[1.02] bg-cover bg-center transition-transform duration-1000 hover:scale-105" style={{ backgroundImage: "url('/dish2door-home-hero.png')" }} role="img" aria-label="A colourful spread of freshly prepared Indian food" />
+              <div className="absolute inset-0 scale-[1.02] bg-cover bg-center transition-transform duration-1000 hover:scale-105" style={{ backgroundImage: "url('/dish2door-home-hero.webp')" }} role="img" aria-label="A colourful spread of freshly prepared Indian food" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/58 via-transparent to-black/5" />
             </div>
             <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between gap-4 text-white sm:bottom-7 sm:left-7 sm:right-7">

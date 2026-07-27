@@ -262,7 +262,7 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
                 const chosen = quantity > 0;
                 return (
                   <div key={item.id} className={`flex items-center gap-3 rounded-lg border p-2.5 transition ${chosen ? "border-[#f6b73c] bg-[#f6b73c]/[0.08]" : "border-black/8 bg-white hover:border-black/15"}`}>
-                    <img alt={item.name} src={item.imageUrl ?? "/dish2door-home-hero.png"} className="h-11 w-11 shrink-0 rounded-md object-cover" />
+                    <img loading="lazy" decoding="async" alt={item.name} src={item.imageUrl ?? "/dish-placeholder.webp"} className="h-11 w-11 shrink-0 rounded-md object-cover" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-[#202126]">{item.name}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>
                       <p className="mt-0.5 text-xs font-semibold tabular-nums text-[#70727a]">{formatPaise(discountedUnit(item))}{item.discountPercent ? <span className="ml-1.5 text-[#a0a2a8] line-through">{formatPaise(item.pricePaise)}</span> : null}</p>
