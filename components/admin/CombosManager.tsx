@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Minus, Package, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Minus, Package, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/AdminShell";
@@ -212,21 +212,23 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Restaurant selector */}
-      <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-        {restaurants.map((entry) => {
-          const active = entry.id === activeRestaurantId;
-          return (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => switchRestaurant(entry.id)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition ${active ? "bg-[#171713] text-white" : "border border-black/12 bg-white text-[#4e5057] hover:border-black/25"}`}
-            >
-              {entry.name}
-              <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-black tabular-nums ${active ? "bg-white/15 text-white" : "bg-[#f3f4f6] text-[#85878e]"}`}>{entry.combos.length}</span>
-            </button>
-          );
-        })}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <label htmlFor="combo-restaurant" className="text-sm font-bold text-[#3f4046]">Restaurant</label>
+        <div className="relative w-full sm:max-w-sm">
+          <select
+            id="combo-restaurant"
+            value={activeRestaurantId}
+            onChange={(event) => switchRestaurant(event.target.value)}
+            className="h-11 w-full appearance-none rounded-lg border border-black/12 bg-white pl-3.5 pr-10 text-sm font-bold text-[#202126] outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
+          >
+            {restaurants.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name} — {entry.combos.length} combo{entry.combos.length === 1 ? "" : "s"}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={17} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#85878e]" />
+        </div>
       </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
