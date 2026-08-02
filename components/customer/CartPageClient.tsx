@@ -19,6 +19,7 @@ type Settings = {
   hostelDeliveryFeePaise: number;
   paymentChargePercentBps: number;
   paymentChargeFixedPaise: number;
+  hostelDeliveryEnabled: boolean;
 };
 
 declare global {
@@ -79,6 +80,14 @@ export function CartPageClient({
   const [wheelOpen, setWheelOpen] = useState(false);
 
   useEffect(() => setCart(readStoredCart()), []);
+
+  // Never leave the form on a delivery type this campus can't fulfil.
+  useEffect(() => {
+    if (settings.hostelDeliveryEnabled) return;
+    setCustomer((current) =>
+      current.deliveryType === "HOSTEL" ? { ...current, deliveryType: "GATE", hostelBlock: "" } : current
+    );
+  }, [settings.hostelDeliveryEnabled]);
 
   async function checkSpinEligibility(who: CustomerIdentity) {
     try {
@@ -217,6 +226,7 @@ export function CartPageClient({
     if (!cart.length) return toast.error("Your cart is empty.");
     if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address.");
+    if (customer.deliveryType === "HOSTEL" && !settings.hostelDeliveryEnabled) return toast.error("Hostel delivery is coming soon. Please choose campus gate pickup.");
     if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Hostel block is required for hostel delivery.");
     if (!customer.orderSlot) return toast.error("Ordering has closed for today's delivery slots.");
     return true;
@@ -314,11 +324,18 @@ export function CartPageClient({
             <div className="mt-12">
               <h2 className="text-3xl font-black tracking-[-0.04em]">Where should we send it?</h2>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: "We bring it to your block" }].map((option) => (
-                  <button key={option.value} type="button" onClick={() => setCustomer({ ...customer, deliveryType: option.value, hostelBlock: option.value === "HOSTEL" ? customer.hostelBlock : "" })} className={`relative rounded-xl border p-5 text-left transition ${customer.deliveryType === option.value ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}>
-                    <MapPin size={20} className={customer.deliveryType === option.value ? "text-[#f6b73c]" : "text-[#c65d24]"} /><span className="mt-5 block font-black">{option.title}</span><span className={`mt-1 block text-sm ${customer.deliveryType === option.value ? "text-white/55" : "text-[#716a5f]"}`}>{option.copy}</span>{customer.deliveryType === option.value ? <Check className="absolute right-4 top-4 text-[#f6b73c]" size={17} /> : null}
+                {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: "We bring it to your block" }].map((option) => {
+                  // Hostel delivery is switched off per campus until that campus has
+                  // delivery staff; the option stays visible so customers know it's planned.
+                  const locked = option.value === "HOSTEL" && !settings.hostelDeliveryEnabled;
+                  const selected = customer.deliveryType === option.value;
+                  return (
+                  <button key={option.value} type="button" disabled={locked} aria-disabled={locked} onClick={() => { if (locked) return; setCustomer({ ...customer, deliveryType: option.value, hostelBlock: option.value === "HOSTEL" ? customer.hostelBlock : "" }); }} className={`relative rounded-xl border p-5 text-left transition ${locked ? "cursor-not-allowed border-black/8 bg-black/[0.035] text-[#9a9388]" : selected ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}>
+                    <MapPin size={20} className={locked ? "text-[#b3ada2]" : selected ? "text-[#f6b73c]" : "text-[#c65d24]"} /><span className="mt-5 block font-black">{option.title}</span><span className={`mt-1 block text-sm ${locked ? "text-[#9a9388]" : selected ? "text-white/55" : "text-[#716a5f]"}`}>{locked ? "Not available yet" : option.copy}</span>
+                    {locked ? <span className="absolute right-3 top-3 rounded-full bg-[#f6b73c] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#171713]">Coming soon</span> : selected ? <Check className="absolute right-4 top-4 text-[#f6b73c]" size={17} /> : null}
                   </button>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="mt-8 grid gap-5 sm:grid-cols-2">

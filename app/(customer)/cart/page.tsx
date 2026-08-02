@@ -12,7 +12,8 @@ export default async function CartPage() {
     platformFeePaise: 200,
     hostelDeliveryFeePaise: 1500,
     paymentChargePercentBps: 250,
-    paymentChargeFixedPaise: 0
+    paymentChargeFixedPaise: 0,
+    hostelDeliveryEnabled: true
   };
   let orderingOpenMinute = 360;
   let orderingCloseMinute = 1380;
@@ -26,7 +27,8 @@ export default async function CartPage() {
       platformFeePaise: dbSettings.platformFeePaise,
       hostelDeliveryFeePaise: dbSettings.hostelDeliveryFeePaise,
       paymentChargePercentBps: dbSettings.paymentChargePercentBps,
-      paymentChargeFixedPaise: dbSettings.paymentChargeFixedPaise
+      paymentChargeFixedPaise: dbSettings.paymentChargeFixedPaise,
+      hostelDeliveryEnabled: dbSettings.hostelDeliveryEnabled
     };
     orderingOpenMinute = dbSettings.orderingOpenMinute;
     orderingCloseMinute = dbSettings.orderingCloseMinute;

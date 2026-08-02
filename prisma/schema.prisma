@@ -355,6 +355,10 @@ model SystemSettings {
   notifyWhatsapp           Boolean  @default(true)
   orderingOpenMinute       Int      @default(360)
   orderingCloseMinute      Int      @default(1380)
+  // Lets a campus launch with gate pickup only and switch hostel delivery on later.
+  // Defaults to true so existing campuses are unaffected; enforced server-side on
+  // order creation, not just hidden in the UI.
+  hostelDeliveryEnabled    Boolean  @default(true)
   spinWheelForEveryone     Boolean  @default(false)
   // IST day (YYYY-MM-DD) whose ordering-window close ends the everyone-mode promo,
   // computed when it is switched on. Enabling after the window has already closed

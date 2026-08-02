@@ -37,6 +37,15 @@ export type CustomerDetails = {
   orderSlot?: OrderSlot;
 };
 
+// Hostel delivery can be switched off per campus (a new campus may launch gate-only).
+// Checked on every order-creation path so hiding the option in the UI is not the only
+// thing standing between a crafted request and an undeliverable order.
+function assertHostelDeliveryAllowed(deliveryType: DeliveryType, hostelDeliveryEnabled: boolean) {
+  if (deliveryType === DeliveryType.HOSTEL && !hostelDeliveryEnabled) {
+    throw new Error("Hostel delivery is coming soon. Please choose campus gate pickup.");
+  }
+}
+
 function requireNormalizedPhone(value: string) {
   const phone = normalizePhone(value);
   if (!isValidIndianMobile(phone)) throw new Error("Enter a valid 10-digit Indian mobile number");
@@ -196,6 +205,7 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     throw new Error("Orders are closed");
   }
 
+  assertHostelDeliveryAllowed(details.deliveryType, settings.hostelDeliveryEnabled);
   assertOrderingWindowOpen(settings.orderingOpenMinute, settings.orderingCloseMinute);
 
   return prisma.$transaction(async (tx) => {
@@ -389,6 +399,7 @@ export async function confirmOnlineOrderByRazorpayOrderId(razorpayOrderId: strin
 export async function createManualOrder(details: CustomerDetails, items: OrderItemInput[], paymentStatus: PaymentStatus) {
   const settings = await getSettings();
   const customerPhone = requireNormalizedPhone(details.phone);
+  assertHostelDeliveryAllowed(details.deliveryType, settings.hostelDeliveryEnabled);
   const passcode = generatePasscode();
   const passcodeHash = await hashPasscode(passcode);
 
