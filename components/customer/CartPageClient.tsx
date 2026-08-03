@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -341,14 +341,22 @@ export function CartPageClient({
 
             {campuses.length > 1 ? (
               <div className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/12 bg-white/50 px-4 py-3">
-                <span className="inline-flex items-center gap-2 text-sm">
-                  <GraduationCap size={17} className="text-[#c65d24]" />
-                  <span className="font-bold">{campus.name}</span>
-                  <span className="text-[#817a70]">{campus.hostelDeliveryEnabled ? "· gate + hostel" : "· gate pickup only"}</span>
+                <span className="inline-flex items-center gap-2 text-sm font-bold">
+                  <GraduationCap size={17} className="text-[#c65d24]" /> Your campus
                 </span>
-                <button type="button" onClick={() => setIdentityGateOpen(true)} className="text-sm font-black text-[#c65d24] underline underline-offset-4 transition hover:text-[#171713]">
-                  Change campus
-                </button>
+                <div className="relative">
+                  <select
+                    aria-label="Choose your campus"
+                    value={campus.code}
+                    onChange={(event) => chooseCampus(event.target.value)}
+                    className="h-11 appearance-none rounded-lg border border-black/12 bg-white pl-3.5 pr-10 text-sm font-black text-[#171713] outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
+                  >
+                    {campuses.map((entry) => (
+                      <option key={entry.code} value={entry.code}>{entry.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#817a70]" />
+                </div>
               </div>
             ) : null}
 
@@ -496,9 +504,6 @@ export function CartPageClient({
                           >
                             <GraduationCap size={17} className={picked ? "text-[#f6b73c]" : "text-[#c65d24]"} />
                             <span className="mt-2 block text-sm font-black">{entry.name}</span>
-                            <span className={`mt-0.5 block text-[11px] leading-4 ${picked ? "text-white/55" : "text-[#817a70]"}`}>
-                              {entry.hostelDeliveryEnabled ? "Gate + hostel" : "Gate pickup only"}
-                            </span>
                           </button>
                         );
                       })}

@@ -10,40 +10,61 @@ export default function PrivacyPolicyPage() {
     <LegalPage
       eyebrow="Legal"
       title="Privacy Policy"
-      updated="15 June 2026"
+      updated="3 August 2026"
       sections={[
         {
-          title: "Information we collect",
+          title: "Who this applies to",
           body: [
-            "Dish2Door collects the details needed to place and deliver your order, including name, phone number, email address, delivery preference, hostel block when selected, order items, payment status, and rating feedback.",
-            "Customers do not need an account. Order tracking works through a private tracking link and passcode."
+            "Dish2Door is a campus food ordering service operating only at the VIT-AP and SRM-AP campuses in Andhra Pradesh, India. This policy covers the information we handle when you order through this website."
           ]
         },
         {
-          title: "How we use information",
+          title: "Information we collect",
           body: [
-            "We use order information to confirm orders, coordinate delivery, send email and WhatsApp updates, verify payments, support customer queries, and improve food and delivery quality.",
-            "Admin and delivery users may access order details only for operational purposes."
+            "To place and deliver an order we collect your name, phone number, email address, chosen campus, delivery preference, hostel block where you select hostel delivery, the items you ordered, your payment status, and any rating or review you submit.",
+            "You do not need to create an account. Order tracking works through a private link and passcode sent to you.",
+            "Your phone number is also used as the key that links your past orders together, so we can show your order history and work out reward eligibility."
+          ]
+        },
+        {
+          title: "How we use your information",
+          body: [
+            "We use it to confirm and deliver your order, send you updates, verify payments, answer your support questions, and improve food and delivery quality.",
+            "We also use order history in aggregate to decide which dishes to feature and which offers to run. Our admin and delivery staff can see order details, but only as needed to prepare and deliver orders."
+          ]
+        },
+        {
+          title: "Who we share it with",
+          body: [
+            "We share only what is necessary: your order details with the partner restaurant preparing it, your name, phone number and delivery point with the person delivering it, and payment details with our payment provider.",
+            "We do not sell your personal information, and we do not share it for third-party advertising."
           ]
         },
         {
           title: "Payments",
           body: [
-            "Online payments are processed through Razorpay. Dish2Door verifies payment status server-side and stores payment references needed for order support and reconciliation.",
-            "We do not store card, UPI PIN, net banking password, or similar sensitive payment credentials."
+            "Online payments are processed by Razorpay. Payment is confirmed on our servers and we keep the payment reference needed for order support, refunds, and accounting.",
+            "We never see or store your card number, UPI PIN, net banking password, or any similar credential. Those are handled entirely by the payment provider."
           ]
         },
         {
           title: "Notifications",
           body: [
-            "We may send order updates by email, WhatsApp, and Telegram-based admin alerts. Notification attempts may be logged with success or failure status for support and retry purposes."
+            "We send order updates by email and WhatsApp, and internal alerts to our own admin channels. We may also send a small number of reminders asking you to rate a delivered order; these stop as soon as you rate it.",
+            "We log whether each notification succeeded or failed so we can retry it and investigate delivery problems."
           ]
         },
         {
-          title: "Data retention",
+          title: "How long we keep it",
           body: [
-            "Order, payment reference, notification, and rating records may be retained for operational, accounting, dispute resolution, and service improvement needs.",
-            "If you want a correction or deletion request reviewed, contact the Dish2Door admin using the contact details on this website."
+            "We keep order, payment reference, notification, and rating records for as long as needed for operations, accounting, and resolving disputes.",
+            "You can ask us to correct or delete your personal details by contacting us with the phone number you ordered with. Some records may be retained where we are required to keep them for accounting or legal reasons."
+          ]
+        },
+        {
+          title: "Contact",
+          body: [
+            "For any privacy question or request, contact us using the phone number and WhatsApp details on our contact page."
           ]
         }
       ]}

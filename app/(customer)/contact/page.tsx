@@ -10,29 +10,36 @@ export default function ContactPage() {
     <LegalPage
       eyebrow="Support"
       title="Contact Dish2Door"
-      updated="15 June 2026"
+      updated="3 August 2026"
       sections={[
         {
           title: "Customer support",
           body: [
-            "For order help, keep your tracking code and phone number ready. This helps the admin find your order quickly.",
-            "Contact number: 63022 50978. You can call or message us on WhatsApp using the button below."
+            "Have your tracking code and the phone number you ordered with ready — that is the fastest way for us to find your order.",
+            "Contact number: 63022 50978. Call us, or message on WhatsApp using the button below."
           ],
           action: { label: "Chat on WhatsApp", href: "https://wa.me/916302250978" }
         },
         {
+          title: "Where we deliver",
+          body: [
+            "We deliver to two campuses only: VIT-AP and SRM-AP, in Andhra Pradesh, India. We do not deliver anywhere else.",
+            "At each campus you can collect from the campus gate, and hostel delivery is available where that campus offers it. Where hostel delivery shows as coming soon, only gate pickup is running there for now."
+          ]
+        },
+        {
           title: "Order issues",
           body: [
-            "Reach out for payment confirmation issues, missing tracking messages, delivery coordination, incorrect item concerns, or refund review requests.",
-            "For hostel delivery, please mention your hostel block clearly."
+            "Get in touch about payment confirmation problems, a missing tracking message, delivery coordination, a wrong or missing item, or a refund request.",
+            "For hostel delivery, please mention your hostel block clearly so we can route the order correctly."
           ]
         },
         {
           title: "Business details",
           body: [
             "Business name: Dish2Door.",
-            "Operating location: Vijayawada, Andhra Pradesh, India.",
-            "Dish2Door operates as a campus food ordering service and does not have a physical customer office. Support is handled through the contact number and WhatsApp listed above."
+            "Operating location: Andhra Pradesh, India, serving the VIT-AP and SRM-AP campuses.",
+            "Dish2Door is a campus food ordering service and does not have a walk-in office. All support is handled through the phone number and WhatsApp above."
           ]
         }
       ]}

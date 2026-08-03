@@ -10,34 +10,42 @@ export default function CancellationRefundPolicyPage() {
     <LegalPage
       eyebrow="Policy"
       title="Cancellation and Refund Policy"
-      updated="15 June 2026"
+      updated="3 August 2026"
       sections={[
+        {
+          title: "Service area",
+          body: [
+            "Dish2Door delivers only to the VIT-AP and SRM-AP campuses in Andhra Pradesh, India. Orders that cannot be delivered because a location outside these two campuses was expected are not eligible for a refund, since we do not serve those areas."
+          ]
+        },
         {
           title: "Cancellation requests",
           body: [
-            "Cancellation requests must be made as early as possible by contacting the Dish2Door admin. Once a restaurant has accepted, prepared, packed, or dispatched the order, cancellation may not be possible.",
-            "Dish2Door may cancel an order if an item becomes unavailable, customer details are invalid, payment verification fails, or the order appears suspicious."
+            "Please request a cancellation as early as possible by contacting us on the number listed on our contact page, quoting your tracking code. Once the restaurant has accepted, prepared, packed, or dispatched your order, it can no longer be cancelled.",
+            "We may cancel an order ourselves if an item becomes unavailable, your contact details are invalid, payment verification fails, the ordering window has closed, or the order appears fraudulent."
           ]
         },
         {
-          title: "Refund eligibility",
+          title: "When a refund applies",
           body: [
-            "Refunds may be considered for failed payments, duplicate payments, cancelled orders before preparation, or cases where the order cannot be fulfilled.",
-            "Refunds may not be available for incorrect customer details, missed calls, unreachable customer phone numbers, wrong hostel block details, or refusal to accept a correctly prepared order."
+            "A refund is considered where money was taken but no food was delivered: a failed or duplicate payment, an order cancelled before preparation began, or an order we could not fulfil.",
+            "A refund is not normally available where the order was prepared correctly and the delivery failed for reasons on the customer's side, such as an unreachable phone number, an incorrect hostel block, not collecting from the campus gate within a reasonable time, or refusing a correct order.",
+            "Because most orders are prepared and delivered on the same day within a short window, cancellations after preparation are rare and refunds are the exception rather than the norm."
           ]
         },
         {
-          title: "Refund timeline",
+          title: "How refunds are paid",
           body: [
-            "Approved refunds are processed through the original payment method whenever possible. Bank or payment provider timelines may vary.",
-            "Any payment gateway charges or platform fees may be deducted where applicable, depending on the case and payment provider rules."
+            "Approved refunds are returned to the original payment method through our payment provider, Razorpay. We do not refund in cash or to a different account.",
+            "Once we approve and initiate a refund, the time it takes to appear in your account depends on your bank or payment provider and is outside our control. Typically this takes a few working days.",
+            "Where a refund is issued, payment gateway charges and platform fees may be deducted, depending on the case and the payment provider's rules."
           ]
         },
         {
-          title: "Food quality concerns",
+          title: "Food quality, missing or wrong items",
           body: [
-            "For food quality, missing item, or wrong item concerns, contact the admin with the order tracking code, customer phone number, and clear details soon after delivery.",
-            "Dish2Door may coordinate with the restaurant to provide a suitable resolution."
+            "If something is wrong with your order, contact us soon after delivery with your tracking code, the phone number used to order, and clear details or photos. Reporting quickly gives us the best chance of resolving it with the restaurant.",
+            "Depending on what happened, we may arrange a replacement, a partial adjustment, or a refund. We assess these case by case together with the partner restaurant."
           ]
         }
       ]}
