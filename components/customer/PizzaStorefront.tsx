@@ -5,12 +5,15 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  Clock3,
   Flame,
   GraduationCap,
+  HandCoins,
   MapPin,
   Minus,
   MessageCircle,
   Plus,
+  Pizza as PizzaIcon,
   ShoppingBag,
   Sparkles,
   X
@@ -231,6 +234,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
 
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   const orderingBlocked = !shop.acceptingOrders;
+  const heroImage = shop.imageUrl ?? shop.combos[0]?.imageUrl ?? shop.menuItems[0]?.imageUrl ?? "/dish-placeholder.webp";
 
   function validate() {
     if (orderingBlocked) return toast.error("This shop isn't taking orders right now.");
@@ -293,7 +297,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
       <main id="main-content" className="min-h-screen bg-white text-[#0B1F33]">
         <SiteNav />
         <section className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 py-32 text-center">
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-[#E31837]/10 text-4xl">🍕</span>
+          <span className="grid h-16 w-16 place-items-center rounded-xl bg-[#E31837]/10 text-[#E31837]"><PizzaIcon size={30} /></span>
           <h1 className="mt-8 text-4xl font-black tracking-[-0.04em] sm:text-5xl">We&apos;re not delivering here yet.</h1>
           <p className="mt-4 max-w-md text-base leading-7 text-[#5A6B7B]">
             {shop.name} currently only delivers to <span className="font-bold text-[#E31837]">{restrictedCampusName}</span>, and your campus is set to{" "}
@@ -341,49 +345,74 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
         </div>
       </div>
 
-      {/* Hero — SiteNav overlays this as an absolutely-positioned header, so the section
-          needs `relative` to be its containing block, and top padding to clear the nav. */}
-      <section className="relative overflow-hidden bg-[#0B1F33]">
+      <section className="relative min-h-[42rem] overflow-hidden bg-[#0B1F33] sm:min-h-[46rem]">
+        <img
+          src={heroImage}
+          alt={`${shop.name} pizzas and sides`}
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,21,34,0.98)_0%,rgba(7,21,34,0.9)_42%,rgba(7,21,34,0.26)_76%,rgba(7,21,34,0.42)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(7,21,34,0.96)_0%,transparent_48%,rgba(7,21,34,0.35)_100%)]" />
         <SiteNav dark />
-        {shop.imageUrl ? (
-          <img loading="lazy" decoding="async" alt="" src={shop.imageUrl} className="absolute inset-0 h-full w-full object-cover opacity-40" />
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(227,24,55,0.55),transparent_60%),radial-gradient(ellipse_at_bottom_right,rgba(0,100,145,0.55),transparent_55%)]" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0B1F33] via-[#0B1F33]/70 to-[#0B1F33]/30" />
-        <div className="relative mx-auto max-w-[1200px] px-5 pb-14 pt-28 sm:px-8 lg:px-12 lg:pb-20 lg:pt-36">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-white ring-1 ring-white/20">
-              <Flame size={13} className="text-[#E31837]" /> WhatsApp ordering &middot; {campus?.name}
-            </span>
-            <h1 className="mt-6 max-w-3xl text-5xl font-black leading-[0.95] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
+        <div className="relative mx-auto flex min-h-[42rem] max-w-[1280px] items-end px-5 pb-10 pt-28 sm:min-h-[46rem] sm:px-8 sm:pb-14 lg:px-12 lg:pb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-3xl"
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-[#071522]/40 px-3 py-2 text-xs font-black text-white backdrop-blur-md">
+                <Flame size={14} className="text-[#ff4b5f]" /> Taking orders on WhatsApp
+              </span>
+              <CampusSwitcher campuses={campuses} value={campusCode} onChange={chooseCampus} />
+            </div>
+            <h1 className="mt-7 max-w-3xl text-5xl font-black leading-[0.9] tracking-[-0.055em] text-white sm:text-7xl lg:text-[6.2rem]">
               {shop.name}
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-white/75 sm:text-lg">
-              {shop.description ?? "Hot, cheesy, straight from the campus kitchen. Build your order below, then confirm on WhatsApp — pay on handover."}
+            <p className="mt-6 max-w-xl text-base leading-7 text-white/75 sm:text-lg sm:leading-8">
+              {shop.description ?? "Hot pizzas, generous toppings, and campus delivery. Build your order here, then confirm it on WhatsApp."}
             </p>
             {orderingBlocked ? (
-              <div className="mt-8 inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white">
-                Closed right now — this shop isn&apos;t taking orders at the moment.
+              <div className="mt-8 inline-flex items-center gap-2 rounded-md border border-white/20 bg-[#071522]/45 px-4 py-3 text-sm font-bold text-white backdrop-blur-md">
+                Closed right now. This shop is not taking orders at the moment.
               </div>
             ) : (
-              <a href="#menu" className="mt-8 inline-flex h-[3.25rem] items-center gap-3 rounded-full bg-[#E31837] px-7 py-3.5 text-sm font-black uppercase tracking-wide text-white transition hover:-translate-y-0.5 hover:bg-[#c81330]">
-                Order now <ArrowRight size={16} />
+              <a href="#menu" className="mt-8 inline-flex min-h-14 items-center gap-3 rounded-md bg-[#E31837] px-7 py-3.5 text-sm font-black text-white shadow-[0_18px_55px_rgba(227,24,55,0.32)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#f02443] active:translate-y-0">
+                Explore the menu <ArrowRight size={17} />
               </a>
             )}
+
+            <div className="mt-9 grid max-w-2xl gap-px overflow-hidden rounded-md border border-white/12 bg-white/12 sm:grid-cols-3">
+              <div className="flex items-center gap-3 bg-[#071522]/55 px-4 py-3.5 backdrop-blur-md">
+                <MessageCircle size={17} className="text-[#5ee58b]" />
+                <span className="text-sm font-bold">Confirm on WhatsApp</span>
+              </div>
+              <div className="flex items-center gap-3 bg-[#071522]/55 px-4 py-3.5 backdrop-blur-md">
+                <HandCoins size={17} className="text-[#ffcf55]" />
+                <span className="text-sm font-bold">Pay at handover</span>
+              </div>
+              <div className="flex items-center gap-3 bg-[#071522]/55 px-4 py-3.5 backdrop-blur-md">
+                <Clock3 size={17} className="text-[#76caee]" />
+                <span className="text-sm font-bold">Campus delivery slots</span>
+              </div>
+            </div>
           </motion.div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-[1200px] px-5 py-10 sm:px-8 lg:px-12 lg:py-14">
+      <div className="mx-auto max-w-[1280px] px-5 py-12 sm:px-8 lg:px-12 lg:py-20">
         {/* Deals strip */}
         {shop.combos.length ? (
-          <div className="mb-12">
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-[#E31837]" />
-              <h2 className="text-2xl font-black tracking-[-0.03em] text-[#0B1F33] sm:text-3xl">Deals</h2>
+          <div className="mb-16">
+            <div className="flex items-end justify-between gap-6">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-black text-[#E31837]"><Sparkles size={16} /> Better together</p>
+                <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-[#0B1F33] sm:text-4xl">Combo favourites</h2>
+              </div>
+              <p className="hidden max-w-xs text-right text-sm leading-6 text-[#5A6B7B] sm:block">Complete meals with the savings already worked out.</p>
             </div>
-            <div className="mt-5 flex gap-4 overflow-x-auto pb-3 [scrollbar-width:thin]">
+            <div className="mt-6 grid auto-cols-[17.5rem] grid-flow-col gap-4 overflow-x-auto pb-3 [scrollbar-width:thin] lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:overflow-visible">
               {shop.combos.map((combo) => {
                 const savingsPaise = Math.max(0, comboUndiscountedTotal(combo) - combo.comboPricePaise);
                 const qty = lineQuantity("combo", combo.id);
@@ -393,17 +422,17 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     initial={{ opacity: 0, y: 12 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-40px" }}
-                    className="relative flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-[#0B1F33]/8 bg-white shadow-[0_4px_20px_rgba(11,31,51,0.06)]"
+                    className="group relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_30px_rgba(11,31,51,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(11,31,51,0.13)]"
                   >
                     <div className="relative">
-                      <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? "/dish-placeholder.webp"} className="h-40 w-full object-cover" />
+                      <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? "/dish-placeholder.webp"} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
                       {savingsPaise > 0 ? (
                         <span className="absolute left-3 top-3 rounded-full bg-[#E31837] px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-white shadow-sm">
                           Save {formatPaise(savingsPaise)}
                         </span>
                       ) : null}
                     </div>
-                    <div className="flex flex-1 flex-col p-4">
+                    <div className="flex flex-1 flex-col p-5">
                       <h3 className="text-lg font-black tracking-[-0.02em] text-[#0B1F33]">{combo.name}</h3>
                       {combo.description ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#5A6B7B]">{combo.description}</p> : null}
                       <div className="mt-3 flex items-baseline gap-2">
@@ -437,15 +466,19 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
 
         {/* Menu */}
         <section id="menu" className="scroll-mt-28">
-          <h2 className="text-2xl font-black tracking-[-0.03em] text-[#0B1F33] sm:text-3xl">Menu</h2>
+          <div className="max-w-2xl">
+            <p className="flex items-center gap-2 text-sm font-black text-[#006491]"><PizzaIcon size={16} /> Made for your order</p>
+            <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-[#0B1F33] sm:text-5xl">Choose your favourites</h2>
+            <p className="mt-3 text-sm leading-6 text-[#5A6B7B] sm:text-base">Freshly prepared pizzas and sides, ready for your selected campus slot.</p>
+          </div>
 
           {availableCourses.length > 1 ? (
             <div className="sticky top-[52px] z-30 -mx-5 mt-5 border-b border-[#0B1F33]/8 bg-[#F6F7F9]/95 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8 lg:-mx-12 lg:px-12">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
                 <button
                   type="button"
                   onClick={() => setActiveCourse("all")}
-                  className={`rounded-full border px-4 py-2 text-sm font-bold transition ${activeCourse === "all" ? "border-[#E31837] bg-[#E31837] text-white" : "border-[#0B1F33]/15 bg-white text-[#5A6B7B] hover:border-[#006491]"}`}
+                  className={`shrink-0 rounded-md border px-4 py-2 text-sm font-bold transition ${activeCourse === "all" ? "border-[#0B1F33] bg-[#0B1F33] text-white" : "border-[#0B1F33]/12 bg-white text-[#5A6B7B] hover:border-[#006491] hover:text-[#0B1F33]"}`}
                 >
                   All
                 </button>
@@ -454,7 +487,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     key={course.id}
                     type="button"
                     onClick={() => setActiveCourse(course.id)}
-                    className={`rounded-full border px-4 py-2 text-sm font-bold transition ${activeCourse === course.id ? "border-[#E31837] bg-[#E31837] text-white" : "border-[#0B1F33]/15 bg-white text-[#5A6B7B] hover:border-[#006491]"}`}
+                    className={`shrink-0 rounded-md border px-4 py-2 text-sm font-bold transition ${activeCourse === course.id ? "border-[#0B1F33] bg-[#0B1F33] text-white" : "border-[#0B1F33]/12 bg-white text-[#5A6B7B] hover:border-[#006491] hover:text-[#0B1F33]"}`}
                   >
                     {course.name}
                   </button>
@@ -466,13 +499,13 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
           {!shop.menuItems.length ? (
             <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-[#0B1F33]/15 bg-white px-6 text-center">
               <div>
-                <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#0B1F33]/5 text-2xl">🍕</span>
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-[#0B1F33]/5 text-[#006491]"><PizzaIcon size={23} /></span>
                 <h3 className="mt-5 text-xl font-black text-[#0B1F33]">The menu is still being set up</h3>
-                <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5A6B7B]">Check back soon — this kitchen is getting its pizzas ready.</p>
+                <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5A6B7B]">Check back soon. This kitchen is getting its pizzas ready.</p>
               </div>
             </div>
           ) : (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {visibleItems.map((item) => {
                 const unitPrice = discountedPrice(item.pricePaise, item.discountPercent);
                 const qty = lineQuantity("item", item.id);
@@ -482,15 +515,18 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     initial={{ opacity: 0, y: 12 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-40px" }}
-                    className="flex gap-4 rounded-2xl border border-[#0B1F33]/8 bg-white p-3 shadow-[0_2px_10px_rgba(11,31,51,0.05)] transition hover:shadow-[0_8px_24px_rgba(11,31,51,0.1)]"
+                    className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_28px_rgba(11,31,51,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(11,31,51,0.12)]"
                   >
-                    <img loading="lazy" decoding="async" alt={item.name} src={item.imageUrl ?? "/dish-placeholder.webp"} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <h3 className="font-black tracking-[-0.02em] text-[#0B1F33]">{item.name}</h3>
-                      {item.description ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#5A6B7B]">{item.description}</p> : null}
-                      <div className="mt-auto flex items-center justify-between pt-2">
+                    <div className="relative overflow-hidden bg-[#edf1f4]">
+                      <img loading="lazy" decoding="async" alt={item.name} src={item.imageUrl ?? "/dish-placeholder.webp"} className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+                      {item.discountPercent ? <span className="absolute left-3 top-3 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">{item.discountPercent}% off</span> : null}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+                      <h3 className="text-lg font-black tracking-[-0.025em] text-[#0B1F33]">{item.name}</h3>
+                      {item.description ? <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-[#5A6B7B]">{item.description}</p> : <p className="mt-1.5 text-sm leading-6 text-[#83909c]">Freshly prepared for your order.</p>}
+                      <div className="mt-auto flex items-end justify-between gap-3 pt-5">
                         <div className="flex items-baseline gap-2">
-                          <span className="font-black tabular-nums text-[#E31837]">{formatPaise(unitPrice)}</span>
+                          <span className="text-lg font-black tabular-nums text-[#0B1F33]">{formatPaise(unitPrice)}</span>
                           {item.discountPercent ? <span className="text-xs text-[#5A6B7B]/70 line-through">{formatPaise(item.pricePaise)}</span> : null}
                         </div>
                         {qty === 0 ? (
@@ -498,15 +534,15 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                             type="button"
                             aria-label={`Add ${item.name}`}
                             onClick={() => addLine("item", item.id, item.name, item.imageUrl, unitPrice)}
-                            className="grid h-9 w-9 place-items-center rounded-full bg-[#0B1F33] text-white transition hover:bg-[#006491]"
+                            className="flex h-10 items-center gap-2 rounded-md bg-[#E31837] px-3.5 text-sm font-black text-white transition hover:bg-[#c81330] active:scale-[0.98]"
                           >
-                            <Plus size={15} />
+                            <Plus size={15} /> Add
                           </button>
                         ) : (
-                          <div className="flex h-9 items-center rounded-full border border-[#0B1F33]/15 bg-[#F6F7F9]">
-                            <button type="button" aria-label={`Decrease ${item.name}`} onClick={() => adjustLine("item", item.id, -1)} className="grid h-9 w-9 place-items-center rounded-full text-[#0B1F33] transition hover:bg-white"><Minus size={13} /></button>
-                            <span className="w-6 text-center text-sm font-black tabular-nums text-[#0B1F33]">{qty}</span>
-                            <button type="button" aria-label={`Increase ${item.name}`} onClick={() => adjustLine("item", item.id, 1)} className="grid h-9 w-9 place-items-center rounded-full text-[#0B1F33] transition hover:bg-white"><Plus size={13} /></button>
+                          <div className="flex h-10 items-center rounded-md border border-[#0B1F33]/15 bg-[#F6F7F9]">
+                            <button type="button" aria-label={`Decrease ${item.name}`} onClick={() => adjustLine("item", item.id, -1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Minus size={13} /></button>
+                            <span className="w-7 text-center text-sm font-black tabular-nums text-[#0B1F33]">{qty}</span>
+                            <button type="button" aria-label={`Increase ${item.name}`} onClick={() => adjustLine("item", item.id, 1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Plus size={13} /></button>
                           </div>
                         )}
                       </div>
@@ -563,10 +599,10 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
             >
               {result ? (
                 <div className="py-4 text-center">
-                  <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#1F9254]/10 text-4xl">✅</span>
+                  <span className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-[#1F9254]/10 text-[#1F9254]"><Check size={30} strokeWidth={2.5} /></span>
                   <h2 className="mt-6 text-3xl font-black tracking-[-0.04em]">Order sent!</h2>
                   <p className="mt-3 leading-7 text-[#5A6B7B]">
-                    Your tracking code is <span className="font-black text-[#E31837]">{result.trackingCode}</span>. Confirm your order on WhatsApp — pay by cash or UPI when it&apos;s handed over.
+                    Your tracking code is <span className="font-black text-[#E31837]">{result.trackingCode}</span>. Confirm your order on WhatsApp, then pay by cash or UPI when it&apos;s handed over.
                   </p>
                   <p className="mt-1 text-sm text-[#5A6B7B]/80">Total: {formatPaise(result.totalPaise)}</p>
                   <div className="mt-7 grid gap-2">
@@ -592,7 +628,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                   <div className="flex items-start justify-between gap-5">
                     <div>
                       <h2 id="pizza-checkout-title" className="text-3xl font-black tracking-[-0.04em]">Your order</h2>
-                      <p className="mt-1 text-sm text-[#5A6B7B]">Confirmed and paid on WhatsApp — cash or UPI at handover.</p>
+                      <p className="mt-1 text-sm text-[#5A6B7B]">Confirm on WhatsApp, then pay by cash or UPI at handover.</p>
                     </div>
                     <button type="button" aria-label="Close checkout" onClick={() => setCheckoutOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#5A6B7B] transition hover:bg-[#F6F7F9] hover:text-[#0B1F33]"><X size={19} /></button>
                   </div>
@@ -687,7 +723,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     <div className="flex justify-between text-[#5A6B7B]"><span>Platform fee</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.platformFeePaise)}</span></div>
                     {customer.deliveryType === "HOSTEL" ? <div className="flex justify-between text-[#5A6B7B]"><span>Hostel delivery</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.hostelFeePaise)}</span></div> : null}
                     <div className="flex justify-between border-t border-[#0B1F33]/10 pt-2 text-base font-black text-[#0B1F33]"><span>Total</span><span className="tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
-                    <p className="pt-1 text-xs leading-5 text-[#5A6B7B]/80">No online payment here — pay by cash or UPI when your order is handed over.</p>
+                    <p className="pt-1 text-xs leading-5 text-[#5A6B7B]/80">No online payment here. Pay by cash or UPI when your order is handed over.</p>
                   </div>
 
                   <button
