@@ -6,6 +6,7 @@ export type CampusPublic = {
   platformFeePaise: number;
   hostelDeliveryFeePaise: number;
   hostelDeliveryEnabled: boolean;
+  hostelDeliveryNightOnly: boolean;
   paymentChargePercentBps: number;
   paymentChargeFixedPaise: number;
 };

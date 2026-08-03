@@ -38,6 +38,7 @@ export default function TermsAndConditionsPage() {
           title: "Orders and delivery",
           body: [
             "You may choose campus gate pickup, or hostel delivery where that campus offers it. Hostel delivery requires a hostel block and may carry an additional fee. Where hostel delivery is marked as coming soon, only gate pickup is available at that campus.",
+            "Hostel delivery runs on night-slot orders only. Afternoon orders are campus gate pickup. The cart shows which options are available before you pay.",
             "Orders are accepted within our published ordering window and delivery slots. Slot cut-off times are shown at checkout and orders placed after a cut-off move to the next available slot.",
             "Cancellations, refunds, and order problems are handled only through our WhatsApp support number, not through this website. See our Cancellation and Refund Policy.",
             "Order status is shown as confirmed, reached campus, and delivered. Delivery times are estimates and are not guaranteed, as they depend on restaurant preparation, order volume, traffic, and campus access."

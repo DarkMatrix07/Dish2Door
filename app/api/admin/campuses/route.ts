@@ -12,6 +12,7 @@ const schema = z.object({
   platformFeePaise: z.number().int().min(0).max(100_000).optional(),
   hostelDeliveryFeePaise: z.number().int().min(0).max(100_000).optional(),
   hostelDeliveryEnabled: z.boolean().optional(),
+  hostelDeliveryNightOnly: z.boolean().optional(),
   // 10_000 bps = 100%; cap well below that to make a fat-finger impossible.
   paymentChargePercentBps: z.number().int().min(0).max(1_000).optional(),
   paymentChargeFixedPaise: z.number().int().min(0).max(100_000).optional()

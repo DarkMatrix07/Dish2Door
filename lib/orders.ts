@@ -41,12 +41,21 @@ export type CustomerDetails = {
   campusCode?: string;
 };
 
-// Hostel delivery can be switched off per campus (a new campus may launch gate-only).
-// Checked on every order-creation path so hiding the option in the UI is not the only
-// thing standing between a crafted request and an undeliverable order.
-function assertHostelDeliveryAllowed(deliveryType: DeliveryType, hostelDeliveryEnabled: boolean) {
-  if (deliveryType === DeliveryType.HOSTEL && !hostelDeliveryEnabled) {
+// Hostel delivery rules are per campus: it can be switched off entirely (a campus may
+// launch gate-only), and it can be limited to the night slot. Checked on every
+// order-creation path so hiding the option in the UI is not the only thing standing
+// between a crafted request and an undeliverable order.
+function assertHostelDeliveryAllowed(
+  deliveryType: DeliveryType,
+  campus: { hostelDeliveryEnabled: boolean; hostelDeliveryNightOnly: boolean },
+  orderSlot?: OrderSlot | null
+) {
+  if (deliveryType !== DeliveryType.HOSTEL) return;
+  if (!campus.hostelDeliveryEnabled) {
     throw new Error("Hostel delivery is coming soon. Please choose campus gate pickup.");
+  }
+  if (campus.hostelDeliveryNightOnly && orderSlot !== OrderSlot.NIGHT) {
+    throw new Error("Hostel delivery runs on night orders only. Choose the night slot, or pick campus gate pickup.");
   }
 }
 
@@ -211,7 +220,7 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     throw new Error("Orders are closed");
   }
 
-  assertHostelDeliveryAllowed(details.deliveryType, campus.hostelDeliveryEnabled);
+  assertHostelDeliveryAllowed(details.deliveryType, campus, details.orderSlot);
   assertOrderingWindowOpen(settings.orderingOpenMinute, settings.orderingCloseMinute);
 
   return prisma.$transaction(async (tx) => {
@@ -407,7 +416,7 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
   const settings = await getSettings();
   const customerPhone = requireNormalizedPhone(details.phone);
   const campus = await resolveCampus(details.campusCode);
-  assertHostelDeliveryAllowed(details.deliveryType, campus.hostelDeliveryEnabled);
+  assertHostelDeliveryAllowed(details.deliveryType, campus, details.orderSlot);
   const passcode = generatePasscode();
   const passcodeHash = await hashPasscode(passcode);
 

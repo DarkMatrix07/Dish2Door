@@ -29,6 +29,7 @@ export default async function AdminCampusesPage() {
           platformFeePaise: campus.platformFeePaise,
           hostelDeliveryFeePaise: campus.hostelDeliveryFeePaise,
           hostelDeliveryEnabled: campus.hostelDeliveryEnabled,
+          hostelDeliveryNightOnly: campus.hostelDeliveryNightOnly,
           paymentChargePercentBps: campus.paymentChargePercentBps,
           paymentChargeFixedPaise: campus.paymentChargeFixedPaise,
           orderCount: orderCounts[campus.id] ?? 0

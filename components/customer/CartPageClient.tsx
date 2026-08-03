@@ -164,6 +164,21 @@ export function CartPageClient({
     writeStoredCampus(code);
   }
 
+  // Hostel runs happen on the night slot only at some campuses.
+  const hostelIsNightOnly = campus.hostelDeliveryEnabled && campus.hostelDeliveryNightOnly;
+  const nightSlotClosed = indiaMinutes !== null && indiaMinutes >= ORDER_SLOT_DETAILS.NIGHT.cutoffMinutes;
+
+  // Picking hostel delivery moves the order to the night slot, since that is the only
+  // slot it runs on. Done here so the customer never reaches payment on a bad combination.
+  useEffect(() => {
+    if (!hostelIsNightOnly) return;
+    setCustomer((current) =>
+      current.deliveryType === "HOSTEL" && current.orderSlot !== "NIGHT"
+        ? { ...current, orderSlot: nightSlotClosed ? "" : "NIGHT" }
+        : current
+    );
+  }, [hostelIsNightOnly, nightSlotClosed, customer.deliveryType]);
+
   // Never leave the form on a delivery type this campus can't fulfil.
   useEffect(() => {
     if (campus.hostelDeliveryEnabled) return;
@@ -321,6 +336,7 @@ export function CartPageClient({
     if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address.");
     if (customer.deliveryType === "HOSTEL" && !campus.hostelDeliveryEnabled) return toast.error("Hostel delivery is coming soon. Please choose campus gate pickup.");
+    if (customer.deliveryType === "HOSTEL" && hostelIsNightOnly && customer.orderSlot !== "NIGHT") return toast.error("Hostel delivery runs on night orders only. Choose the night slot, or pick campus gate pickup.");
     if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Hostel block is required for hostel delivery.");
     if (!customer.orderSlot) return toast.error("Ordering has closed for today's delivery slots.");
     return true;
@@ -427,7 +443,7 @@ export function CartPageClient({
             <div className="mt-12">
               <h2 className="text-3xl font-black tracking-[-0.04em]">Where should we send it?</h2>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: "We bring it to your block" }].map((option) => {
+                {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: hostelIsNightOnly ? "Night orders only — we bring it to your block" : "We bring it to your block" }].map((option) => {
                   // Hostel delivery is switched off per campus until that campus has
                   // delivery staff; the option stays visible so customers know it's planned.
                   const locked = option.value === "HOSTEL" && !campus.hostelDeliveryEnabled;
@@ -460,7 +476,10 @@ export function CartPageClient({
                     { value: "AFTERNOON", label: "Afternoon", ...ORDER_SLOT_DETAILS.AFTERNOON },
                     { value: "NIGHT", label: "Night", ...ORDER_SLOT_DETAILS.NIGHT },
                   ] as const).map((slot) => {
-                    const unavailable = orderingClosed || indiaMinutes === null || indiaMinutes >= slot.cutoffMinutes;
+                    // Hostel delivery only runs at night, so the afternoon slot is not
+                    // selectable while hostel is chosen.
+                    const blockedByHostel = customer.deliveryType === "HOSTEL" && hostelIsNightOnly && slot.value !== "NIGHT";
+                    const unavailable = orderingClosed || blockedByHostel || indiaMinutes === null || indiaMinutes >= slot.cutoffMinutes;
                     return (
                     <button
                       key={slot.value}
@@ -472,7 +491,7 @@ export function CartPageClient({
                       <span className="block text-sm font-black">{slot.label}</span>
                       <span className={`mt-1 block text-[11px] font-medium leading-4 sm:text-xs ${unavailable ? "text-[#9a9388]" : customer.orderSlot === slot.value ? "text-[#171713]/65" : "text-[#817a70]"}`}>{slot.cutoffLabel}</span>
                       <span className={`block text-[11px] font-bold leading-4 sm:text-xs ${unavailable ? "text-[#9a9388]" : customer.orderSlot === slot.value ? "text-[#171713]" : "text-[#c65d24]"}`}>{slot.deliveryLabel}</span>
-                      {unavailable && indiaMinutes !== null ? <span className="absolute right-2.5 top-2.5 rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#8a342c]">Closed</span> : null}
+                      {blockedByHostel ? <span className="absolute right-2.5 top-2.5 rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#8a342c]">Hostel is night only</span> : unavailable && indiaMinutes !== null ? <span className="absolute right-2.5 top-2.5 rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#8a342c]">Closed</span> : null}
                     </button>
                     );
                   })}

@@ -17,6 +17,7 @@ export function toPublicCampus(campus: Campus): CampusPublic {
     platformFeePaise: campus.platformFeePaise,
     hostelDeliveryFeePaise: campus.hostelDeliveryFeePaise,
     hostelDeliveryEnabled: campus.hostelDeliveryEnabled,
+    hostelDeliveryNightOnly: campus.hostelDeliveryNightOnly,
     paymentChargePercentBps: campus.paymentChargePercentBps,
     paymentChargeFixedPaise: campus.paymentChargeFixedPaise
   };

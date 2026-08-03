@@ -386,6 +386,9 @@ model Campus {
   // Lets a campus launch gate-pickup-only and switch hostel delivery on later.
   // Enforced on every order-creation path, not just hidden in the UI.
   hostelDeliveryEnabled   Boolean  @default(true)
+  // Hostel runs are only worth doing on the night slot at some campuses, so hostel
+  // delivery can be restricted to NIGHT orders while gate pickup stays available all day.
+  hostelDeliveryNightOnly Boolean  @default(false)
   paymentChargePercentBps Int
   paymentChargeFixedPaise Int      @default(0)
   orders                  Order[]

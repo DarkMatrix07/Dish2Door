@@ -13,6 +13,7 @@ const FALLBACK_CAMPUSES: CampusPublic[] = [
     platformFeePaise: 200,
     hostelDeliveryFeePaise: 1500,
     hostelDeliveryEnabled: true,
+    hostelDeliveryNightOnly: true,
     paymentChargePercentBps: 250,
     paymentChargeFixedPaise: 0
   }

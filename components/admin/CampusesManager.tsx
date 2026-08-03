@@ -15,6 +15,7 @@ type Campus = {
   platformFeePaise: number;
   hostelDeliveryFeePaise: number;
   hostelDeliveryEnabled: boolean;
+  hostelDeliveryNightOnly: boolean;
   paymentChargePercentBps: number;
   paymentChargeFixedPaise: number;
   orderCount: number;
@@ -48,6 +49,7 @@ export function CampusesManager({ initialCampuses }: { initialCampuses: Campus[]
           platformFeePaise: campus.platformFeePaise,
           hostelDeliveryFeePaise: campus.hostelDeliveryFeePaise,
           hostelDeliveryEnabled: campus.hostelDeliveryEnabled,
+          hostelDeliveryNightOnly: campus.hostelDeliveryNightOnly,
           paymentChargePercentBps: campus.paymentChargePercentBps,
           paymentChargeFixedPaise: campus.paymentChargeFixedPaise
         })
@@ -127,6 +129,25 @@ export function CampusesManager({ initialCampuses }: { initialCampuses: Campus[]
                 </Button>
               </div>
             </div>
+            {campus.hostelDeliveryEnabled ? (
+              <div className="text-sm font-bold text-[#3f4046] sm:col-span-2">
+                Hostel delivery slots
+                <div className="mt-1.5 grid grid-cols-2 gap-2">
+                  <Button
+                    variant={campus.hostelDeliveryNightOnly ? "default" : "outline"}
+                    onClick={() => patch(campus.id, { hostelDeliveryNightOnly: true })}
+                  >
+                    Night orders only
+                  </Button>
+                  <Button
+                    variant={!campus.hostelDeliveryNightOnly ? "default" : "outline"}
+                    onClick={() => patch(campus.id, { hostelDeliveryNightOnly: false })}
+                  >
+                    Both slots
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <p className="rounded-lg bg-[#f3f4f6] px-3 py-2 text-xs leading-5 text-[#70727a]">

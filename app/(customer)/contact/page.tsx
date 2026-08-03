@@ -24,7 +24,8 @@ export default function ContactPage() {
           title: "Where we deliver",
           body: [
             "We deliver to two campuses only: VIT-AP and SRM-AP, in Andhra Pradesh, India. We do not deliver anywhere else.",
-            "At each campus you can collect from the campus gate, and hostel delivery is available where that campus offers it. Where hostel delivery shows as coming soon, only gate pickup is running there for now."
+            "At each campus you can collect from the campus gate, and hostel delivery is available where that campus offers it. Where hostel delivery shows as coming soon, only gate pickup is running there for now.",
+            "Hostel delivery runs on night orders only. Afternoon orders are gate pickup."
           ]
         },
         {
