@@ -15,37 +15,43 @@ export default function CancellationRefundPolicyPage() {
         {
           title: "Service area",
           body: [
-            "Dish2Door delivers only to the VIT-AP and SRM-AP campuses in Andhra Pradesh, India. Orders that cannot be delivered because a location outside these two campuses was expected are not eligible for a refund, since we do not serve those areas."
+            "Dish2Door delivers only to the VIT-AP and SRM-AP campuses in Andhra Pradesh, India. We do not deliver anywhere else, so orders expecting delivery outside these two campuses cannot be fulfilled or refunded."
           ]
         },
         {
-          title: "Cancellation requests",
+          title: "Everything is handled on WhatsApp",
           body: [
-            "Please request a cancellation as early as possible by contacting us on the number listed on our contact page, quoting your tracking code. Once the restaurant has accepted, prepared, packed, or dispatched your order, it can no longer be cancelled.",
-            "We may cancel an order ourselves if an item becomes unavailable, your contact details are invalid, payment verification fails, the ordering window has closed, or the order appears fraudulent."
+            "There is no cancellation or refund button on this website, and refunds are not raised automatically through the payment gateway. Every cancellation, refund, or order problem is handled directly by our team on WhatsApp.",
+            "Message us on 63022 50978 with your tracking code and the phone number you ordered with. That is the only channel for these requests, and it is the fastest way to get a real answer from a person."
+          ],
+          action: { label: "Message us on WhatsApp", href: "https://wa.me/916302250978" }
+        },
+        {
+          title: "Cancelling an order",
+          body: [
+            "Message us as early as possible. Once the restaurant has accepted, prepared, packed, or dispatched your order, it can no longer be cancelled — the food has already been made.",
+            "We may also cancel an order ourselves if an item runs out, your contact details are invalid, payment verification fails, the ordering window has closed, or the order looks fraudulent. If we cancel before the food is prepared, we will sort it out with you on WhatsApp."
           ]
         },
         {
-          title: "When a refund applies",
+          title: "When we will make it right",
           body: [
-            "A refund is considered where money was taken but no food was delivered: a failed or duplicate payment, an order cancelled before preparation began, or an order we could not fulfil.",
-            "A refund is not normally available where the order was prepared correctly and the delivery failed for reasons on the customer's side, such as an unreachable phone number, an incorrect hostel block, not collecting from the campus gate within a reasonable time, or refusing a correct order.",
-            "Because most orders are prepared and delivered on the same day within a short window, cancellations after preparation are rare and refunds are the exception rather than the norm."
+            "We step in where money was taken but you did not get what you paid for: a duplicate payment, money debited without an order being created, an order we cancelled before preparation, or an order we could not deliver.",
+            "We also help with a wrong item, a missing item, or a genuine food quality problem. Message us soon after delivery with your tracking code and photos where possible."
           ]
         },
         {
-          title: "How refunds are paid",
+          title: "When we normally cannot help",
           body: [
-            "Approved refunds are returned to the original payment method through our payment provider, Razorpay. We do not refund in cash or to a different account.",
-            "Once we approve and initiate a refund, the time it takes to appear in your account depends on your bank or payment provider and is outside our control. Typically this takes a few working days.",
-            "Where a refund is issued, payment gateway charges and platform fees may be deducted, depending on the case and the payment provider's rules."
+            "If the order was prepared correctly and delivery failed for reasons on your side, we usually cannot offer money back. That includes an unreachable phone number, a wrong hostel block, not collecting from the campus gate within a reasonable time, or refusing a correct order.",
+            "Most orders are cooked and delivered within a short same-day window, so once food is prepared it cannot be resold. Please order carefully and check your campus and delivery details before paying."
           ]
         },
         {
-          title: "Food quality, missing or wrong items",
+          title: "How a resolution is agreed",
           body: [
-            "If something is wrong with your order, contact us soon after delivery with your tracking code, the phone number used to order, and clear details or photos. Reporting quickly gives us the best chance of resolving it with the restaurant.",
-            "Depending on what happened, we may arrange a replacement, a partial adjustment, or a refund. We assess these case by case together with the partner restaurant."
+            "Because these cases are handled by a person rather than an automated system, we review each one individually and agree the outcome with you directly on WhatsApp. Depending on what happened, that may be a replacement, an adjustment on a future order, or money returned.",
+            "We aim to reply on the same ordering day. If you message us outside our ordering hours, we will get back to you when ordering next opens."
           ]
         }
       ]}

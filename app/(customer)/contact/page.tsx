@@ -30,7 +30,8 @@ export default function ContactPage() {
         {
           title: "Order issues",
           body: [
-            "Get in touch about payment confirmation problems, a missing tracking message, delivery coordination, a wrong or missing item, or a refund request.",
+            "Get in touch about payment confirmation problems, a missing tracking message, delivery coordination, a wrong or missing item, or a cancellation or refund request.",
+            "Cancellations and refunds are handled only over WhatsApp or by phone on the number above — there is no cancel or refund option on the website.",
             "For hostel delivery, please mention your hostel block clearly so we can route the order correctly."
           ]
         },
