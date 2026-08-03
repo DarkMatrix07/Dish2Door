@@ -73,7 +73,7 @@ export function CartPageClient({
   // up their order history and (if they qualify) offer the loyalty discount wheel.
   const [identity, setIdentity] = useState<CustomerIdentity | null>(null);
   const [identityGateOpen, setIdentityGateOpen] = useState(false);
-  const [identityDraft, setIdentityDraft] = useState({ name: "", phone: "", email: "" });
+  const [identityDraft, setIdentityDraft] = useState({ name: "", phone: "", email: "", campusCode: "" });
   const [wheelOpen, setWheelOpen] = useState(false);
 
   useEffect(() => setCart(readStoredCart()), []);
@@ -120,13 +120,22 @@ export function CartPageClient({
   // On first load, restore a known identity (and re-check eligibility) or open the gate.
   useEffect(() => {
     const stored = readStoredIdentity();
+    const storedCampus = readStoredCampus();
+    const knownCampus = storedCampus && campuses.some((entry) => entry.code === storedCampus) ? storedCampus : "";
     if (stored) {
       setIdentity(stored);
       setCustomer((current) => ({ ...current, name: stored.name, email: stored.email, phone: stored.phone }));
       void checkSpinEligibility(stored);
-    } else {
-      setIdentityGateOpen(true);
     }
+    setIdentityDraft({
+      name: stored?.name ?? "",
+      phone: stored?.phone ?? "",
+      email: stored?.email ?? "",
+      campusCode: knownCampus
+    });
+    // The campus decides the fees, so returning customers who have never picked one
+    // still go through this step once.
+    if (!stored || !knownCampus) setIdentityGateOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -137,7 +146,9 @@ export function CartPageClient({
     if (name.length < 2) return toast.error("Please enter your name.");
     if (!/^[6-9]\d{9}$/.test(phone.replace(/\D/g, "").slice(-10))) return toast.error("Enter a valid 10-digit Indian mobile number.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Enter a valid email address.");
+    if (!identityDraft.campusCode) return toast.error("Please choose your campus.");
 
+    chooseCampus(identityDraft.campusCode);
     const who: CustomerIdentity = { name, email, phone };
     writeStoredIdentity(who);
     setIdentity(who);
@@ -329,29 +340,15 @@ export function CartPageClient({
             </div>
 
             {campuses.length > 1 ? (
-              <div className="mt-12">
-                <h2 className="text-3xl font-black tracking-[-0.04em]">Which campus?</h2>
-                <p className="mt-2 text-sm leading-6 text-[#716a5f]">Fees and delivery options differ by campus.</p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  {campuses.map((entry) => {
-                    const selected = entry.code === campus.code;
-                    return (
-                      <button
-                        key={entry.code}
-                        type="button"
-                        onClick={() => chooseCampus(entry.code)}
-                        className={`relative rounded-xl border p-5 text-left transition ${selected ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}
-                      >
-                        <GraduationCap size={20} className={selected ? "text-[#f6b73c]" : "text-[#c65d24]"} />
-                        <span className="mt-5 block font-black">{entry.name}</span>
-                        <span className={`mt-1 block text-sm ${selected ? "text-white/55" : "text-[#716a5f]"}`}>
-                          {entry.hostelDeliveryEnabled ? "Gate pickup + hostel delivery" : "Gate pickup only"}
-                        </span>
-                        {selected ? <Check className="absolute right-4 top-4 text-[#f6b73c]" size={17} /> : null}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/12 bg-white/50 px-4 py-3">
+                <span className="inline-flex items-center gap-2 text-sm">
+                  <GraduationCap size={17} className="text-[#c65d24]" />
+                  <span className="font-bold">{campus.name}</span>
+                  <span className="text-[#817a70]">{campus.hostelDeliveryEnabled ? "· gate + hostel" : "· gate pickup only"}</span>
+                </span>
+                <button type="button" onClick={() => setIdentityGateOpen(true)} className="text-sm font-black text-[#c65d24] underline underline-offset-4 transition hover:text-[#171713]">
+                  Change campus
+                </button>
               </div>
             ) : null}
 
@@ -484,6 +481,30 @@ export function CartPageClient({
                 className="mt-6 space-y-4"
                 onSubmit={(event) => { event.preventDefault(); submitIdentity(); }}
               >
+                {campuses.length > 1 ? (
+                  <div>
+                    <p className="text-sm font-bold">Your campus</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {campuses.map((entry) => {
+                        const picked = identityDraft.campusCode === entry.code;
+                        return (
+                          <button
+                            key={entry.code}
+                            type="button"
+                            onClick={() => setIdentityDraft({ ...identityDraft, campusCode: entry.code })}
+                            className={`relative rounded-xl border px-3 py-3 text-left transition ${picked ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/60 hover:border-black/30"}`}
+                          >
+                            <GraduationCap size={17} className={picked ? "text-[#f6b73c]" : "text-[#c65d24]"} />
+                            <span className="mt-2 block text-sm font-black">{entry.name}</span>
+                            <span className={`mt-0.5 block text-[11px] leading-4 ${picked ? "text-white/55" : "text-[#817a70]"}`}>
+                              {entry.hostelDeliveryEnabled ? "Gate + hostel" : "Gate pickup only"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
                 <label className="block text-sm font-bold">Full name<input className={`${fieldClass} mt-2`} autoComplete="name" value={identityDraft.name} onChange={(event) => setIdentityDraft({ ...identityDraft, name: event.target.value })} placeholder="Your name" /></label>
                 <label className="block text-sm font-bold">Phone number<input className={`${fieldClass} mt-2`} inputMode="tel" autoComplete="tel" value={identityDraft.phone} onChange={(event) => setIdentityDraft({ ...identityDraft, phone: event.target.value })} placeholder="10-digit number" /></label>
                 <label className="block text-sm font-bold">Email address<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={identityDraft.email} onChange={(event) => setIdentityDraft({ ...identityDraft, email: event.target.value })} placeholder="you@example.com" /></label>
