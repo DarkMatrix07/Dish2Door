@@ -7,6 +7,12 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function NewManualOrderPage() {
+  const campuses = await prisma.campus.findMany({
+    where: { active: true },
+    select: { id: true, code: true, name: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
+  });
+
   const restaurants = await prisma.restaurant.findMany({
     where: { active: true },
     include: {
@@ -29,7 +35,7 @@ export default async function NewManualOrderPage() {
           </Button>
         </Link>
       </AdminPageHeader>
-      <ManualOrderForm restaurants={restaurants} />
+      <ManualOrderForm restaurants={restaurants} campuses={campuses} />
     </PageContainer>
   );
 }

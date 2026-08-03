@@ -32,6 +32,7 @@ export default async function TodaysOrdersPage() {
     },
     include: {
       restaurant: { select: { name: true } },
+      campus: { select: { id: true, code: true, name: true, sortOrder: true } },
       items: { select: { id: true, nameSnapshot: true, quantity: true } }
     },
     orderBy: { createdAt: "asc" }
@@ -50,6 +51,7 @@ export default async function TodaysOrdersPage() {
     totalPaise: order.totalPaise,
     createdAt: order.createdAt.toISOString(),
     restaurant: order.restaurant,
+    campus: order.campus,
     items: order.items
   }));
 
@@ -58,7 +60,7 @@ export default async function TodaysOrdersPage() {
       <AdminPageHeader
         eyebrow="Orders"
         title="Today's orders"
-        description={`Orders for ${label}, grouped by delivery slot and restaurant.`}
+        description={`Orders for ${label}, grouped by campus, delivery slot, and restaurant.`}
       />
       <TodaysOrders orders={plain} dateLabel={label} />
     </PageContainer>

@@ -20,7 +20,9 @@ type Restaurant = {
 
 type DraftItem = { menuItemId: string; quantity: number };
 
-export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) {
+type CampusRef = { id: string; code: string; name: string };
+
+export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restaurant[]; campuses: CampusRef[] }) {
   const router = useRouter();
   const [restaurantId, setRestaurantId] = useState(restaurants[0]?.id ?? "");
   const [courseId, setCourseId] = useState("");
@@ -28,10 +30,14 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
   const [quantity, setQuantity] = useState(1);
   const [items, setItems] = useState<DraftItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  // The campus decides the fees applied and whether hostel delivery is allowed, so a
+  // counter order has to name one just like a customer order does.
+  const defaultCampusCode = campuses[0]?.code ?? "";
   const [customer, setCustomer] = useState({
     name: "",
     email: "",
     phone: "",
+    campusCode: defaultCampusCode,
     deliveryType: "GATE",
     hostelBlock: "",
     orderSlot: "AFTERNOON",
@@ -79,7 +85,7 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
       if (!response.ok) throw new Error(data.error ?? "Could not create manual order");
       toast.success(`Manual order created. Passcode: ${data.passcode}`);
       setItems([]);
-      setCustomer({ name: "", email: "", phone: "", deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON", paymentStatus: "PAID_MANUALLY" });
+      setCustomer({ name: "", email: "", phone: "", campusCode: defaultCampusCode, deliveryType: "GATE", hostelBlock: "", orderSlot: "AFTERNOON", paymentStatus: "PAID_MANUALLY" });
       router.push("/admin/orders");
       router.refresh();
     } catch (error) {
@@ -96,6 +102,11 @@ export function ManualOrderForm({ restaurants }: { restaurants: Restaurant[] }) 
           <Input placeholder="Customer name" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} />
           <Input placeholder="Phone number" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} />
           <Input placeholder="Email (optional)" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} />
+          {campuses.length > 1 ? (
+            <Select value={customer.campusCode} onChange={(event) => setCustomer({ ...customer, campusCode: event.target.value })}>
+              {campuses.map((campus) => <option key={campus.code} value={campus.code}>{campus.name}</option>)}
+            </Select>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <Select value={customer.deliveryType} onChange={(event) => setCustomer({ ...customer, deliveryType: event.target.value })}>
               <option value="GATE">Gate</option>

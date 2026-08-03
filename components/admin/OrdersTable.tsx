@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/AdminShell";
+import { CampusBadge } from "@/components/admin/CampusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { formatPaise } from "@/lib/utils";
 
 type Restaurant = { id: string; name: string };
 type SessionRef = { id: string; label: string };
+type CampusRef = { id: string; name: string };
 
 type Order = {
   id: string;
@@ -29,6 +31,7 @@ type Order = {
   createdAt: string | Date;
   restaurant: { name: string };
   session: { id: string; label: string };
+  campus: { id: string; code: string; name: string } | null;
   items: { id: string; nameSnapshot: string; quantity: number }[];
 };
 
@@ -39,6 +42,7 @@ const EMPTY_FILTERS = {
   source: "all",
   restaurantId: "all",
   sessionId: "all",
+  campusId: "all",
   dateFrom: "",
   dateTo: ""
 };
@@ -55,13 +59,15 @@ export function OrdersTable({
   initialTotal,
   pageSize,
   restaurants,
-  sessions
+  sessions,
+  campuses
 }: {
   initialOrders: Order[];
   initialTotal: number;
   pageSize: number;
   restaurants: Restaurant[];
   sessions: SessionRef[];
+  campuses: CampusRef[];
 }) {
   const [orders, setOrders] = useState(initialOrders);
   const [total, setTotal] = useState(initialTotal);
@@ -223,6 +229,14 @@ export function OrdersTable({
               </option>
             ))}
           </Select>
+          <Select value={filters.campusId} onChange={(event) => updateFilter({ campusId: event.target.value })}>
+            <option value="all">All campuses</option>
+            {campuses.map((campus) => (
+              <option key={campus.id} value={campus.id}>
+                {campus.name}
+              </option>
+            ))}
+          </Select>
           <label className="text-xs font-medium text-neutral-500">
             From
             <Input className="mt-1" type="date" value={filters.dateFrom} onChange={(event) => updateFilter({ dateFrom: event.target.value })} />
@@ -252,6 +266,7 @@ export function OrdersTable({
                     {order.paymentStatus.replaceAll("_", " ")}
                   </Badge>
                   {order.orderSlot ? <Badge tone="amber">{order.orderSlot === "NIGHT" ? "Night" : "Afternoon"}</Badge> : null}
+                  <CampusBadge campus={order.campus} />
                 </div>
                 <p className="mt-1 text-sm text-neutral-500">
                   {order.restaurant.name} · {order.customerPhone} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Gate"} · {order.session.label}

@@ -6,9 +6,11 @@ import { FileDown } from "lucide-react";
 import { SectionCard, StatCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CampusBadge, campusLabel } from "@/components/admin/CampusBadge";
 import { formatPaise } from "@/lib/utils";
 
 type Item = { id: string; nameSnapshot: string; quantity: number };
+type Campus = { id: string; code: string; name: string; sortOrder: number } | null;
 
 type Order = {
   id: string;
@@ -23,6 +25,7 @@ type Order = {
   totalPaise: number;
   createdAt: string;
   restaurant: { name: string };
+  campus: Campus;
   items: Item[];
 };
 
@@ -34,6 +37,26 @@ const SLOTS: { key: "AFTERNOON" | "NIGHT" | "NONE"; label: string }[] = [
 
 function slotOf(order: Order): "AFTERNOON" | "NIGHT" | "NONE" {
   return order.orderSlot ?? "NONE";
+}
+
+// VIT-AP and SRM-AP are prepared and delivered by different people, so campus is
+// always the outermost grouping. Unassigned (pre-campus) orders sort last.
+// Follow the campus order set in admin rather than a hardcoded list, so adding a third
+// campus needs no code change. Unassigned orders (placed before campuses existed) last.
+function campusSortKey(campus: Campus): number {
+  return campus ? campus.sortOrder : Number.MAX_SAFE_INTEGER;
+}
+
+function groupByCampus(orders: Order[]) {
+  const map = new Map<string, { campus: Campus; orders: Order[] }>();
+  for (const order of orders) {
+    const key = order.campus?.id ?? "unassigned";
+    if (!map.has(key)) map.set(key, { campus: order.campus, orders: [] });
+    map.get(key)!.orders.push(order);
+  }
+  return [...map.values()].sort(
+    (a, b) => campusSortKey(a.campus) - campusSortKey(b.campus) || campusLabel(a.campus).localeCompare(campusLabel(b.campus))
+  );
 }
 
 function groupByRestaurant(orders: Order[]) {
@@ -75,6 +98,49 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
     [orders]
   );
 
+  const campusGroups = useMemo(() => groupByCampus(orders), [orders]);
+
+  function renderSlots(campusOrders: Order[], keyPrefix: string) {
+    return SLOTS.map((slot) => {
+      const slotOrders = campusOrders.filter((o) => slotOf(o) === slot.key);
+      if (!slotOrders.length) return null;
+      const restaurants = groupByRestaurant(slotOrders);
+      return (
+        <SectionCard key={`${keyPrefix}-${slot.key}`} title={`${slot.label} · ${slotOrders.length}`} bodyClassName="p-4 sm:p-5">
+          <div className="space-y-5">
+            {restaurants.map(([name, restaurantOrders]) => (
+              <div key={name}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-sm font-black uppercase tracking-wide text-neutral-800">{name}</h4>
+                  <Badge tone="amber">{restaurantOrders.length}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-neutral-500">
+                  To prepare: {aggregateItems(restaurantOrders).map(([n, q]) => `${q}× ${n}`).join(", ")}
+                </p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {restaurantOrders.map((order) => (
+                    <div key={order.id} className="rounded-xl border border-neutral-200 bg-white p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{order.customerName}</span>
+                        <span className="font-black">{formatPaise(order.totalPaise)}</span>
+                      </div>
+                      <p className="text-xs text-neutral-500">
+                        {order.customerPhone} · {deliveryLabel(order)} · {order.trackingCode}
+                      </p>
+                      <p className="mt-1 text-neutral-700">
+                        {order.items.map((it) => `${it.quantity}× ${it.nameSnapshot}`).join(", ")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      );
+    });
+  }
+
   function generatePdf(slotKey: "AFTERNOON" | "NIGHT") {
     const win = window.open("", "_blank", "width=900,height=1000");
     if (!win) {
@@ -91,30 +157,45 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
       now.getHours()
     )}-${pad(now.getMinutes())}`;
     const slotOrders = orders.filter((o) => slotOf(o) === slotKey);
-    const restaurants = groupByRestaurant(slotOrders);
-    const body = restaurants
-      .map(([name, restaurantOrders]) => {
-        const summary = aggregateItems(restaurantOrders)
+    // Each campus is prepared/delivered separately, so it gets its own page (and own
+    // totals) in the printed sheet, scoped within this slot.
+    const campusGroups = groupByCampus(slotOrders);
+    const body = campusGroups
+      .map(({ campus, orders: campusOrders }, campusIndex) => {
+        const restaurants = groupByRestaurant(campusOrders);
+        const campusSummary = aggregateItems(campusOrders)
           .map(([itemName, qty]) => `${qty}× ${escapeHtml(itemName)}`)
           .join(", ");
-        const rows = restaurantOrders
-          .map(
-            (o, i) => `<tr>
-                <td>${i + 1}</td>
-                <td>${escapeHtml(o.customerName)}<br><span class="muted">${escapeHtml(o.customerPhone)}</span></td>
-                <td>${escapeHtml(deliveryLabel(o))}</td>
-                <td>${o.items.map((it) => `${it.quantity}× ${escapeHtml(it.nameSnapshot)}`).join("<br>")}</td>
-                <td class="right">${formatPaise(o.totalPaise)}</td>
-              </tr>`
-          )
+        const restaurantSections = restaurants
+          .map(([name, restaurantOrders]) => {
+            const summary = aggregateItems(restaurantOrders)
+              .map(([itemName, qty]) => `${qty}× ${escapeHtml(itemName)}`)
+              .join(", ");
+            const rows = restaurantOrders
+              .map(
+                (o, i) => `<tr>
+                    <td>${i + 1}</td>
+                    <td>${escapeHtml(o.customerName)}<br><span class="muted">${escapeHtml(o.customerPhone)}</span></td>
+                    <td>${escapeHtml(deliveryLabel(o))}</td>
+                    <td>${o.items.map((it) => `${it.quantity}× ${escapeHtml(it.nameSnapshot)}`).join("<br>")}</td>
+                    <td class="right">${formatPaise(o.totalPaise)}</td>
+                  </tr>`
+              )
+              .join("");
+            return `<section class="restaurant">
+              <h2>${escapeHtml(name)} <span class="muted">(${restaurantOrders.length} order${restaurantOrders.length === 1 ? "" : "s"})</span></h2>
+              <p class="summary"><strong>To prepare:</strong> ${summary}</p>
+              <table>
+                <thead><tr><th>#</th><th>Customer</th><th>Delivery</th><th>Items</th><th class="right">Total</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </section>`;
+          })
           .join("");
-        return `<section class="restaurant">
-          <h2>${escapeHtml(name)} <span class="muted">(${restaurantOrders.length} order${restaurantOrders.length === 1 ? "" : "s"})</span></h2>
-          <p class="summary"><strong>To prepare:</strong> ${summary}</p>
-          <table>
-            <thead><tr><th>#</th><th>Customer</th><th>Delivery</th><th>Items</th><th class="right">Total</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
+        return `<section class="campus${campusIndex > 0 ? " page-break" : ""}">
+          <h1 class="campus-heading">${escapeHtml(campusLabel(campus))} <span class="muted">(${campusOrders.length} order${campusOrders.length === 1 ? "" : "s"})</span></h1>
+          <p class="summary campus-summary"><strong>Campus total to prepare:</strong> ${campusSummary}</p>
+          ${restaurantSections}
         </section>`;
       })
       .join("");
@@ -126,6 +207,9 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
         h1 { margin: 0 0 2px; font-size: 22px; }
         .meta { color: #666; font-size: 12px; margin-bottom: 18px; }
         section.restaurant { margin-bottom: 22px; page-break-inside: avoid; }
+        section.campus.page-break { page-break-before: always; }
+        .campus-heading { font-size: 20px; border-bottom: 3px solid #111; padding-bottom: 6px; margin: 6px 0 8px; }
+        .campus-summary { background: #eef2ff; }
         h2 { font-size: 17px; border-bottom: 2px solid #111; padding-bottom: 4px; margin: 18px 0 8px; }
         .summary { font-size: 12px; margin: 0 0 6px; background: #fff7ed; padding: 6px 8px; border-radius: 6px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -169,45 +253,32 @@ export function TodaysOrders({ orders, dateLabel }: { orders: Order[]; dateLabel
         <SectionCard title="No orders yet">
           <p className="p-4 text-center text-neutral-500">No orders for today so far.</p>
         </SectionCard>
+      ) : campusGroups.length <= 1 ? (
+        // Only one campus today — a single heading is enough, skip the extra wrapper level.
+        <div className="space-y-5">
+          {campusGroups.length === 1 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <CampusBadge campus={campusGroups[0].campus} />
+              <p className="text-xs text-neutral-500">
+                To prepare: {aggregateItems(campusGroups[0].orders).map(([n, q]) => `${q}× ${n}`).join(", ")}
+              </p>
+            </div>
+          ) : null}
+          {renderSlots(orders, "all")}
+        </div>
       ) : (
-        SLOTS.map((slot) => {
-          const slotOrders = orders.filter((o) => slotOf(o) === slot.key);
-          if (!slotOrders.length) return null;
-          const restaurants = groupByRestaurant(slotOrders);
-          return (
-            <SectionCard key={slot.key} title={`${slot.label} · ${slotOrders.length}`} bodyClassName="p-4 sm:p-5">
-              <div className="space-y-5">
-                {restaurants.map(([name, restaurantOrders]) => (
-                  <div key={name}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-sm font-black uppercase tracking-wide text-neutral-800">{name}</h4>
-                      <Badge tone="amber">{restaurantOrders.length}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-neutral-500">
-                      To prepare: {aggregateItems(restaurantOrders).map(([n, q]) => `${q}× ${n}`).join(", ")}
-                    </p>
-                    <div className="mt-3 grid gap-2 md:grid-cols-2">
-                      {restaurantOrders.map((order) => (
-                        <div key={order.id} className="rounded-xl border border-neutral-200 bg-white p-3 text-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold">{order.customerName}</span>
-                            <span className="font-black">{formatPaise(order.totalPaise)}</span>
-                          </div>
-                          <p className="text-xs text-neutral-500">
-                            {order.customerPhone} · {deliveryLabel(order)} · {order.trackingCode}
-                          </p>
-                          <p className="mt-1 text-neutral-700">
-                            {order.items.map((it) => `${it.quantity}× ${it.nameSnapshot}`).join(", ")}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-          );
-        })
+        campusGroups.map(({ campus, orders: campusOrders }) => (
+          <div key={campus?.id ?? "unassigned"} className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 pb-2">
+              <h3 className="text-base font-black text-neutral-900">{campusLabel(campus)}</h3>
+              <Badge tone="amber">{campusOrders.length}</Badge>
+            </div>
+            <p className="text-xs text-neutral-500">
+              To prepare: {aggregateItems(campusOrders).map(([n, q]) => `${q}× ${n}`).join(", ")}
+            </p>
+            <div className="space-y-5">{renderSlots(campusOrders, campus?.id ?? "unassigned")}</div>
+          </div>
+        ))
       )}
     </div>
   );

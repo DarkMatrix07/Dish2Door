@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminActions } from "@/components/admin/AdminActions";
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
+import { CampusBadge, campusLabel } from "@/components/admin/CampusBadge";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
 import { orderInclude } from "@/lib/order-select";
@@ -21,7 +22,12 @@ export default async function AdminDashboardPage() {
     restaurants,
     activeItems,
     outOfStock,
-    recentOrders
+    recentOrders,
+    campuses,
+    campusOrderCounts,
+    campusConfirmed,
+    campusReachedCampus,
+    campusRevenue
   ] = await Promise.all([
     getSettings(),
     prisma.order.count(),
@@ -33,8 +39,40 @@ export default async function AdminDashboardPage() {
     prisma.restaurant.count({ where: { active: true } }),
     prisma.menuItem.count({ where: { available: true, restaurant: { active: true } } }),
     prisma.menuItem.count({ where: { available: false } }),
-    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: 6 })
+    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: 6 }),
+    prisma.campus.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      _count: { id: true }
+    }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      where: { status: "ORDER_CONFIRMED" },
+      _count: { id: true }
+    }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      where: { status: "REACHED_CAMPUS" },
+      _count: { id: true }
+    }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      where: { paymentStatus: { in: ["PAID_ONLINE", "PAID_MANUALLY"] } },
+      _sum: { totalPaise: true }
+    })
   ]);
+
+  const campusMap = new Map(campuses.map((c) => [c.id, c]));
+  const ordersPerCampus = new Map(campusOrderCounts.map((c) => [c.campusId, c._count.id]));
+  const confirmedPerCampus = new Map(campusConfirmed.map((c) => [c.campusId, c._count.id]));
+  const reachedPerCampus = new Map(campusReachedCampus.map((c) => [c.campusId, c._count.id]));
+  const revenuePerCampus = new Map(campusRevenue.map((c) => [c.campusId, c._sum.totalPaise ?? 0]));
+
+  const allCampusIds = new Set<string | null>();
+  campusOrderCounts.forEach((c) => allCampusIds.add(c.campusId));
+  campusConfirmed.forEach((c) => allCampusIds.add(c.campusId));
+  campusReachedCampus.forEach((c) => allCampusIds.add(c.campusId));
+  campusRevenue.forEach((c) => allCampusIds.add(c.campusId));
 
   return (
     <PageContainer>
@@ -59,6 +97,48 @@ export default async function AdminDashboardPage() {
         <StatCard label="Reached campus" value={reachedCampus} helper="Ready for gate or hostel flow" />
         <StatCard label="Paid revenue" value={formatPaise(revenue._sum.totalPaise ?? 0)} helper="Online + manual paid orders" />
       </div>
+
+      <SectionCard
+        title="Orders by campus"
+        description="Breakdown across locations: total orders, confirmed, reached campus, and paid revenue."
+      >
+        <div className="space-y-4">
+          {Array.from(allCampusIds).map((campusId) => {
+            const campus = campusId ? campusMap.get(campusId) : null;
+            const orders = ordersPerCampus.get(campusId) ?? 0;
+            const conf = confirmedPerCampus.get(campusId) ?? 0;
+            const reached = reachedPerCampus.get(campusId) ?? 0;
+            const rev = revenuePerCampus.get(campusId) ?? 0;
+
+            return (
+              <div key={campusId || "unassigned"} className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <CampusBadge campus={campus} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Total orders</p>
+                    <p className="mt-1 text-xl font-bold text-neutral-900">{orders}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Confirmed</p>
+                    <p className="mt-1 text-xl font-bold text-neutral-900">{conf}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Reached campus</p>
+                    <p className="mt-1 text-xl font-bold text-neutral-900">{reached}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Paid revenue</p>
+                    <p className="mt-1 text-xl font-bold text-neutral-900 tabular-nums">{formatPaise(rev)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {allCampusIds.size === 0 ? <p className="text-sm text-neutral-500">No orders yet.</p> : null}
+        </div>
+      </SectionCard>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_380px]">
         <SectionCard title="Latest orders" description="Recent customer and counter orders." bodyClassName="p-0">

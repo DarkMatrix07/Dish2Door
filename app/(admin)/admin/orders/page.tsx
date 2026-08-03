@@ -8,11 +8,12 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;
 
 export default async function AdminOrdersPage() {
-  const [orders, total, restaurants, sessions] = await Promise.all([
+  const [orders, total, restaurants, sessions, campuses] = await Promise.all([
     prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: PAGE_SIZE }),
     prisma.order.count(),
     prisma.restaurant.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.orderSession.findMany({ select: { id: true, label: true }, orderBy: { startsAt: "desc" }, take: 60 })
+    prisma.orderSession.findMany({ select: { id: true, label: true }, orderBy: { startsAt: "desc" }, take: 60 }),
+    prisma.campus.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } })
   ]);
 
   return (
@@ -28,6 +29,7 @@ export default async function AdminOrdersPage() {
         pageSize={PAGE_SIZE}
         restaurants={restaurants}
         sessions={sessions}
+        campuses={campuses}
       />
     </PageContainer>
   );

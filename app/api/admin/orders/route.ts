@@ -33,6 +33,7 @@ export async function GET(request: Request) {
   const source = searchParams.get("source") ?? "all";
   const restaurantId = searchParams.get("restaurantId") ?? "all";
   const sessionId = searchParams.get("sessionId") ?? "all";
+  const campusId = searchParams.get("campusId") ?? "all";
   const dateFrom = searchParams.get("dateFrom") ?? "";
   const dateTo = searchParams.get("dateTo") ?? "";
 
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
   if (SOURCES.includes(source)) where.source = source as Prisma.OrderWhereInput["source"];
   if (restaurantId !== "all") where.restaurantId = restaurantId;
   if (sessionId !== "all") where.sessionId = sessionId;
+  if (campusId !== "all") where.campusId = campusId;
 
   const createdAt: Prisma.DateTimeFilter = {};
   if (dateFrom) {

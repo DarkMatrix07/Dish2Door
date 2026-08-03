@@ -1,5 +1,6 @@
 import { OrderStatus, PaymentStatus } from "@prisma/client";
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
+import { CampusBadge } from "@/components/admin/CampusBadge";
 import { prisma } from "@/lib/db";
 import { formatPaise } from "@/lib/utils";
 
@@ -30,7 +31,7 @@ export default async function AnalyticsPage() {
   const last7Start = istDayStartUtc(6);
   const last30Start = istDayStartUtc(29);
 
-  const [allTime, orders] = await Promise.all([
+  const [allTime, orders, campuses, campusTodayRevenue, campusLast7Revenue, campusAllTimeRevenue] = await Promise.all([
     prisma.order.aggregate({ where: PAID_WHERE, _sum: { totalPaise: true }, _count: true }),
     prisma.order.findMany({
       where: { ...PAID_WHERE, createdAt: { gte: last30Start } },
@@ -41,8 +42,37 @@ export default async function AnalyticsPage() {
         restaurant: { select: { name: true } },
         items: { select: { nameSnapshot: true, quantity: true, linePaise: true } }
       }
+    }),
+    prisma.campus.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      where: { ...PAID_WHERE, createdAt: { gte: todayStart } },
+      _sum: { totalPaise: true },
+      _count: { id: true }
+    }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      where: { ...PAID_WHERE, createdAt: { gte: last7Start } },
+      _sum: { totalPaise: true },
+      _count: { id: true }
+    }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      where: PAID_WHERE,
+      _sum: { totalPaise: true },
+      _count: { id: true }
     })
   ]);
+
+  const campusMap = new Map(campuses.map((c) => [c.id, c]));
+  const todayPerCampus = new Map(campusTodayRevenue.map((c) => [c.campusId, { revenue: c._sum.totalPaise ?? 0, orders: c._count.id }]));
+  const last7PerCampus = new Map(campusLast7Revenue.map((c) => [c.campusId, { revenue: c._sum.totalPaise ?? 0, orders: c._count.id }]));
+  const allTimePerCampus = new Map(campusAllTimeRevenue.map((c) => [c.campusId, { revenue: c._sum.totalPaise ?? 0, orders: c._count.id }]));
+
+  const allCampusIds = new Set<string | null>();
+  campusTodayRevenue.forEach((c) => allCampusIds.add(c.campusId));
+  campusLast7Revenue.forEach((c) => allCampusIds.add(c.campusId));
+  campusAllTimeRevenue.forEach((c) => allCampusIds.add(c.campusId));
 
   const allTimeRevenue = allTime._sum.totalPaise ?? 0;
   const allTimeOrders = allTime._count;
@@ -122,6 +152,46 @@ export default async function AnalyticsPage() {
         <StatCard label="Revenue today" value={formatPaise(revenueToday)} helper={`${ordersToday} orders`} />
         <StatCard label="Revenue last 7 days" value={formatPaise(revenue7)} helper={`${orders7} orders`} />
       </div>
+
+      <SectionCard
+        title="Revenue by campus"
+        description="All time, today, and last 7 days."
+      >
+        <div className="space-y-4">
+          {Array.from(allCampusIds).map((campusId) => {
+            const campus = campusId ? campusMap.get(campusId) : null;
+            const allTime = allTimePerCampus.get(campusId) ?? { revenue: 0, orders: 0 };
+            const today = todayPerCampus.get(campusId) ?? { revenue: 0, orders: 0 };
+            const last7 = last7PerCampus.get(campusId) ?? { revenue: 0, orders: 0 };
+
+            return (
+              <div key={campusId || "unassigned"} className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <CampusBadge campus={campus} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">All time</p>
+                    <p className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">{formatPaise(allTime.revenue)}</p>
+                    <p className="text-xs text-neutral-500">{allTime.orders} orders</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Today</p>
+                    <p className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">{formatPaise(today.revenue)}</p>
+                    <p className="text-xs text-neutral-500">{today.orders} orders</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500">Last 7 days</p>
+                    <p className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">{formatPaise(last7.revenue)}</p>
+                    <p className="text-xs text-neutral-500">{last7.orders} orders</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {allCampusIds.size === 0 ? <p className="text-sm text-neutral-500">No paid orders yet.</p> : null}
+        </div>
+      </SectionCard>
 
       <SectionCard title="Revenue — last 14 days" description="Paid orders per day (IST)." bodyClassName="p-4 sm:p-6">
         <div className="flex h-48 items-end gap-1.5 sm:gap-2">
