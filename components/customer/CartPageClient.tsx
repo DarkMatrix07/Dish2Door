@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
@@ -38,6 +38,82 @@ function loadRazorpayScript() {
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
+}
+
+// The native <select> rendered with the OS blue highlight, which looked nothing like
+// the rest of the cart. This is a plain button + panel with the site's own styling.
+function CampusDropdown({
+  campuses,
+  value,
+  onChange
+}: {
+  campuses: CampusPublic[];
+  value: string;
+  onChange: (code: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const selected = campuses.find((entry) => entry.code === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={boxRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-11 min-w-36 items-center justify-between gap-3 rounded-lg border border-black/12 bg-white px-3.5 text-sm font-black text-[#171713] transition hover:border-black/30 focus:border-[#c65d24] focus:outline-none focus:ring-2 focus:ring-[#c65d24]/10"
+      >
+        {selected?.name ?? "Choose"}
+        <ChevronDown size={16} className={`text-[#817a70] transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      <AnimatePresence>
+        {open ? (
+          <motion.ul
+            role="listbox"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.14 }}
+            className="absolute right-0 z-30 mt-2 w-full min-w-40 overflow-hidden rounded-xl border border-black/10 bg-[#fffdf8] p-1 shadow-[0_18px_50px_rgba(23,23,19,0.16)]"
+          >
+            {campuses.map((entry) => {
+              const picked = entry.code === value;
+              return (
+                <li key={entry.code} role="option" aria-selected={picked}>
+                  <button
+                    type="button"
+                    onClick={() => { onChange(entry.code); setOpen(false); }}
+                    className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold transition ${picked ? "bg-[#171713] text-white" : "text-[#171713] hover:bg-[#f0ebe1]"}`}
+                  >
+                    {entry.name}
+                    {picked ? <Check size={15} className="text-[#f6b73c]" /> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </motion.ul>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 const fieldClass = "h-12 w-full rounded-md border border-black/12 bg-white/75 px-4 text-sm font-medium text-[#171713] outline-none transition placeholder:text-[#a29b90] focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10";
@@ -344,19 +420,7 @@ export function CartPageClient({
                 <span className="inline-flex items-center gap-2 text-sm font-bold">
                   <GraduationCap size={17} className="text-[#c65d24]" /> Your campus
                 </span>
-                <div className="relative">
-                  <select
-                    aria-label="Choose your campus"
-                    value={campus.code}
-                    onChange={(event) => chooseCampus(event.target.value)}
-                    className="h-11 appearance-none rounded-lg border border-black/12 bg-white pl-3.5 pr-10 text-sm font-black text-[#171713] outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
-                  >
-                    {campuses.map((entry) => (
-                      <option key={entry.code} value={entry.code}>{entry.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#817a70]" />
-                </div>
+                <CampusDropdown campuses={campuses} value={campus.code} onChange={chooseCampus} />
               </div>
             ) : null}
 
