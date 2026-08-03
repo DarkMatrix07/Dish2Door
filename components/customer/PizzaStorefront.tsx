@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  Flame,
   GraduationCap,
   HandCoins,
   MapPin,
@@ -35,6 +36,21 @@ type PizzaMenuItem = {
   discountPercent: number;
   imageUrl: string | null;
   courseId: string;
+  sizeLabel: string | null;
+  isVeg: boolean | null;
+  sizeOrder: number;
+};
+
+// Domino's-style menus load one dish as several MenuItem rows (same name+course,
+// different sizeLabel/pricePaise). We group those rows into a single dish card with
+// a size selector; dishes without size variants just get one entry in `sizes`.
+type PizzaDish = {
+  key: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  courseId: string;
+  sizes: PizzaMenuItem[];
 };
 
 type PizzaCombo = {
@@ -147,6 +163,23 @@ function CampusSwitcher({ campuses, value, onChange }: { campuses: CampusPublic[
   );
 }
 
+// The square-with-dot mark Indian menus use. Rendered only when the kitchen has
+// classified the dish, so we never imply "veg" for food we have no data on.
+function VegMark({ isVeg }: { isVeg: boolean | null }) {
+  if (isVeg === null || isVeg === undefined) return null;
+  const tone = isVeg ? "#0B8A3E" : "#B3261E";
+  return (
+    <span
+      aria-label={isVeg ? "Vegetarian" : "Non-vegetarian"}
+      title={isVeg ? "Vegetarian" : "Non-vegetarian"}
+      className="mt-1.5 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] border-[1.5px]"
+      style={{ borderColor: tone }}
+    >
+      <span className="block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tone }} />
+    </span>
+  );
+}
+
 export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaShop; campuses: CampusPublic[]; serverNowMs: number }) {
   // Undetermined until the effect reads localStorage — avoids flashing the "wrong campus"
   // state before we actually know which campus the device is set to.
@@ -204,7 +237,30 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
   }, [campus]);
 
   const availableCourses = shop.courses.filter((course) => shop.menuItems.some((item) => item.courseId === course.id));
-  const visibleItems = activeCourse === "all" ? shop.menuItems : shop.menuItems.filter((item) => item.courseId === activeCourse);
+
+  const dishes = useMemo<PizzaDish[]>(() => {
+    const byKey = new Map<string, PizzaMenuItem[]>();
+    for (const item of shop.menuItems) {
+      const key = `${item.courseId}::${item.name}`;
+      const list = byKey.get(key);
+      if (list) list.push(item);
+      else byKey.set(key, [item]);
+    }
+    return Array.from(byKey.values()).map((rows) => {
+      const sizes = [...rows].sort((a, b) => a.sizeOrder - b.sizeOrder || a.pricePaise - b.pricePaise);
+      const [first] = sizes;
+      return { key: `${first.courseId}::${first.name}`, name: first.name, description: first.description, imageUrl: first.imageUrl, courseId: first.courseId, sizes };
+    });
+  }, [shop.menuItems]);
+  const visibleDishes = activeCourse === "all" ? dishes : dishes.filter((dish) => dish.courseId === activeCourse);
+
+  // Selected size per dish, keyed by dish.key. Falls back to the cheapest/first size
+  // (dishes are pre-sorted by sizeOrder then price) until the shopper picks one.
+  const [selectedSizeByDish, setSelectedSizeByDish] = useState<Record<string, string>>({});
+  function selectedSizeOf(dish: PizzaDish): PizzaMenuItem {
+    const pickedId = selectedSizeByDish[dish.key];
+    return dish.sizes.find((size) => size.id === pickedId) ?? dish.sizes[0];
+  }
 
   function lineQuantity(kind: "item" | "combo", id: string) {
     return cart.find((line) => line.kind === kind && line.id === id)?.quantity ?? 0;
@@ -398,19 +454,22 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
       </section>
 
       <div className="mx-auto max-w-[1280px] px-5 py-12 sm:px-8 lg:px-12 lg:py-20">
-        {/* Deals strip */}
+        {/* Deals — the hero of the page, per the owner's brief: bold offer cards with the
+            saving called out up front, always in a fixed grid (never a sliding strip). */}
         {shop.combos.length ? (
-          <div className="mb-16">
-            <div className="flex items-end justify-between gap-6">
+          <div className="mb-16 rounded-2xl border border-[#E31837]/15 bg-gradient-to-br from-[#0B1F33] via-[#0B1F33] to-[#3d0d16] p-5 shadow-[0_25px_70px_rgba(11,31,51,0.22)] sm:p-8">
+            <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
-                <p className="flex items-center gap-2 text-sm font-black text-[#E31837]"><Sparkles size={16} /> Better together</p>
-                <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-[#0B1F33] sm:text-4xl">Combo favourites</h2>
+                <p className="flex items-center gap-2 text-sm font-black text-[#ffcf55]"><Sparkles size={16} /> Today&apos;s offers</p>
+                <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-white sm:text-4xl">Deals worth building your order around</h2>
               </div>
-              <p className="hidden max-w-xs text-right text-sm leading-6 text-[#5A6B7B] sm:block">Complete meals with the savings already worked out.</p>
+              <p className="hidden max-w-xs text-right text-sm leading-6 text-white/60 sm:block">Complete meals, savings already worked out — no coupon needed.</p>
             </div>
-            <div className="mt-6 grid auto-cols-[17.5rem] grid-flow-col gap-4 overflow-x-auto pb-3 [scrollbar-width:thin] lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:overflow-visible">
+            <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {shop.combos.map((combo) => {
-                const savingsPaise = Math.max(0, comboUndiscountedTotal(combo) - combo.comboPricePaise);
+                const undiscountedTotal = comboUndiscountedTotal(combo);
+                const savingsPaise = Math.max(0, undiscountedTotal - combo.comboPricePaise);
+                const savingsPercent = undiscountedTotal > 0 ? Math.round((savingsPaise / undiscountedTotal) * 100) : 0;
                 const qty = lineQuantity("combo", combo.id);
                 return (
                   <motion.article
@@ -418,13 +477,13 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     initial={{ opacity: 0, y: 12 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-40px" }}
-                    className="group relative flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_30px_rgba(11,31,51,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_45px_rgba(11,31,51,0.13)]"
+                    className="group relative flex min-w-0 flex-col overflow-hidden rounded-xl bg-white shadow-[0_12px_36px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
                   >
                     <div className="relative">
                       <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? "/dish-placeholder.webp"} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
-                      {savingsPaise > 0 ? (
-                        <span className="absolute left-3 top-3 rounded-full bg-[#E31837] px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-white shadow-sm">
-                          Save {formatPaise(savingsPaise)}
+                      {savingsPercent > 0 ? (
+                        <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#E31837] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-sm">
+                          <Flame size={13} /> Save {savingsPercent}%
                         </span>
                       ) : null}
                     </div>
@@ -432,9 +491,10 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                       <h3 className="text-lg font-black tracking-[-0.02em] text-[#0B1F33]">{combo.name}</h3>
                       {combo.description ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#5A6B7B]">{combo.description}</p> : null}
                       <div className="mt-3 flex items-baseline gap-2">
-                        <span className="text-lg font-black tabular-nums text-[#E31837]">{formatPaise(combo.comboPricePaise)}</span>
-                        {savingsPaise > 0 ? <span className="text-xs font-medium text-[#5A6B7B] line-through">{formatPaise(comboUndiscountedTotal(combo))}</span> : null}
+                        <span className="text-xl font-black tabular-nums text-[#E31837]">{formatPaise(combo.comboPricePaise)}</span>
+                        {savingsPaise > 0 ? <span className="text-xs font-medium text-[#5A6B7B] line-through">{formatPaise(undiscountedTotal)}</span> : null}
                       </div>
+                      {savingsPaise > 0 ? <p className="mt-0.5 text-xs font-bold text-[#1F9254]">You save {formatPaise(savingsPaise)} on this combo</p> : null}
                       <div className="mt-auto pt-4">
                         {qty === 0 ? (
                           <button
@@ -502,43 +562,80 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
             </div>
           ) : (
             <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleItems.map((item) => {
-                const unitPrice = discountedPrice(item.pricePaise, item.discountPercent);
-                const qty = lineQuantity("item", item.id);
+              {visibleDishes.map((dish) => {
+                const hasSizes = dish.sizes.length > 1;
+                const selected = selectedSizeOf(dish);
+                const unitPrice = discountedPrice(selected.pricePaise, selected.discountPercent);
+                const cheapest = dish.sizes[0];
+                const cheapestPrice = discountedPrice(cheapest.pricePaise, cheapest.discountPercent);
+                const cartName = selected.sizeLabel ? `${dish.name} — ${selected.sizeLabel}` : dish.name;
+                const qty = lineQuantity("item", selected.id);
+                const isHotDeal = selected.discountPercent >= 20;
                 return (
                   <motion.article
-                    key={item.id}
+                    key={dish.key}
                     initial={{ opacity: 0, y: 12 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-40px" }}
                     className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_28px_rgba(11,31,51,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(11,31,51,0.12)]"
                   >
                     <div className="relative overflow-hidden bg-[#edf1f4]">
-                      <img loading="lazy" decoding="async" alt={item.name} src={item.imageUrl ?? "/dish-placeholder.webp"} className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
-                      {item.discountPercent ? <span className="absolute left-3 top-3 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">{item.discountPercent}% off</span> : null}
+                      <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? "/dish-placeholder.webp"} className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+                      {isHotDeal ? (
+                        <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">
+                          <Flame size={12} /> {selected.discountPercent}% off
+                        </span>
+                      ) : selected.discountPercent ? (
+                        <span className="absolute left-3 top-3 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">{selected.discountPercent}% off</span>
+                      ) : null}
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
-                      <h3 className="text-lg font-black tracking-[-0.025em] text-[#0B1F33]">{item.name}</h3>
-                      {item.description ? <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-[#5A6B7B]">{item.description}</p> : <p className="mt-1.5 text-sm leading-6 text-[#83909c]">Freshly prepared for your order.</p>}
+                      <div className="flex items-start gap-2">
+                        <VegMark isVeg={selected.isVeg} />
+                        <h3 className="text-lg font-black tracking-[-0.025em] text-[#0B1F33]">{dish.name}</h3>
+                      </div>
+                      {dish.description ? <p className="mt-1.5 line-clamp-2 text-sm leading-6 text-[#5A6B7B]">{dish.description}</p> : <p className="mt-1.5 text-sm leading-6 text-[#83909c]">Freshly prepared for your order.</p>}
+
+                      {hasSizes ? (
+                        <div className="mt-3.5 flex flex-wrap gap-1.5" role="group" aria-label={`Choose a size for ${dish.name}`}>
+                          {dish.sizes.map((size) => {
+                            const picked = size.id === selected.id;
+                            return (
+                              <button
+                                key={size.id}
+                                type="button"
+                                onClick={() => setSelectedSizeByDish((current) => ({ ...current, [dish.key]: size.id }))}
+                                className={`min-h-[2.25rem] rounded-md border px-3 text-xs font-black transition ${picked ? "border-[#0B1F33] bg-[#0B1F33] text-white" : "border-[#0B1F33]/15 bg-white text-[#5A6B7B] hover:border-[#006491] hover:text-[#0B1F33]"}`}
+                              >
+                                {size.sizeLabel ?? "Regular"}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+
                       <div className="mt-auto flex items-end justify-between gap-3 pt-5">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-black tabular-nums text-[#0B1F33]">{formatPaise(unitPrice)}</span>
-                          {item.discountPercent ? <span className="text-xs text-[#5A6B7B]/70 line-through">{formatPaise(item.pricePaise)}</span> : null}
+                        <div>
+                          {hasSizes ? <p className="text-[11px] font-bold uppercase tracking-wide text-[#5A6B7B]/70">From {formatPaise(cheapestPrice)}</p> : null}
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-lg font-black tabular-nums text-[#0B1F33]">{formatPaise(unitPrice)}</span>
+                            {selected.discountPercent ? <span className="text-xs text-[#5A6B7B]/70 line-through">{formatPaise(selected.pricePaise)}</span> : null}
+                          </div>
                         </div>
                         {qty === 0 ? (
                           <button
                             type="button"
-                            aria-label={`Add ${item.name}`}
-                            onClick={() => addLine("item", item.id, item.name, item.imageUrl, unitPrice)}
+                            aria-label={`Add ${cartName}`}
+                            onClick={() => addLine("item", selected.id, cartName, selected.imageUrl, unitPrice)}
                             className="flex h-10 items-center gap-2 rounded-md bg-[#E31837] px-3.5 text-sm font-black text-white transition hover:bg-[#c81330] active:scale-[0.98]"
                           >
                             <Plus size={15} /> Add
                           </button>
                         ) : (
                           <div className="flex h-10 items-center rounded-md border border-[#0B1F33]/15 bg-[#F6F7F9]">
-                            <button type="button" aria-label={`Decrease ${item.name}`} onClick={() => adjustLine("item", item.id, -1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Minus size={13} /></button>
+                            <button type="button" aria-label={`Decrease ${cartName}`} onClick={() => adjustLine("item", selected.id, -1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Minus size={13} /></button>
                             <span className="w-7 text-center text-sm font-black tabular-nums text-[#0B1F33]">{qty}</span>
-                            <button type="button" aria-label={`Increase ${item.name}`} onClick={() => adjustLine("item", item.id, 1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Plus size={13} /></button>
+                            <button type="button" aria-label={`Increase ${cartName}`} onClick={() => adjustLine("item", selected.id, 1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Plus size={13} /></button>
                           </div>
                         )}
                       </div>

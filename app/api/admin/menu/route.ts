@@ -58,7 +58,10 @@ const schema = z.discriminatedUnion("action", [
     description: z.string().optional(),
     pricePaise: z.number().int().min(100),
     discountPercent: z.number().int().min(0).max(90).default(0),
-    imageUrl: imageUrlSchema.optional()
+    imageUrl: imageUrlSchema.optional(),
+    sizeLabel: z.string().trim().max(24).nullable().optional(),
+    sizeOrder: z.number().int().default(0),
+    isVeg: z.boolean().nullable().optional()
   }),
   z.object({
     action: z.literal("item.update"),
@@ -68,7 +71,10 @@ const schema = z.discriminatedUnion("action", [
     description: z.string().optional(),
     pricePaise: z.number().int().min(100).optional(),
     discountPercent: z.number().int().min(0).max(90).optional(),
-    imageUrl: imageUrlSchema.nullable().optional()
+    imageUrl: imageUrlSchema.nullable().optional(),
+    sizeLabel: z.string().trim().max(24).nullable().optional(),
+    sizeOrder: z.number().int().optional(),
+    isVeg: z.boolean().nullable().optional()
   }),
   z.object({
     action: z.literal("coupon.create"),
@@ -259,7 +265,10 @@ export async function POST(request: Request) {
         description: body.description,
         pricePaise: body.pricePaise,
         discountPercent: body.discountPercent,
-        imageUrl: body.imageUrl
+        imageUrl: body.imageUrl,
+        // Blank text from the form means "no size" — store null, not "".
+        sizeLabel: body.sizeLabel?.trim() || null,
+        sizeOrder: body.sizeOrder
       }
     });
     return NextResponse.json({ item });
@@ -274,7 +283,9 @@ export async function POST(request: Request) {
         description: body.description,
         pricePaise: body.pricePaise,
         discountPercent: body.discountPercent,
-        imageUrl: body.imageUrl
+        imageUrl: body.imageUrl,
+        sizeLabel: body.sizeLabel === undefined ? undefined : body.sizeLabel?.trim() || null,
+        sizeOrder: body.sizeOrder
       }
     });
     return NextResponse.json({ item });

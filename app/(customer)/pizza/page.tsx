@@ -31,9 +31,12 @@ async function getPizzaShop() {
           pricePaise: true,
           discountPercent: true,
           imageUrl: true,
-          courseId: true
+          courseId: true,
+          sizeLabel: true,
+          isVeg: true,
+          sizeOrder: true
         },
-        orderBy: { name: "asc" }
+        orderBy: [{ name: "asc" }, { sizeOrder: "asc" }]
       },
       combos: {
         where: { active: true },

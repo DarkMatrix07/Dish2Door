@@ -20,6 +20,8 @@ type MenuItem = {
   imageUrl: string | null;
   courseId: string;
   course: { name: string };
+  sizeLabel: string | null;
+  sizeOrder: number;
 };
 
 type Restaurant = {
@@ -36,12 +38,12 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
   const [restaurants, setRestaurants] = useState(initialRestaurants);
   const [managingId, setManagingId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [item, setItem] = useState({ name: "", price: "", discountPercent: "0", courseId: "" });
+  const [item, setItem] = useState({ name: "", price: "", discountPercent: "0", courseId: "", sizeLabel: "", sizeOrder: "0" });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: "", price: "", discountPercent: "0", courseId: "" });
+  const [draft, setDraft] = useState({ name: "", price: "", discountPercent: "0", courseId: "", sizeLabel: "", sizeOrder: "0" });
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   const selected = restaurants.find((restaurant) => restaurant.id === managingId);
@@ -97,7 +99,7 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
       toast.error("Create a course before adding menu items.");
       return;
     }
-    setItem({ name: "", price: "", discountPercent: "0", courseId: selected.courses[0]?.id ?? "" });
+    setItem({ name: "", price: "", discountPercent: "0", courseId: selected.courses[0]?.id ?? "", sizeLabel: "", sizeOrder: "0" });
     onNewImage(undefined);
     setShowCreate(true);
   }
@@ -123,10 +125,12 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
         name: item.name,
         pricePaise: Math.round(Number(item.price) * 100),
         discountPercent: Number(item.discountPercent || 0),
-        imageUrl
+        imageUrl,
+        sizeLabel: item.sizeLabel.trim() || null,
+        sizeOrder: Number(item.sizeOrder || 0)
       });
       setShowCreate(false);
-      setItem({ name: "", price: "", discountPercent: "0", courseId: "" });
+      setItem({ name: "", price: "", discountPercent: "0", courseId: "", sizeLabel: "", sizeOrder: "0" });
       onNewImage(undefined);
       toast.success("Menu item added");
     } catch (error) {
@@ -146,7 +150,9 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
       name: menuItem.name,
       price: String(menuItem.pricePaise / 100),
       discountPercent: String(menuItem.discountPercent),
-      courseId: menuItem.courseId
+      courseId: menuItem.courseId,
+      sizeLabel: menuItem.sizeLabel ?? "",
+      sizeOrder: String(menuItem.sizeOrder ?? 0)
     });
   }
 
@@ -157,7 +163,9 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
       name: draft.name,
       courseId: draft.courseId,
       pricePaise: Math.round(Number(draft.price) * 100),
-      discountPercent: Number(draft.discountPercent || 0)
+      discountPercent: Number(draft.discountPercent || 0),
+      sizeLabel: draft.sizeLabel.trim() || null,
+      sizeOrder: Number(draft.sizeOrder || 0)
     });
     setEditingId(null);
     toast.success("Menu item updated");
@@ -193,6 +201,20 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
     await action({ action: "item.delete", id });
     toast.success("Menu item deleted");
   }
+
+  // Group rows sharing a name within the same course so a pizza-style dish's sizes stay
+  // together, sorted by sizeOrder then price. Dishes without sizes form single-row groups.
+  const itemGroups = (() => {
+    if (!selected) return [];
+    const map = new Map<string, MenuItem[]>();
+    for (const menuItem of selected.menuItems) {
+      const key = `${menuItem.courseId}::${menuItem.name}`;
+      const list = map.get(key) ?? [];
+      list.push(menuItem);
+      map.set(key, list);
+    }
+    return Array.from(map.values()).map((list) => [...list].sort((a, b) => a.sizeOrder - b.sizeOrder || a.pricePaise - b.pricePaise));
+  })();
 
   // ---- List view: restaurant names ----
   if (!selected) {
@@ -261,71 +283,84 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
         </div>
       </div>
 
-      <SectionCard title={`Inventory · ${selected.name}`} description="Course, price, discount, stock status, and item actions." bodyClassName="p-0">
+      <SectionCard title={`Inventory · ${selected.name}`} description="Course, size, price, discount, stock status, and item actions." bodyClassName="p-0">
         <div className="divide-y divide-neutral-100">
-          {selected.menuItems.map((menuItem) => (
-            <div key={menuItem.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:p-5">
-              <div className="h-20 w-20 shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center" style={{ backgroundImage: `url('${menuItem.imageUrl ?? PLACEHOLDER}')` }} />
-              <div className="min-w-0 flex-1">
-                {editingId === menuItem.id ? (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-                    <Select value={draft.courseId} onChange={(event) => setDraft({ ...draft, courseId: event.target.value })}>
-                      {selected.courses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.name}
-                        </option>
-                      ))}
-                    </Select>
-                    <Input type="number" min={1} value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value })} />
-                    <Input type="number" min={0} max={90} value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} />
+          {itemGroups.map((group) => {
+            const dish = group[0];
+            return (
+              <div key={`${dish.courseId}::${dish.name}`} className="flex flex-col gap-3 p-4 sm:flex-row sm:p-5">
+                <div className="h-20 w-20 shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center" style={{ backgroundImage: `url('${dish.imageUrl ?? PLACEHOLDER}')` }} />
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div>
+                    <p className="font-semibold">{dish.name}</p>
+                    <p className="text-xs text-neutral-500">{dish.course.name}</p>
                   </div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{menuItem.name}</p>
-                      <Badge tone={menuItem.available ? "green" : "red"}>{menuItem.available ? "Available" : "Out of stock"}</Badge>
-                      {menuItem.discountPercent ? <Badge tone="amber">{menuItem.discountPercent}% off</Badge> : null}
+                  {group.map((menuItem) => (
+                    <div key={menuItem.id} className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3">
+                      {editingId === menuItem.id ? (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+                          <Select value={draft.courseId} onChange={(event) => setDraft({ ...draft, courseId: event.target.value })}>
+                            {selected.courses.map((course) => (
+                              <option key={course.id} value={course.id}>
+                                {course.name}
+                              </option>
+                            ))}
+                          </Select>
+                          <Input type="number" min={1} value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value })} />
+                          <Input type="number" min={0} max={90} value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} />
+                          <Input placeholder="Size (e.g. Regular, Medium, Large)" value={draft.sizeLabel} onChange={(event) => setDraft({ ...draft, sizeLabel: event.target.value })} />
+                          <Input type="number" placeholder="Size order" value={draft.sizeOrder} onChange={(event) => setDraft({ ...draft, sizeOrder: event.target.value })} />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {menuItem.sizeLabel ? <Badge tone="neutral">{menuItem.sizeLabel}</Badge> : null}
+                            <Badge tone={menuItem.available ? "green" : "red"}>{menuItem.available ? "Available" : "Out of stock"}</Badge>
+                            {menuItem.discountPercent ? <Badge tone="amber">{menuItem.discountPercent}% off</Badge> : null}
+                          </div>
+                          <p className="mt-1 text-sm text-neutral-500">
+                            <span className="font-semibold text-neutral-900">{formatPaise(menuItem.pricePaise)}</span>
+                          </p>
+                        </>
+                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl border border-neutral-300 bg-white px-3 text-sm font-semibold transition hover:bg-neutral-100">
+                          {uploadingId === menuItem.id ? "Uploading..." : "Image"}
+                          <input className="hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingId === menuItem.id} onChange={(event) => replaceItemImage(menuItem, event.target.files?.[0])} />
+                        </label>
+                        {menuItem.imageUrl ? (
+                          <Button variant="outline" size="sm" disabled={uploadingId === menuItem.id} onClick={() => clearItemImage(menuItem)}>
+                            Clear
+                          </Button>
+                        ) : null}
+                        <Button variant="outline" size="sm" onClick={() => stock(menuItem.id, !menuItem.available)}>
+                          {menuItem.available ? "Mark out" : "Restock"}
+                        </Button>
+                        {editingId === menuItem.id ? (
+                          <>
+                            <Button size="sm" onClick={() => saveItem(menuItem)}>
+                              Save
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setEditingId(null)}>
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => startEdit(menuItem)}>
+                            Edit
+                          </Button>
+                        )}
+                        <Button variant="destructive" size="sm" onClick={() => deleteItem(menuItem.id)}>
+                          Delete
+                        </Button>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      {menuItem.course.name} · <span className="font-semibold text-neutral-900">{formatPaise(menuItem.pricePaise)}</span>
-                    </p>
-                  </>
-                )}
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl border border-neutral-300 bg-white px-3 text-sm font-semibold transition hover:bg-neutral-100">
-                    {uploadingId === menuItem.id ? "Uploading..." : "Image"}
-                    <input className="hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingId === menuItem.id} onChange={(event) => replaceItemImage(menuItem, event.target.files?.[0])} />
-                  </label>
-                  {menuItem.imageUrl ? (
-                    <Button variant="outline" size="sm" disabled={uploadingId === menuItem.id} onClick={() => clearItemImage(menuItem)}>
-                      Clear
-                    </Button>
-                  ) : null}
-                  <Button variant="outline" size="sm" onClick={() => stock(menuItem.id, !menuItem.available)}>
-                    {menuItem.available ? "Mark out" : "Restock"}
-                  </Button>
-                  {editingId === menuItem.id ? (
-                    <>
-                      <Button size="sm" onClick={() => saveItem(menuItem)}>
-                        Save
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => setEditingId(null)}>
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="outline" size="sm" onClick={() => startEdit(menuItem)}>
-                      Edit
-                    </Button>
-                  )}
-                  <Button variant="destructive" size="sm" onClick={() => deleteItem(menuItem.id)}>
-                    Delete
-                  </Button>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {!selected.menuItems.length ? (
             <div className="p-8 text-center text-neutral-500">No menu items yet. Use “Add item” to create your first one.</div>
           ) : null}
@@ -353,6 +388,10 @@ export function ItemsManager({ initialRestaurants }: { initialRestaurants: Resta
           <div className="grid grid-cols-2 gap-3">
             <Input type="number" placeholder="Price (INR)" value={item.price} onChange={(event) => setItem({ ...item, price: event.target.value })} />
             <Input type="number" min={0} max={90} placeholder="Discount %" value={item.discountPercent} onChange={(event) => setItem({ ...item, discountPercent: event.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input placeholder="Size (optional, e.g. Regular, Large)" value={item.sizeLabel} onChange={(event) => setItem({ ...item, sizeLabel: event.target.value })} />
+            <Input type="number" placeholder="Size order" value={item.sizeOrder} onChange={(event) => setItem({ ...item, sizeOrder: event.target.value })} />
           </div>
           <Select value={item.courseId} onChange={(event) => setItem({ ...item, courseId: event.target.value })}>
             <option value="">Select course</option>

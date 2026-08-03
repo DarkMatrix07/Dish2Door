@@ -189,6 +189,13 @@ model MenuItem {
   description  String?
   pricePaise   Int
   discountPercent Int      @default(0)
+  // Pizza-style menus price the same dish per size. Items that share a name within a
+  // course are one dish on the storefront, with these as its size options.
+  sizeLabel    String?
+  sizeOrder    Int        @default(0)
+  // Null where a kitchen does not classify its food; otherwise drives the green/red
+  // veg mark Indian menus are expected to carry.
+  isVeg        Boolean?
   imageUrl     String?
   available    Boolean    @default(true)
   restaurantId String
