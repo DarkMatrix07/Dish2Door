@@ -23,7 +23,7 @@ type Order = {
   customerEmail: string | null;
   deliveryType: "GATE" | "HOSTEL";
   hostelBlock: string | null;
-  status: "ORDER_CONFIRMED" | "REACHED_CAMPUS" | "DELIVERED" | "CANCELLED";
+  status: "AWAITING_CONFIRMATION" | "ORDER_CONFIRMED" | "REACHED_CAMPUS" | "DELIVERED" | "CANCELLED";
   paymentStatus: string;
   orderSlot: "AFTERNOON" | "NIGHT" | null;
   source: string;

@@ -40,7 +40,9 @@ export async function GET(request: Request) {
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
   const pageSize = Math.min(50, Math.max(5, Number(searchParams.get("pageSize") ?? "20") || 20));
 
-  const where: Prisma.OrderWhereInput = {};
+  // Unconfirmed WhatsApp orders are excluded unless explicitly asked for, so they
+  // stay on their own page until an admin accepts them.
+  const where: Prisma.OrderWhereInput = { status: { not: "AWAITING_CONFIRMATION" } };
 
   if (search) {
     where.OR = [

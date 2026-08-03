@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgePercent, BarChart3, BellRing, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Settings, Star, UserRoundCheck, Users, UtensilsCrossed, X } from "lucide-react";
+import { BadgePercent, BarChart3, BellRing, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Pizza, Settings, Star, UserRoundCheck, Users, UtensilsCrossed, X } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +22,26 @@ const NAV: NavEntry[] = [
   { type: "link", href: "/admin/delivery-persons", label: "Delivery", icon: UserRoundCheck },
   { type: "link", href: "/admin/ratings", label: "Ratings", icon: Star },
   { type: "link", href: "/admin/notifications", label: "Notifications", icon: BellRing },
+  {
+    type: "group",
+    label: "Domino's Pizza",
+    icon: Pizza,
+    children: [
+      { href: "/admin/pizza", label: "Store" },
+      { href: "/admin/pizza/courses", label: "Courses" },
+      { href: "/admin/pizza/items", label: "Items" },
+      { href: "/admin/pizza/combos", label: "Combos" },
+      { href: "/admin/pizza/orders", label: "Orders" },
+      { href: "/admin/pizza/today", label: "Today" }
+    ]
+  },
   { type: "group", label: "Settings", icon: Settings, children: [{ href: "/admin/settings", label: "Store & ordering" }, { href: "/admin/settings/campuses", label: "Campuses" }, { href: "/admin/settings/fees", label: "Fees" }] }
 ];
 
 function isLinkActive(pathname: string, href: string) {
-  if (href === "/admin" || href === "/admin/orders") return pathname === href;
+  // Any of these have sibling routes nested one level deeper ("/x/y"), so a prefix
+  // match would wrongly light up both the parent link and its sibling at once.
+  if (href === "/admin" || href === "/admin/orders" || href === "/admin/pizza") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

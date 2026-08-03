@@ -10,8 +10,12 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/", label: "Home" },
   { href: "/menu", label: "Menu" },
+  { href: "/pizza", label: "Pizza" },
   { href: "/cart", label: "Cart" }
 ];
+
+// Cart has its own button on desktop, so the inline links stop before it.
+const DESKTOP_LINK_COUNT = 3;
 
 export function SiteNav({ dark = false }: { dark?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -25,7 +29,7 @@ export function SiteNav({ dark = false }: { dark?: boolean }) {
         </Link>
 
         <div className={cn("hidden items-center gap-7 md:flex", dark ? "text-white" : "text-[#5f594f]")}>
-          {links.slice(0, 2).map((link) => (
+          {links.slice(0, DESKTOP_LINK_COUNT).map((link) => (
             <Link key={link.href} href={link.href} className={cn("relative py-2 text-sm font-semibold transition-colors after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:origin-left after:scale-x-0 after:bg-current after:transition-transform hover:after:scale-x-100", dark ? "text-white/75 hover:text-white" : "hover:text-[#171713]")}>
               {link.label}
             </Link>

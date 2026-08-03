@@ -227,6 +227,20 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     const session = await getOrCreateCurrentSession();
     const trackingCode = await uniqueTrackingCode(tx);
     const resolved = await resolveItems(tx, items);
+
+    // A WhatsApp shop is never paid for through Razorpay. Without this, a crafted
+    // request could push its items through the paid checkout and skip confirmation.
+    const shop = await tx.restaurant.findUnique({ where: { id: resolved.restaurantId } });
+    if (!shop || shop.orderMode !== "ONLINE_PAYMENT") {
+      throw new Error("This shop is ordered over WhatsApp, not paid for online.");
+    }
+    if (!shop.acceptingOrders) {
+      throw new Error(`${shop.name} is closed right now. Please try again later.`);
+    }
+    if (shop.restrictedToCampusCode && shop.restrictedToCampusCode !== campus.code) {
+      throw new Error(`${shop.name} does not deliver to ${campus.name} yet.`);
+    }
+
     const coupon = details.couponCode
       ? await tx.coupon.findUnique({ where: { code: details.couponCode.toUpperCase() } })
       : null;
@@ -456,6 +470,86 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
 
   dispatchNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
   return { order, passcode };
+}
+
+// A WhatsApp-mode shop takes no online payment, so the order is written as UNPAID and
+// AWAITING_CONFIRMATION and stays out of the kitchen and delivery lists until an admin
+// accepts it. No payment-handling fee is charged because no gateway is involved.
+export async function createWhatsAppOrder(details: CustomerDetails, items: OrderItemInput[]) {
+  const settings = await getSettings();
+  const customerPhone = requireNormalizedPhone(details.phone);
+  const campus = await resolveCampus(details.campusCode);
+
+  if (!settings.ordersOpen) throw new Error("Orders are closed");
+  assertHostelDeliveryAllowed(details.deliveryType, campus, details.orderSlot);
+  assertOrderingWindowOpen(settings.orderingOpenMinute, settings.orderingCloseMinute);
+
+  return prisma.$transaction(async (tx) => {
+    const session = await getOrCreateCurrentSession();
+    const trackingCode = await uniqueTrackingCode(tx);
+    const resolved = await resolveItems(tx, items);
+
+    const shop = await tx.restaurant.findUnique({ where: { id: resolved.restaurantId } });
+    if (!shop || !shop.active) throw new Error("This shop is not available right now.");
+    if (shop.orderMode !== "WHATSAPP") throw new Error("This shop takes payment online, not over WhatsApp.");
+    if (!shop.acceptingOrders) throw new Error(`${shop.name} is closed right now. Please try again later.`);
+    if (shop.restrictedToCampusCode && shop.restrictedToCampusCode !== campus.code) {
+      throw new Error(`${shop.name} does not deliver to ${campus.name} yet.`);
+    }
+
+    // includePaymentFee = false: nothing goes through Razorpay on this path.
+    const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, campus, false);
+
+    await upsertOrderCustomer(tx, customerPhone, details);
+
+    const order = await tx.order.create({
+      data: {
+        trackingCode,
+        customerName: details.name,
+        customerEmail: details.email,
+        customerPhone,
+        customerId: customerPhone,
+        campusId: campus.id,
+        deliveryType: details.deliveryType,
+        hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
+        status: OrderStatus.AWAITING_CONFIRMATION,
+        source: OrderSource.CUSTOMER_WHATSAPP,
+        orderSlot: details.orderSlot ?? null,
+        paymentStatus: PaymentStatus.UNPAID,
+        restaurantId: resolved.restaurantId,
+        sessionId: session.id,
+        ...totals,
+        items: { create: resolved.orderItems }
+      },
+      include: orderInclude
+    });
+
+    return { order, shop, campus };
+  });
+}
+
+// An admin accepting a WhatsApp order is what puts it into the normal pipeline: only
+// then does it appear in today's orders, the kitchen sheet and delivery lists.
+export async function confirmWhatsAppOrder(orderId: string) {
+  const existing = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!existing) throw new Error("Order not found");
+  if (existing.status !== OrderStatus.AWAITING_CONFIRMATION) {
+    // Already handled (double click, two admins) — return it rather than erroring.
+    return prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
+  }
+
+  const passcode = generatePasscode();
+  const order = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: OrderStatus.ORDER_CONFIRMED,
+      trackingPasscodeHash: await hashPasscode(passcode)
+    },
+    include: orderInclude
+  });
+
+  dispatchNotifications(order.id, NotificationEvent.ORDER_CREATED, passcode);
+  return order;
 }
 
 export async function markAllReachedCampus() {

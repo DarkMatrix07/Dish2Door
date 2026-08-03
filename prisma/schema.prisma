@@ -17,6 +17,9 @@ enum DeliveryType {
 }
 
 enum OrderStatus {
+  // WhatsApp orders land here first and only become ORDER_CONFIRMED once an admin
+  // accepts them, so an unconfirmed order never reaches the kitchen or delivery lists.
+  AWAITING_CONFIRMATION
   ORDER_CONFIRMED
   REACHED_CAMPUS
   DELIVERED
@@ -26,6 +29,15 @@ enum OrderStatus {
 enum OrderSource {
   CUSTOMER_ONLINE
   ADMIN_MANUAL
+  // Built in the cart but handed off to WhatsApp instead of a payment gateway.
+  CUSTOMER_WHATSAPP
+}
+
+// How a shop takes orders. ONLINE_PAYMENT goes through Razorpay; WHATSAPP composes the
+// order into a message the customer sends us, and it is confirmed by hand afterwards.
+enum RestaurantOrderMode {
+  ONLINE_PAYMENT
+  WHATSAPP
 }
 
 enum OrderSlot {
@@ -144,6 +156,13 @@ model Restaurant {
   description String?
   imageUrl    String?
   active      Boolean    @default(true)
+  orderMode   RestaurantOrderMode @default(ONLINE_PAYMENT)
+  // Separate from `active`: a shop stays listed but can stop taking orders for a while.
+  acceptingOrders Boolean @default(true)
+  // Null means every campus. Set to a Campus.code to limit the shop to one campus.
+  restrictedToCampusCode String?
+  // Where WHATSAPP-mode orders are sent. Falls back to the support number when unset.
+  whatsappNumber String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   courses     Course[]

@@ -1,12 +1,15 @@
+import { notFound } from "next/navigation";
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
-import { TodaysOrders } from "@/components/admin/TodaysOrders";
+import { PizzaTodaysOrders } from "@/components/admin/PizzaTodaysOrders";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+const RESTAURANT_SLUG = "dominos-pizza";
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 // Start/end of "today" in IST, expressed as UTC instants for the createdAt filter.
+// Copied from app/(admin)/admin/orders/today/page.tsx rather than shared, per instructions.
 function istTodayRange() {
   const istNow = new Date(Date.now() + IST_OFFSET_MS);
   const y = istNow.getUTCFullYear();
@@ -20,18 +23,19 @@ function istTodayRange() {
   return { start, end, label };
 }
 
-export default async function TodaysOrdersPage() {
+export default async function PizzaTodaysOrdersPage() {
+  const restaurant = await prisma.restaurant.findUnique({ where: { slug: RESTAURANT_SLUG }, select: { id: true, name: true } });
+  if (!restaurant) notFound();
+
   const { start, end, label } = istTodayRange();
 
   const orders = await prisma.order.findMany({
     where: {
+      restaurantId: restaurant.id,
       createdAt: { gte: start, lt: end },
-      status: { notIn: ["CANCELLED", "AWAITING_CONFIRMATION"] },
-      // Exclude abandoned unpaid online checkouts; keep paid + manual orders.
-      paymentStatus: { in: ["PAID_ONLINE", "PAID_MANUALLY", "UNPAID"] }
+      status: { notIn: ["CANCELLED", "AWAITING_CONFIRMATION"] }
     },
     include: {
-      restaurant: { select: { name: true } },
       campus: { select: { id: true, code: true, name: true, sortOrder: true } },
       items: { select: { id: true, nameSnapshot: true, quantity: true } }
     },
@@ -47,10 +51,8 @@ export default async function TodaysOrdersPage() {
     hostelBlock: order.hostelBlock,
     orderSlot: order.orderSlot,
     status: order.status,
-    paymentStatus: order.paymentStatus,
     totalPaise: order.totalPaise,
     createdAt: order.createdAt.toISOString(),
-    restaurant: order.restaurant,
     campus: order.campus,
     items: order.items
   }));
@@ -58,11 +60,11 @@ export default async function TodaysOrdersPage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Orders"
+        eyebrow="Domino's Pizza"
         title="Today's orders"
-        description={`Orders for ${label}, grouped by campus, delivery slot, and restaurant.`}
+        description={`Confirmed orders for ${restaurant.name} on ${label}, grouped by delivery slot.`}
       />
-      <TodaysOrders orders={plain} dateLabel={label} />
+      <PizzaTodaysOrders orders={plain} dateLabel={label} restaurantName={restaurant.name} />
     </PageContainer>
   );
 }

@@ -13,7 +13,8 @@ async function getMenuData() {
     const [settings, restaurants, featured] = await Promise.all([
       getSettings(),
       prisma.restaurant.findMany({
-        where: { active: true },
+        // WhatsApp shops check out on their own page, not through the paid cart.
+        where: { active: true, orderMode: "ONLINE_PAYMENT" },
         // Explicit selects: the client only needs these columns, and shipping the rest
         // (timestamps, foreign keys) inflated the /menu RSC payload for 260+ items.
         select: {

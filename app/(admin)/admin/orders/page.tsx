@@ -6,11 +6,14 @@ import { orderInclude } from "@/lib/order-select";
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
+const CONFIRMED_ONLY = { status: { not: "AWAITING_CONFIRMATION" } } as const;
 
 export default async function AdminOrdersPage() {
   const [orders, total, restaurants, sessions, campuses] = await Promise.all([
-    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: PAGE_SIZE }),
-    prisma.order.count(),
+    // Unconfirmed WhatsApp orders are not real orders yet — they live on their own
+    // admin page until an admin accepts them.
+    prisma.order.findMany({ where: CONFIRMED_ONLY, include: orderInclude, orderBy: { createdAt: "desc" }, take: PAGE_SIZE }),
+    prisma.order.count({ where: CONFIRMED_ONLY }),
     prisma.restaurant.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.orderSession.findMany({ select: { id: true, label: true }, orderBy: { startsAt: "desc" }, take: 60 }),
     prisma.campus.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { sortOrder: "asc" } })

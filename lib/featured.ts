@@ -63,14 +63,14 @@ export async function getFeaturedData(): Promise<FeaturedData> {
       by: ["menuItemId"],
       where: {
         menuItemId: { not: null },
-        order: { paymentStatus: { in: PAID }, createdAt: { gte: cutoff } }
+        order: { paymentStatus: { in: PAID }, createdAt: { gte: cutoff }, restaurant: { orderMode: "ONLINE_PAYMENT" } }
       },
       _sum: { quantity: true },
       orderBy: { _sum: { quantity: "desc" } },
       take: 60
     }),
     prisma.menuItem.findMany({
-      where: { available: true, restaurant: { active: true } },
+      where: { available: true, restaurant: { active: true, orderMode: "ONLINE_PAYMENT" } },
       select: {
         id: true, name: true, description: true, imageUrl: true,
         pricePaise: true, discountPercent: true,
@@ -78,7 +78,7 @@ export async function getFeaturedData(): Promise<FeaturedData> {
       }
     }),
     prisma.combo.findMany({
-      where: { active: true, restaurant: { active: true } },
+      where: { active: true, restaurant: { active: true, orderMode: "ONLINE_PAYMENT" } },
       include: {
         restaurant: { select: { id: true, name: true } },
         items: { include: { menuItem: true } }
