@@ -6,7 +6,6 @@ import {
   Check,
   ChevronDown,
   Clock3,
-  Flame,
   GraduationCap,
   HandCoins,
   MapPin,
@@ -362,9 +361,6 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
             className="max-w-3xl"
           >
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-md border border-white/15 bg-[#071522]/40 px-3 py-2 text-xs font-black text-white backdrop-blur-md">
-                <Flame size={14} className="text-[#ff4b5f]" /> Taking orders on WhatsApp
-              </span>
               <CampusSwitcher campuses={campuses} value={campusCode} onChange={chooseCampus} />
             </div>
             <h1 className="mt-7 max-w-3xl text-5xl font-black leading-[0.9] tracking-[-0.055em] text-white sm:text-7xl lg:text-[6.2rem]">
@@ -386,15 +382,15 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
             <div className="mt-9 grid max-w-2xl gap-px overflow-hidden rounded-md border border-white/12 bg-white/12 sm:grid-cols-3">
               <div className="flex items-center gap-3 bg-[#071522]/55 px-4 py-3.5 backdrop-blur-md">
                 <MessageCircle size={17} className="text-[#5ee58b]" />
-                <span className="text-sm font-bold">Confirm on WhatsApp</span>
+                <span className="text-sm font-bold text-white">Confirm on WhatsApp</span>
               </div>
               <div className="flex items-center gap-3 bg-[#071522]/55 px-4 py-3.5 backdrop-blur-md">
                 <HandCoins size={17} className="text-[#ffcf55]" />
-                <span className="text-sm font-bold">Pay at handover</span>
+                <span className="text-sm font-bold text-white">Pay at handover</span>
               </div>
               <div className="flex items-center gap-3 bg-[#071522]/55 px-4 py-3.5 backdrop-blur-md">
                 <Clock3 size={17} className="text-[#76caee]" />
-                <span className="text-sm font-bold">Campus delivery slots</span>
+                <span className="text-sm font-bold text-white">Campus delivery slots</span>
               </div>
             </div>
           </motion.div>
