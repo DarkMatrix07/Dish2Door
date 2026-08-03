@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
@@ -360,6 +362,44 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
           </p>
           <div className="mt-8">
             <CampusSwitcher campuses={campuses} value={campusCode} onChange={chooseCampus} />
+          </div>
+        </section>
+        <SiteFooter />
+      </main>
+    );
+  }
+
+  // A closed shop is a dead end on purpose: showing a browsable menu that cannot be
+  // ordered from just wastes the customer's time and invites "why won't it let me pay".
+  if (orderingBlocked) {
+    return (
+      <main id="main-content" className="min-h-screen bg-white text-[#0B1F33]">
+        <SiteNav />
+        <section className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 py-32 text-center">
+          <span className="grid h-16 w-16 place-items-center rounded-xl bg-[#5A6B7B]/10 text-[#5A6B7B]">
+            <PizzaIcon size={30} />
+          </span>
+          <span className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#5A6B7B]/10 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-[#5A6B7B]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5A6B7B]" /> Closed
+          </span>
+          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-5xl">{shop.name} is closed.</h1>
+          <p className="mt-4 max-w-md text-base leading-7 text-[#5A6B7B]">
+            We&apos;re not taking pizza orders right now. Check back a little later, or browse the other
+            campus kitchens in the meantime.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/menu"
+              className="inline-flex min-h-12 items-center gap-2 rounded-md bg-[#E31837] px-6 text-sm font-black text-white transition hover:bg-[#c81330]"
+            >
+              Browse other kitchens <ArrowRight size={16} />
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex min-h-12 items-center rounded-md border border-[#0B1F33]/15 px-6 text-sm font-black text-[#0B1F33] transition hover:border-[#0B1F33]/35"
+            >
+              Back home
+            </Link>
           </div>
         </section>
         <SiteFooter />
