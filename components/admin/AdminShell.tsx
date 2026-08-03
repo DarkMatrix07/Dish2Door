@@ -22,7 +22,7 @@ const NAV: NavEntry[] = [
   { type: "link", href: "/admin/delivery-persons", label: "Delivery", icon: UserRoundCheck },
   { type: "link", href: "/admin/ratings", label: "Ratings", icon: Star },
   { type: "link", href: "/admin/notifications", label: "Notifications", icon: BellRing },
-  { type: "group", label: "Settings", icon: Settings, children: [{ href: "/admin/settings", label: "Store & ordering" }, { href: "/admin/settings/fees", label: "Fees" }] }
+  { type: "group", label: "Settings", icon: Settings, children: [{ href: "/admin/settings", label: "Store & ordering" }, { href: "/admin/settings/campuses", label: "Campuses" }, { href: "/admin/settings/fees", label: "Fees" }] }
 ];
 
 function isLinkActive(pathname: string, href: string) {

@@ -1,48 +1,54 @@
 import { CartPageClient } from "@/components/customer/CartPageClient";
 import { ClosedOrders } from "@/components/customer/ClosedOrders";
+import { listActiveCampuses, toPublicCampus, type CampusPublic } from "@/lib/campus";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
-export default async function CartPage() {
-  let settings = {
-    ordersOpen: true,
-    closedMessage: "Orders are closed for today.",
-    contactNumber: "Contact admin",
+// Used only if the database is unreachable, so the cart still renders locally.
+const FALLBACK_CAMPUSES: CampusPublic[] = [
+  {
+    code: "VIT_AP",
+    name: "VIT-AP",
     platformFeePaise: 200,
     hostelDeliveryFeePaise: 1500,
+    hostelDeliveryEnabled: true,
     paymentChargePercentBps: 250,
-    paymentChargeFixedPaise: 0,
-    hostelDeliveryEnabled: true
+    paymentChargeFixedPaise: 0
+  }
+];
+
+export default async function CartPage() {
+  let store = {
+    ordersOpen: true,
+    closedMessage: "Orders are closed for today.",
+    contactNumber: "Contact admin"
   };
+  let campuses = FALLBACK_CAMPUSES;
   let orderingOpenMinute = 360;
   let orderingCloseMinute = 1380;
 
   try {
-    const dbSettings = await getSettings();
-    settings = {
+    const [dbSettings, dbCampuses] = await Promise.all([getSettings(), listActiveCampuses()]);
+    store = {
       ordersOpen: dbSettings.ordersOpen,
       closedMessage: dbSettings.closedMessage,
-      contactNumber: dbSettings.contactNumber,
-      platformFeePaise: dbSettings.platformFeePaise,
-      hostelDeliveryFeePaise: dbSettings.hostelDeliveryFeePaise,
-      paymentChargePercentBps: dbSettings.paymentChargePercentBps,
-      paymentChargeFixedPaise: dbSettings.paymentChargeFixedPaise,
-      hostelDeliveryEnabled: dbSettings.hostelDeliveryEnabled
+      contactNumber: dbSettings.contactNumber
     };
     orderingOpenMinute = dbSettings.orderingOpenMinute;
     orderingCloseMinute = dbSettings.orderingCloseMinute;
+    if (dbCampuses.length) campuses = dbCampuses.map(toPublicCampus);
   } catch {
     // Keep the cart review usable before Postgres is running locally.
   }
 
-  if (!settings.ordersOpen) {
-    return <ClosedOrders message={settings.closedMessage} contactNumber={settings.contactNumber} />;
+  if (!store.ordersOpen) {
+    return <ClosedOrders message={store.closedMessage} contactNumber={store.contactNumber} />;
   }
 
   return (
     <CartPageClient
-      settings={settings}
+      campuses={campuses}
       serverNowMs={Date.now()}
       windowOpenMinute={orderingOpenMinute}
       windowCloseMinute={orderingCloseMinute}

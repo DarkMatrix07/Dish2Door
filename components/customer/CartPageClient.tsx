@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -11,16 +11,9 @@ import { HostelPicker } from "@/components/customer/HostelPicker";
 import { SpinWheel } from "@/components/customer/SpinWheel";
 import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
 import { readStoredIdentity, writeStoredIdentity, type CustomerIdentity } from "@/lib/customer-identity";
+import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
 import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
-
-type Settings = {
-  platformFeePaise: number;
-  hostelDeliveryFeePaise: number;
-  paymentChargePercentBps: number;
-  paymentChargeFixedPaise: number;
-  hostelDeliveryEnabled: boolean;
-};
 
 declare global {
   interface Window {
@@ -28,7 +21,7 @@ declare global {
   }
 }
 
-function paymentFee(basePaise: number, settings: Settings) {
+function paymentFee(basePaise: number, settings: CampusPublic) {
   return Math.ceil((basePaise * settings.paymentChargePercentBps) / 10_000) + settings.paymentChargeFixedPaise;
 }
 
@@ -50,16 +43,20 @@ function loadRazorpayScript() {
 const fieldClass = "h-12 w-full rounded-md border border-black/12 bg-white/75 px-4 text-sm font-medium text-[#171713] outline-none transition placeholder:text-[#a29b90] focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10";
 
 export function CartPageClient({
-  settings,
+  campuses,
   serverNowMs,
   windowOpenMinute,
   windowCloseMinute
 }: {
-  settings: Settings;
+  campuses: CampusPublic[];
   serverNowMs: number;
   windowOpenMinute: number;
   windowCloseMinute: number;
 }) {
+  // Which campus the customer is ordering for. Fees and hostel availability come from
+  // this record; the server re-reads them from the campus code at checkout.
+  const [campusCode, setCampusCode] = useState(campuses[0]?.code ?? "");
+  const campus = campuses.find((entry) => entry.code === campusCode) ?? campuses[0];
   const [cart, setCart] = useState<StoredCartItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [couponCode, setCouponCode] = useState("");
@@ -81,13 +78,23 @@ export function CartPageClient({
 
   useEffect(() => setCart(readStoredCart()), []);
 
+  useEffect(() => {
+    const stored = readStoredCampus();
+    if (stored && campuses.some((entry) => entry.code === stored)) setCampusCode(stored);
+  }, [campuses]);
+
+  function chooseCampus(code: string) {
+    setCampusCode(code);
+    writeStoredCampus(code);
+  }
+
   // Never leave the form on a delivery type this campus can't fulfil.
   useEffect(() => {
-    if (settings.hostelDeliveryEnabled) return;
+    if (campus.hostelDeliveryEnabled) return;
     setCustomer((current) =>
       current.deliveryType === "HOSTEL" ? { ...current, deliveryType: "GATE", hostelBlock: "" } : current
     );
-  }, [settings.hostelDeliveryEnabled]);
+  }, [campus.hostelDeliveryEnabled]);
 
   async function checkSpinEligibility(who: CustomerIdentity) {
     try {
@@ -200,11 +207,11 @@ export function CartPageClient({
   const totals = useMemo(() => {
     const subtotalPaise = cart.reduce((total, item) => total + discountedUnitPrice(item) * item.quantity, 0);
     const couponDiscountPaise = coupon ? Math.round((subtotalPaise * coupon.discountPercent) / 100) : 0;
-    const hostelFeePaise = customer.deliveryType === "HOSTEL" ? settings.hostelDeliveryFeePaise : 0;
-    const basePaise = Math.max(0, subtotalPaise - couponDiscountPaise) + settings.platformFeePaise + hostelFeePaise;
-    const paymentFeePaise = paymentFee(basePaise, settings);
+    const hostelFeePaise = customer.deliveryType === "HOSTEL" ? campus.hostelDeliveryFeePaise : 0;
+    const basePaise = Math.max(0, subtotalPaise - couponDiscountPaise) + campus.platformFeePaise + hostelFeePaise;
+    const paymentFeePaise = paymentFee(basePaise, campus);
     return { subtotalPaise, couponDiscountPaise, hostelFeePaise, paymentFeePaise, totalPaise: basePaise + paymentFeePaise };
-  }, [cart, coupon, customer.deliveryType, settings]);
+  }, [cart, coupon, customer.deliveryType, campus]);
 
   async function applyCoupon() {
     if (!couponCode.trim()) return;
@@ -226,7 +233,7 @@ export function CartPageClient({
     if (!cart.length) return toast.error("Your cart is empty.");
     if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address.");
-    if (customer.deliveryType === "HOSTEL" && !settings.hostelDeliveryEnabled) return toast.error("Hostel delivery is coming soon. Please choose campus gate pickup.");
+    if (customer.deliveryType === "HOSTEL" && !campus.hostelDeliveryEnabled) return toast.error("Hostel delivery is coming soon. Please choose campus gate pickup.");
     if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Hostel block is required for hostel delivery.");
     if (!customer.orderSlot) return toast.error("Ordering has closed for today's delivery slots.");
     return true;
@@ -247,7 +254,7 @@ export function CartPageClient({
       const response = await fetch("/api/orders/create-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer: { ...customer, couponCode: coupon?.code }, items: cart.map((item) => item.kind === "combo" && item.comboId ? { comboId: item.comboId, quantity: item.quantity } : { menuItemId: item.id, quantity: item.quantity }) })
+        body: JSON.stringify({ customer: { ...customer, couponCode: coupon?.code, campusCode: campus.code }, items: cart.map((item) => item.kind === "combo" && item.comboId ? { comboId: item.comboId, quantity: item.quantity } : { menuItemId: item.id, quantity: item.quantity }) })
       });
       const payment = await response.json();
       if (!response.ok) throw new Error(payment.error ?? "Could not start payment");
@@ -321,13 +328,40 @@ export function CartPageClient({
               ))}
             </div>
 
+            {campuses.length > 1 ? (
+              <div className="mt-12">
+                <h2 className="text-3xl font-black tracking-[-0.04em]">Which campus?</h2>
+                <p className="mt-2 text-sm leading-6 text-[#716a5f]">Fees and delivery options differ by campus.</p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  {campuses.map((entry) => {
+                    const selected = entry.code === campus.code;
+                    return (
+                      <button
+                        key={entry.code}
+                        type="button"
+                        onClick={() => chooseCampus(entry.code)}
+                        className={`relative rounded-xl border p-5 text-left transition ${selected ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}
+                      >
+                        <GraduationCap size={20} className={selected ? "text-[#f6b73c]" : "text-[#c65d24]"} />
+                        <span className="mt-5 block font-black">{entry.name}</span>
+                        <span className={`mt-1 block text-sm ${selected ? "text-white/55" : "text-[#716a5f]"}`}>
+                          {entry.hostelDeliveryEnabled ? "Gate pickup + hostel delivery" : "Gate pickup only"}
+                        </span>
+                        {selected ? <Check className="absolute right-4 top-4 text-[#f6b73c]" size={17} /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-12">
               <h2 className="text-3xl font-black tracking-[-0.04em]">Where should we send it?</h2>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: "We bring it to your block" }].map((option) => {
                   // Hostel delivery is switched off per campus until that campus has
                   // delivery staff; the option stays visible so customers know it's planned.
-                  const locked = option.value === "HOSTEL" && !settings.hostelDeliveryEnabled;
+                  const locked = option.value === "HOSTEL" && !campus.hostelDeliveryEnabled;
                   const selected = customer.deliveryType === option.value;
                   return (
                   <button key={option.value} type="button" disabled={locked} aria-disabled={locked} onClick={() => { if (locked) return; setCustomer({ ...customer, deliveryType: option.value, hostelBlock: option.value === "HOSTEL" ? customer.hostelBlock : "" }); }} className={`relative rounded-xl border p-5 text-left transition ${locked ? "cursor-not-allowed border-black/8 bg-black/[0.035] text-[#9a9388]" : selected ? "border-[#171713] bg-[#171713] text-white" : "border-black/12 bg-white/40 hover:border-black/30"}`}>
@@ -381,7 +415,7 @@ export function CartPageClient({
           <aside className="h-fit rounded-2xl bg-white p-5 shadow-[0_24px_70px_rgba(58,43,22,0.09)] lg:sticky lg:top-6 sm:p-6">
             <div className="flex items-center justify-between"><h2 className="text-2xl font-black tracking-[-0.035em]">Payment summary</h2><ShieldCheck size={21} className="text-[#c65d24]" /></div>
             <div className="mt-6 border-y border-black/10 py-5"><label className="text-sm font-bold">Have a coupon?</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button></div>{coupon ? <p className="mt-3 flex items-center gap-2 text-sm font-bold text-[#34705a]"><Check size={14} /> {coupon.code} gives {coupon.discountPercent}% off</p> : null}</div>
-            <div className="mt-6 space-y-3 text-sm text-[#625b50]"><div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(settings.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
+            <div className="mt-6 space-y-3 text-sm text-[#625b50]">{campuses.length > 1 ? <div className="flex justify-between"><span>Campus</span><span className="font-bold text-[#171713]">{campus.name}</span></div> : null}<div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(campus.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
             <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><span className="text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
             <button type="button" disabled={busy || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span><ArrowRight size={18} /></button>
             <p className="mt-4 text-xs leading-5 text-[#817a70]">After payment, your tracking link and private 4-digit passcode are sent by WhatsApp and email.</p>

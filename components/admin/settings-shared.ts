@@ -9,7 +9,6 @@ export type Settings = {
   orderingOpenMinute: number;
   orderingCloseMinute: number;
   spinWheelForEveryone: boolean;
-  hostelDeliveryEnabled: boolean;
 };
 
 export function minutesToTimeInput(minutes: number) {

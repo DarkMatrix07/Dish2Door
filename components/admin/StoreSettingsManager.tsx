@@ -91,26 +91,12 @@ export function StoreSettingsManager({ initialSettings }: { initialSettings: Set
           </div>
         </div>
 
-        <div>
-          <p className="mb-2 text-sm font-semibold text-neutral-600">Hostel delivery</p>
-          <p className="mb-2 text-xs text-neutral-500">
-            Turn this off while a campus is gate-pickup only. Customers still see the hostel option marked
-            &ldquo;Coming soon&rdquo;, and hostel orders are rejected server-side until you switch it on.
+        <div className="rounded-lg border border-black/10 bg-[#f3f4f6] p-3">
+          <p className="text-sm font-semibold text-neutral-600">Fees &amp; hostel delivery are per campus</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Each campus sets its own platform fee, payment handling and whether hostel delivery runs there.
+            Manage those under <span className="font-semibold">Settings &rarr; Campuses</span>.
           </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={settings.hostelDeliveryEnabled ? "default" : "outline"}
-              onClick={() => setSettings({ ...settings, hostelDeliveryEnabled: true })}
-            >
-              Available
-            </Button>
-            <Button
-              variant={!settings.hostelDeliveryEnabled ? "destructive" : "outline"}
-              onClick={() => setSettings({ ...settings, hostelDeliveryEnabled: false })}
-            >
-              Coming soon
-            </Button>
-          </div>
         </div>
 
         <Button disabled={saving} onClick={save}>

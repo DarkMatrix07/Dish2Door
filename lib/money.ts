@@ -1,4 +1,11 @@
-import type { SystemSettings } from "@prisma/client";
+// Fees are per-campus, so the calculators take just the fee fields rather than a whole
+// SystemSettings row. Both Campus and SystemSettings satisfy this shape structurally.
+export type FeeConfig = {
+  platformFeePaise: number;
+  hostelDeliveryFeePaise: number;
+  paymentChargePercentBps: number;
+  paymentChargeFixedPaise: number;
+};
 
 export type FeeBreakdown = {
   subtotalPaise: number;
@@ -9,7 +16,7 @@ export type FeeBreakdown = {
   totalPaise: number;
 };
 
-export function calculatePaymentFee(basePaise: number, settings: SystemSettings) {
+export function calculatePaymentFee(basePaise: number, settings: FeeConfig) {
   const percentFee = Math.ceil((basePaise * settings.paymentChargePercentBps) / 10_000);
   return percentFee + settings.paymentChargeFixedPaise;
 }
@@ -17,7 +24,7 @@ export function calculatePaymentFee(basePaise: number, settings: SystemSettings)
 export function calculateTotals(
   subtotalPaise: number,
   deliveryType: "GATE" | "HOSTEL",
-  settings: SystemSettings,
+  settings: FeeConfig,
   includePaymentFee: boolean,
   couponDiscountPaise = 0
 ): FeeBreakdown {

@@ -272,6 +272,10 @@ model Order {
   // a missing customer row; populated from the normalized phone on every write.
   customerId            String?
   customer              Customer?    @relation(fields: [customerId], references: [phone], onDelete: SetNull)
+  // Which campus this order was placed for. Nullable so an order is never blocked by a
+  // missing campus; every order written since campuses launched sets it.
+  campusId              String?
+  campus                Campus?      @relation(fields: [campusId], references: [id], onDelete: SetNull)
   spinRewards           SpinReward[]
   notificationLogs      NotificationLog[]
   createdAt             DateTime     @default(now())
@@ -281,6 +285,7 @@ model Order {
   @@index([sessionId])
   @@index([status])
   @@index([customerId])
+  @@index([campusId])
   @@index([deliveryType, deliveryReleased])
 }
 
@@ -355,10 +360,6 @@ model SystemSettings {
   notifyWhatsapp           Boolean  @default(true)
   orderingOpenMinute       Int      @default(360)
   orderingCloseMinute      Int      @default(1380)
-  // Lets a campus launch with gate pickup only and switch hostel delivery on later.
-  // Defaults to true so existing campuses are unaffected; enforced server-side on
-  // order creation, not just hidden in the UI.
-  hostelDeliveryEnabled    Boolean  @default(true)
   spinWheelForEveryone     Boolean  @default(false)
   // IST day (YYYY-MM-DD) whose ordering-window close ends the everyone-mode promo,
   // computed when it is switched on. Enabling after the window has already closed
@@ -368,6 +369,28 @@ model SystemSettings {
   spinWheelEveryoneUntilDay String?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
+}
+
+// A campus the service runs on. Restaurants are shared across campuses, so a campus
+// only carries its own commercials: what it charges and whether hostel delivery is
+// available there. These values — not SystemSettings — are what price an order, and
+// they are always re-read server-side so a client can't pick a cheaper campus's fees.
+model Campus {
+  id                      String   @id
+  code                    String   @unique
+  name                    String
+  active                  Boolean  @default(true)
+  sortOrder               Int      @default(0)
+  platformFeePaise        Int
+  hostelDeliveryFeePaise  Int
+  // Lets a campus launch gate-pickup-only and switch hostel delivery on later.
+  // Enforced on every order-creation path, not just hidden in the UI.
+  hostelDeliveryEnabled   Boolean  @default(true)
+  paymentChargePercentBps Int
+  paymentChargeFixedPaise Int      @default(0)
+  orders                  Order[]
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }
 
 model Coupon {

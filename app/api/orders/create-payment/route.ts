@@ -16,6 +16,7 @@ const bodySchema = z.object({
     deliveryType: z.nativeEnum(DeliveryType),
     hostelBlock: optionalHostelBlockSchema,
     couponCode: z.string().optional(),
+    campusCode: z.string().min(1).optional(),
     orderSlot: z.nativeEnum(OrderSlot)
   }).superRefine((customer, context) => {
     if (customer.deliveryType === DeliveryType.HOSTEL && !customer.hostelBlock) {

@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { calculateTotals } from "@/lib/money";
+import { resolveCampus } from "@/lib/campus";
 import { generatePasscode, generateTrackingCode, hashPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
 import type { FullOrder } from "@/lib/order-types";
@@ -35,6 +36,9 @@ export type CustomerDetails = {
   hostelBlock?: string;
   couponCode?: string;
   orderSlot?: OrderSlot;
+  // Which campus the order is for. Only the code travels from the client; the fees and
+  // hostel-delivery rule are always re-read from that campus row on the server.
+  campusCode?: string;
 };
 
 // Hostel delivery can be switched off per campus (a new campus may launch gate-only).
@@ -201,11 +205,13 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
   const settings = await getSettings();
   const customerPhone = requireNormalizedPhone(details.phone);
 
+  const campus = await resolveCampus(details.campusCode);
+
   if (!settings.ordersOpen) {
     throw new Error("Orders are closed");
   }
 
-  assertHostelDeliveryAllowed(details.deliveryType, settings.hostelDeliveryEnabled);
+  assertHostelDeliveryAllowed(details.deliveryType, campus.hostelDeliveryEnabled);
   assertOrderingWindowOpen(settings.orderingOpenMinute, settings.orderingCloseMinute);
 
   return prisma.$transaction(async (tx) => {
@@ -234,7 +240,7 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     const couponDiscountPaise = validCoupon
       ? Math.round((resolved.subtotalPaise * validCoupon.discountPercent) / 100)
       : 0;
-    const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, settings, true, couponDiscountPaise);
+    const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, campus, true, couponDiscountPaise);
 
     await upsertOrderCustomer(tx, customerPhone, details);
 
@@ -245,6 +251,7 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
         customerEmail: details.email,
         customerPhone,
         customerId: customerPhone,
+        campusId: campus.id,
         deliveryType: details.deliveryType,
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,
@@ -399,7 +406,8 @@ export async function confirmOnlineOrderByRazorpayOrderId(razorpayOrderId: strin
 export async function createManualOrder(details: CustomerDetails, items: OrderItemInput[], paymentStatus: PaymentStatus) {
   const settings = await getSettings();
   const customerPhone = requireNormalizedPhone(details.phone);
-  assertHostelDeliveryAllowed(details.deliveryType, settings.hostelDeliveryEnabled);
+  const campus = await resolveCampus(details.campusCode);
+  assertHostelDeliveryAllowed(details.deliveryType, campus.hostelDeliveryEnabled);
   const passcode = generatePasscode();
   const passcodeHash = await hashPasscode(passcode);
 
@@ -407,7 +415,7 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
     const session = await getOrCreateCurrentSession();
     const trackingCode = await uniqueTrackingCode(tx);
     const resolved = await resolveItems(tx, items);
-    const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, settings, false);
+    const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, campus, false);
 
     await upsertOrderCustomer(tx, customerPhone, details);
 
@@ -419,6 +427,7 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
         customerEmail: details.email,
         customerPhone,
         customerId: customerPhone,
+        campusId: campus.id,
         deliveryType: details.deliveryType,
         hostelBlock: details.deliveryType === DeliveryType.HOSTEL ? details.hostelBlock : null,
         status: OrderStatus.ORDER_CONFIRMED,

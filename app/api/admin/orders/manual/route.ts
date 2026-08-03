@@ -12,6 +12,7 @@ const schema = z.object({
     phone: z.string().min(8),
     deliveryType: z.nativeEnum(DeliveryType),
     hostelBlock: optionalHostelBlockSchema,
+    campusCode: z.string().min(1).optional(),
     orderSlot: z.nativeEnum(OrderSlot)
   }).superRefine((customer, context) => {
     if (customer.deliveryType === DeliveryType.HOSTEL && !customer.hostelBlock) {

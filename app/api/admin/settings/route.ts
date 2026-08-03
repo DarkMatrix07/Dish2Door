@@ -16,7 +16,6 @@ const schema = z.object({
   orderingOpenMinute: z.number().int().min(0).max(1439).optional(),
   orderingCloseMinute: z.number().int().min(0).max(1439).optional(),
   spinWheelForEveryone: z.boolean().optional(),
-  hostelDeliveryEnabled: z.boolean().optional()
 });
 
 export async function GET() {
