@@ -7,8 +7,6 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Clock3,
   Flame,
   GraduationCap,
@@ -16,6 +14,7 @@ import {
   MapPin,
   Minus,
   MessageCircle,
+  ListFilter,
   Plus,
   Pizza as PizzaIcon,
   Search,
@@ -185,103 +184,105 @@ function VegMark({ isVeg }: { isVeg: boolean | null }) {
   );
 }
 
-function CourseRail({
+function CoursePicker({
   courses,
   activeCourse,
   onChange,
-  counts
+  counts,
+  raised
 }: {
   courses: { id: string; name: string }[];
   activeCourse: string;
   onChange: (courseId: string) => void;
   counts: Record<string, number>;
+  raised: boolean;
 }) {
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const [scrollState, setScrollState] = useState({ left: false, right: false });
-
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail) return;
-
-    const update = () => {
-      setScrollState({
-        left: rail.scrollLeft > 4,
-        right: rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 4
-      });
-    };
-    update();
-    rail.addEventListener("scroll", update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(rail);
-    return () => {
-      rail.removeEventListener("scroll", update);
-      observer.disconnect();
-    };
-  }, [courses]);
-
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail) return;
-    if (activeCourse === "all") {
-      rail.scrollTo({ left: 0, behavior: "smooth" });
-      return;
-    }
-    rail.querySelector<HTMLElement>(`[data-course-id="${activeCourse}"]`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "center"
-    });
-  }, [activeCourse]);
-
+  const [open, setOpen] = useState(false);
   const options = [{ id: "all", name: "All", count: counts.all ?? 0 }, ...courses.map((course) => ({ ...course, count: counts[course.id] ?? 0 }))];
-  const scroll = (direction: -1 | 1) => railRef.current?.scrollBy({ left: direction * Math.min(420, railRef.current.clientWidth * 0.72), behavior: "smooth" });
+  const activeName = options.find((option) => option.id === activeCourse)?.name ?? "All";
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+
+  function pick(courseId: string) {
+    onChange(courseId);
+    setOpen(false);
+    window.setTimeout(() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
 
   return (
-    <div className="relative">
-      <div
-        ref={railRef}
-        role="tablist"
-        aria-label="Menu categories"
-        className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-5 py-3 sm:px-8 lg:px-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    <>
+      <motion.button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        whileTap={{ scale: 0.97 }}
+        className={`fixed right-5 z-40 flex h-12 items-center gap-2 rounded-full bg-[#0B1F33] px-4 text-sm font-black text-white shadow-[0_16px_45px_rgba(11,31,51,0.28)] transition hover:bg-[#E31837] sm:right-6 ${raised ? "bottom-24 sm:bottom-6" : "bottom-5 sm:bottom-6"}`}
       >
-        {options.map((option) => {
-          const selected = activeCourse === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              data-course-id={option.id}
-              onClick={() => onChange(option.id)}
-              className={`group flex h-11 shrink-0 snap-start items-center gap-2 rounded-full border px-4 text-sm font-black transition active:scale-[0.98] ${
-                selected
-                  ? "border-[#0B1F33] bg-[#0B1F33] text-white shadow-[0_8px_20px_rgba(11,31,51,0.16)]"
-                  : "border-[#0B1F33]/10 bg-white text-[#394B5D] hover:border-[#E31837]/35 hover:text-[#E31837]"
-              }`}
-            >
-              {option.name}
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${selected ? "bg-white/14 text-white/85" : "bg-[#0B1F33]/6 text-[#71808f] group-hover:bg-[#E31837]/8 group-hover:text-[#E31837]"}`}>
-                {option.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+        <ListFilter size={17} />
+        Courses
+        <span className="hidden max-w-28 truncate rounded-full bg-white/12 px-2 py-1 text-[10px] text-white/80 sm:block">{activeName}</span>
+      </motion.button>
 
-      <div className={`pointer-events-none absolute inset-y-0 left-0 hidden w-20 bg-gradient-to-r from-[#F6F7F9] via-[#F6F7F9]/90 to-transparent transition-opacity lg:block ${scrollState.left ? "opacity-100" : "opacity-0"}`} />
-      <div className={`pointer-events-none absolute inset-y-0 right-0 hidden w-20 bg-gradient-to-l from-[#F6F7F9] via-[#F6F7F9]/90 to-transparent transition-opacity lg:block ${scrollState.right ? "opacity-100" : "opacity-0"}`} />
-      {scrollState.left ? (
-        <button type="button" aria-label="Previous menu categories" onClick={() => scroll(-1)} className="absolute left-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-[#0B1F33]/10 bg-white text-[#0B1F33] shadow-[0_8px_24px_rgba(11,31,51,0.16)] transition hover:scale-105 lg:grid">
-          <ChevronLeft size={18} />
-        </button>
-      ) : null}
-      {scrollState.right ? (
-        <button type="button" aria-label="More menu categories" onClick={() => scroll(1)} className="absolute right-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-[#0B1F33]/10 bg-white text-[#0B1F33] shadow-[0_8px_24px_rgba(11,31,51,0.16)] transition hover:scale-105 lg:grid">
-          <ChevronRight size={18} />
-        </button>
-      ) : null}
-    </div>
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            className="fixed inset-0 z-[110] flex items-end bg-[#071522]/45 backdrop-blur-[2px] sm:items-end sm:justify-end sm:p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="course-picker-title"
+              initial={{ y: 36, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 28, opacity: 0, scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 360, damping: 34 }}
+              className="w-full overflow-hidden rounded-t-2xl bg-white shadow-[0_30px_100px_rgba(7,21,34,0.32)] sm:max-w-sm sm:rounded-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-[#0B1F33]/8 px-5 py-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#E31837]">Jump to</p>
+                  <h2 id="course-picker-title" className="mt-0.5 text-xl font-black tracking-[-0.03em] text-[#0B1F33]">Choose a course</h2>
+                </div>
+                <button type="button" aria-label="Close courses" onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-full bg-[#F2F4F6] text-[#0B1F33] transition hover:bg-[#E7EBEE]">
+                  <X size={17} />
+                </button>
+              </div>
+              <div className="max-h-[min(64vh,32rem)] overflow-y-auto p-2">
+                {options.map((option) => {
+                  const selected = option.id === activeCourse;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => pick(option.id)}
+                      className={`flex min-h-12 w-full items-center justify-between gap-4 rounded-xl px-4 py-3 text-left transition ${selected ? "bg-[#0B1F33] text-white" : "text-[#0B1F33] hover:bg-[#F2F4F6]"}`}
+                    >
+                      <span className="min-w-0 truncate text-sm font-black">{option.name}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-black tabular-nums ${selected ? "bg-white/12 text-white/80" : "bg-[#0B1F33]/6 text-[#71808f]"}`}>{option.count}</span>
+                        {selected ? <Check size={16} className="text-[#ffcf55]" /> : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -705,13 +706,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
             </label>
           </div>
 
-          {availableCourses.length > 1 ? (
-            <div className="sticky top-[52px] z-30 -mx-5 mt-7 border-y border-[#0B1F33]/8 bg-[#F6F7F9]/96 backdrop-blur-xl sm:-mx-8 lg:-mx-12">
-              <CourseRail courses={availableCourses} activeCourse={activeCourse} onChange={setActiveCourse} counts={courseCounts} />
-            </div>
-          ) : null}
-
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-[#0B1F33]/8 pt-5">
             <div className="flex items-center gap-2" role="group" aria-label="Dietary preference">
               {([
                 ["all", "All food"],
@@ -840,6 +835,16 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
           )}
         </section>
       </div>
+
+      {availableCourses.length > 1 ? (
+        <CoursePicker
+          courses={availableCourses}
+          activeCourse={activeCourse}
+          onChange={setActiveCourse}
+          counts={courseCounts}
+          raised={itemCount > 0 && !checkoutOpen}
+        />
+      ) : null}
 
       <SiteFooter />
 
