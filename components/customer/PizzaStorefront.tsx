@@ -7,6 +7,8 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Flame,
   GraduationCap,
@@ -16,6 +18,7 @@ import {
   MessageCircle,
   Plus,
   Pizza as PizzaIcon,
+  Search,
   ShoppingBag,
   Sparkles,
   X
@@ -182,6 +185,106 @@ function VegMark({ isVeg }: { isVeg: boolean | null }) {
   );
 }
 
+function CourseRail({
+  courses,
+  activeCourse,
+  onChange,
+  counts
+}: {
+  courses: { id: string; name: string }[];
+  activeCourse: string;
+  onChange: (courseId: string) => void;
+  counts: Record<string, number>;
+}) {
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const [scrollState, setScrollState] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+
+    const update = () => {
+      setScrollState({
+        left: rail.scrollLeft > 4,
+        right: rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 4
+      });
+    };
+    update();
+    rail.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(rail);
+    return () => {
+      rail.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [courses]);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    if (activeCourse === "all") {
+      rail.scrollTo({ left: 0, behavior: "smooth" });
+      return;
+    }
+    rail.querySelector<HTMLElement>(`[data-course-id="${activeCourse}"]`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center"
+    });
+  }, [activeCourse]);
+
+  const options = [{ id: "all", name: "All", count: counts.all ?? 0 }, ...courses.map((course) => ({ ...course, count: counts[course.id] ?? 0 }))];
+  const scroll = (direction: -1 | 1) => railRef.current?.scrollBy({ left: direction * Math.min(420, railRef.current.clientWidth * 0.72), behavior: "smooth" });
+
+  return (
+    <div className="relative">
+      <div
+        ref={railRef}
+        role="tablist"
+        aria-label="Menu categories"
+        className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-5 py-3 sm:px-8 lg:px-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {options.map((option) => {
+          const selected = activeCourse === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              data-course-id={option.id}
+              onClick={() => onChange(option.id)}
+              className={`group flex h-11 shrink-0 snap-start items-center gap-2 rounded-full border px-4 text-sm font-black transition active:scale-[0.98] ${
+                selected
+                  ? "border-[#0B1F33] bg-[#0B1F33] text-white shadow-[0_8px_20px_rgba(11,31,51,0.16)]"
+                  : "border-[#0B1F33]/10 bg-white text-[#394B5D] hover:border-[#E31837]/35 hover:text-[#E31837]"
+              }`}
+            >
+              {option.name}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${selected ? "bg-white/14 text-white/85" : "bg-[#0B1F33]/6 text-[#71808f] group-hover:bg-[#E31837]/8 group-hover:text-[#E31837]"}`}>
+                {option.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className={`pointer-events-none absolute inset-y-0 left-0 hidden w-20 bg-gradient-to-r from-[#F6F7F9] via-[#F6F7F9]/90 to-transparent transition-opacity lg:block ${scrollState.left ? "opacity-100" : "opacity-0"}`} />
+      <div className={`pointer-events-none absolute inset-y-0 right-0 hidden w-20 bg-gradient-to-l from-[#F6F7F9] via-[#F6F7F9]/90 to-transparent transition-opacity lg:block ${scrollState.right ? "opacity-100" : "opacity-0"}`} />
+      {scrollState.left ? (
+        <button type="button" aria-label="Previous menu categories" onClick={() => scroll(-1)} className="absolute left-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-[#0B1F33]/10 bg-white text-[#0B1F33] shadow-[0_8px_24px_rgba(11,31,51,0.16)] transition hover:scale-105 lg:grid">
+          <ChevronLeft size={18} />
+        </button>
+      ) : null}
+      {scrollState.right ? (
+        <button type="button" aria-label="More menu categories" onClick={() => scroll(1)} className="absolute right-3 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-[#0B1F33]/10 bg-white text-[#0B1F33] shadow-[0_8px_24px_rgba(11,31,51,0.16)] transition hover:scale-105 lg:grid">
+          <ChevronRight size={18} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaShop; campuses: CampusPublic[]; serverNowMs: number }) {
   // Undetermined until the effect reads localStorage — avoids flashing the "wrong campus"
   // state before we actually know which campus the device is set to.
@@ -201,6 +304,8 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
   const restrictedCampusName = campuses.find((entry) => entry.code === shop.restrictedToCampusCode)?.name ?? shop.restrictedToCampusCode;
 
   const [activeCourse, setActiveCourse] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dietaryFilter, setDietaryFilter] = useState<"all" | "veg" | "nonveg">("all");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -254,7 +359,21 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
       return { key: `${first.courseId}::${first.name}`, name: first.name, description: first.description, imageUrl: first.imageUrl, courseId: first.courseId, sizes };
     });
   }, [shop.menuItems]);
-  const visibleDishes = activeCourse === "all" ? dishes : dishes.filter((dish) => dish.courseId === activeCourse);
+  const courseCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: dishes.length };
+    for (const dish of dishes) counts[dish.courseId] = (counts[dish.courseId] ?? 0) + 1;
+    return counts;
+  }, [dishes]);
+  const visibleDishes = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return dishes.filter((dish) => {
+      if (activeCourse !== "all" && dish.courseId !== activeCourse) return false;
+      if (dietaryFilter === "veg" && !dish.sizes.some((size) => size.isVeg === true)) return false;
+      if (dietaryFilter === "nonveg" && !dish.sizes.some((size) => size.isVeg === false)) return false;
+      if (query && !`${dish.name} ${dish.description ?? ""}`.toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }, [activeCourse, dietaryFilter, dishes, searchQuery]);
 
   // Selected size per dish, keyed by dish.key. Falls back to the cheapest/first size
   // (dishes are pre-sorted by sizeOrder then price) until the shopper picks one.
@@ -562,35 +681,58 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
 
         {/* Menu */}
         <section id="menu" className="scroll-mt-28">
-          <div className="max-w-2xl">
-            <p className="flex items-center gap-2 text-sm font-black text-[#006491]"><PizzaIcon size={16} /> Made for your order</p>
-            <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-[#0B1F33] sm:text-5xl">Choose your favourites</h2>
-            <p className="mt-3 text-sm leading-6 text-[#5A6B7B] sm:text-base">Freshly prepared pizzas and sides, ready for your selected campus slot.</p>
+          <div className="flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
+            <div className="max-w-2xl">
+              <p className="flex items-center gap-2 text-sm font-black text-[#006491]"><PizzaIcon size={16} /> Made for your order</p>
+              <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-[#0B1F33] sm:text-5xl">What are you craving?</h2>
+              <p className="mt-3 text-sm leading-6 text-[#5A6B7B] sm:text-base">Search, swipe through categories, and build your order without losing your place.</p>
+            </div>
+            <label className="relative block w-full lg:max-w-sm">
+              <span className="sr-only">Search the pizza menu</span>
+              <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#71808f]" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search pizzas, sides and more"
+                className="h-12 w-full rounded-xl border border-[#0B1F33]/10 bg-white pl-11 pr-10 text-sm font-bold text-[#0B1F33] outline-none shadow-[0_8px_24px_rgba(11,31,51,0.05)] transition placeholder:font-medium placeholder:text-[#71808f] focus:border-[#E31837]/45 focus:ring-4 focus:ring-[#E31837]/8"
+              />
+              {searchQuery ? (
+                <button type="button" aria-label="Clear menu search" onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[#71808f] transition hover:bg-[#0B1F33]/6 hover:text-[#0B1F33]">
+                  <X size={15} />
+                </button>
+              ) : null}
+            </label>
           </div>
 
           {availableCourses.length > 1 ? (
-            <div className="sticky top-[52px] z-30 -mx-5 mt-5 border-b border-[#0B1F33]/8 bg-[#F6F7F9]/95 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8 lg:-mx-12 lg:px-12">
-              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-                <button
-                  type="button"
-                  onClick={() => setActiveCourse("all")}
-                  className={`shrink-0 rounded-md border px-4 py-2 text-sm font-bold transition ${activeCourse === "all" ? "border-[#0B1F33] bg-[#0B1F33] text-white" : "border-[#0B1F33]/12 bg-white text-[#5A6B7B] hover:border-[#006491] hover:text-[#0B1F33]"}`}
-                >
-                  All
-                </button>
-                {availableCourses.map((course) => (
-                  <button
-                    key={course.id}
-                    type="button"
-                    onClick={() => setActiveCourse(course.id)}
-                    className={`shrink-0 rounded-md border px-4 py-2 text-sm font-bold transition ${activeCourse === course.id ? "border-[#0B1F33] bg-[#0B1F33] text-white" : "border-[#0B1F33]/12 bg-white text-[#5A6B7B] hover:border-[#006491] hover:text-[#0B1F33]"}`}
-                  >
-                    {course.name}
-                  </button>
-                ))}
-              </div>
+            <div className="sticky top-[52px] z-30 -mx-5 mt-7 border-y border-[#0B1F33]/8 bg-[#F6F7F9]/96 backdrop-blur-xl sm:-mx-8 lg:-mx-12">
+              <CourseRail courses={availableCourses} activeCourse={activeCourse} onChange={setActiveCourse} counts={courseCounts} />
             </div>
           ) : null}
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2" role="group" aria-label="Dietary preference">
+              {([
+                ["all", "All food"],
+                ["veg", "Veg"],
+                ["nonveg", "Non-veg"]
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setDietaryFilter(value)}
+                  className={`flex h-9 items-center gap-2 rounded-full border px-3.5 text-xs font-black transition active:scale-[0.98] [&>span]:mt-0 ${dietaryFilter === value ? "border-[#E31837] bg-[#E31837] text-white" : "border-[#0B1F33]/10 bg-white text-[#526476] hover:border-[#E31837]/35 hover:text-[#E31837]"}`}
+                >
+                  {value !== "all" ? <VegMark isVeg={value === "veg"} /> : null}
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs font-bold text-[#71808f]">
+              <span className="font-black tabular-nums text-[#0B1F33]">{visibleDishes.length}</span> {visibleDishes.length === 1 ? "item" : "items"} found
+            </p>
+          </div>
 
           {!shop.menuItems.length ? (
             <div className="mt-8 grid min-h-64 place-items-center rounded-2xl border border-dashed border-[#0B1F33]/15 bg-white px-6 text-center">
@@ -600,8 +742,19 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                 <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5A6B7B]">Check back soon. This kitchen is getting its pizzas ready.</p>
               </div>
             </div>
+          ) : visibleDishes.length === 0 ? (
+            <div className="mt-6 grid min-h-64 place-items-center rounded-2xl border border-dashed border-[#0B1F33]/15 bg-white px-6 text-center">
+              <div>
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-[#E31837]/8 text-[#E31837]"><Search size={22} /></span>
+                <h3 className="mt-5 text-xl font-black text-[#0B1F33]">No matching dishes</h3>
+                <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5A6B7B]">Try another category or clear your search and dietary filters.</p>
+                <button type="button" onClick={() => { setActiveCourse("all"); setDietaryFilter("all"); setSearchQuery(""); }} className="mt-5 h-10 rounded-full bg-[#0B1F33] px-5 text-sm font-black text-white transition hover:bg-[#006491]">
+                  Clear filters
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
               {visibleDishes.map((dish) => {
                 const hasSizes = dish.sizes.length > 1;
                 const selected = selectedSizeOf(dish);
@@ -617,10 +770,10 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     initial={{ opacity: 0, y: 12 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, margin: "-40px" }}
-                    className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_28px_rgba(11,31,51,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(11,31,51,0.12)]"
+                    className="group grid min-w-0 grid-cols-[minmax(0,1fr)_8.75rem] overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_28px_rgba(11,31,51,0.055)] transition duration-300 hover:-translate-y-0.5 hover:border-[#0B1F33]/14 hover:shadow-[0_18px_42px_rgba(11,31,51,0.11)] sm:grid-cols-[minmax(0,1fr)_12rem]"
                   >
-                    <div className="relative overflow-hidden bg-[#edf1f4]">
-                      <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? "/pizza-placeholder.webp"} className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+                    <div className="relative order-2 overflow-hidden bg-[#edf1f4]">
+                      <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? "/pizza-placeholder.webp"} className="h-full min-h-[13.5rem] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
                       {isHotDeal ? (
                         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">
                           <Flame size={12} /> {selected.discountPercent}% off
@@ -629,7 +782,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                         <span className="absolute left-3 top-3 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">{selected.discountPercent}% off</span>
                       ) : null}
                     </div>
-                    <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5">
+                    <div className="order-1 flex min-w-0 flex-col p-4 sm:p-5">
                       <div className="flex items-start gap-2">
                         <VegMark isVeg={selected.isVeg} />
                         <h3 className="text-lg font-black tracking-[-0.025em] text-[#0B1F33]">{dish.name}</h3>
