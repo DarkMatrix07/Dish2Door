@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { SectionCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ type MenuItem = {
   courseId: string;
   course: { name: string };
   sizeLabel: string | null;
+  isVeg: boolean | null;
   sizeOrder: number;
 };
 
@@ -35,12 +36,15 @@ const PLACEHOLDER = "/pizza-placeholder.webp";
 export function PizzaItemsManager({ restaurant: initialRestaurant }: { restaurant: Restaurant }) {
   const [restaurant, setRestaurant] = useState(initialRestaurant);
   const [showCreate, setShowCreate] = useState(false);
-  const [item, setItem] = useState({ name: "", price: "", discountPercent: "0", courseId: "", sizeLabel: "", sizeOrder: "0" });
+  // A dish is entered once with however many size/price rows it actually has. An empty
+  // sizeLabel means "no sizes" — a single plain price, which is the old behaviour.
+  const [item, setItem] = useState({ name: "", discountPercent: "0", courseId: "", isVeg: "veg" });
+  const [sizeRows, setSizeRows] = useState<{ label: string; price: string }[]>([{ label: "", price: "" }]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: "", price: "", discountPercent: "0", courseId: "", sizeLabel: "", sizeOrder: "0" });
+  const [draft, setDraft] = useState({ name: "", price: "", discountPercent: "0", courseId: "", sizeLabel: "", sizeOrder: "0", isVeg: "veg" });
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,7 +98,8 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
       toast.error("Create a course before adding menu items.");
       return;
     }
-    setItem({ name: "", price: "", discountPercent: "0", courseId: restaurant.courses[0]?.id ?? "", sizeLabel: "", sizeOrder: "0" });
+    setItem({ name: "", discountPercent: "0", courseId: restaurant.courses[0]?.id ?? "", isVeg: "veg" });
+    setSizeRows([{ label: "", price: "" }]);
     onNewImage(undefined);
     setShowCreate(true);
   }
@@ -105,28 +110,52 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
       toast.error("Create a course before adding menu items.");
       return;
     }
-    if (!item.name.trim() || !item.price) {
-      toast.error("Enter an item name and price.");
+    if (!item.name.trim()) {
+      toast.error("Enter an item name.");
       return;
     }
+
+    const rows = sizeRows
+      .map((row) => ({ label: row.label.trim(), price: Number(row.price) }))
+      .filter((row) => row.label || row.price);
+
+    if (!rows.length || rows.some((row) => !row.price || row.price <= 0)) {
+      toast.error("Every size needs a price.");
+      return;
+    }
+    if (rows.length > 1 && rows.some((row) => !row.label)) {
+      toast.error("Name each size, or keep just one row for a dish with no sizes.");
+      return;
+    }
+    const labels = rows.map((row) => row.label.toLowerCase());
+    if (new Set(labels).size !== labels.length) {
+      toast.error("Two sizes share the same name.");
+      return;
+    }
+
     setCreating(true);
     try {
+      // Uploaded once and shared by every size, so all rows of a dish look the same.
       const imageUrl = imageFile ? await uploadImage(imageFile) : undefined;
-      await action({
-        action: "item.create",
-        restaurantId: restaurant.id,
-        courseId,
-        name: item.name,
-        pricePaise: Math.round(Number(item.price) * 100),
-        discountPercent: Number(item.discountPercent || 0),
-        imageUrl,
-        sizeLabel: item.sizeLabel.trim() || null,
-        sizeOrder: Number(item.sizeOrder || 0)
-      });
+      for (const [index, row] of rows.entries()) {
+        await action({
+          action: "item.create",
+          restaurantId: restaurant.id,
+          courseId,
+          name: item.name,
+          pricePaise: Math.round(row.price * 100),
+          discountPercent: Number(item.discountPercent || 0),
+          imageUrl,
+          sizeLabel: row.label || null,
+          sizeOrder: index,
+          isVeg: item.isVeg === "veg"
+        });
+      }
       setShowCreate(false);
-      setItem({ name: "", price: "", discountPercent: "0", courseId: "", sizeLabel: "", sizeOrder: "0" });
+      setItem({ name: "", discountPercent: "0", courseId: "", isVeg: "veg" });
+      setSizeRows([{ label: "", price: "" }]);
       onNewImage(undefined);
-      toast.success("Menu item added");
+      toast.success(rows.length > 1 ? `Added ${item.name} in ${rows.length} sizes` : "Menu item added");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not add item");
     } finally {
@@ -146,6 +175,7 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
       discountPercent: String(menuItem.discountPercent),
       courseId: menuItem.courseId,
       sizeLabel: menuItem.sizeLabel ?? "",
+      isVeg: menuItem.isVeg === false ? "nonveg" : "veg",
       sizeOrder: String(menuItem.sizeOrder ?? 0)
     });
   }
@@ -159,7 +189,8 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
       pricePaise: Math.round(Number(draft.price) * 100),
       discountPercent: Number(draft.discountPercent || 0),
       sizeLabel: draft.sizeLabel.trim() || null,
-      sizeOrder: Number(draft.sizeOrder || 0)
+      sizeOrder: Number(draft.sizeOrder || 0),
+      isVeg: draft.isVeg === "veg"
     });
     setEditingId(null);
     toast.success("Menu item updated");
@@ -261,6 +292,10 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
                           <Input type="number" min={0} max={90} value={draft.discountPercent} onChange={(event) => setDraft({ ...draft, discountPercent: event.target.value })} />
                           <Input placeholder="Size (e.g. Regular, Medium, Large)" value={draft.sizeLabel} onChange={(event) => setDraft({ ...draft, sizeLabel: event.target.value })} />
                           <Input type="number" placeholder="Size order" value={draft.sizeOrder} onChange={(event) => setDraft({ ...draft, sizeOrder: event.target.value })} />
+                          <Select value={draft.isVeg} onChange={(event) => setDraft({ ...draft, isVeg: event.target.value })}>
+                            <option value="veg">Veg</option>
+                            <option value="nonveg">Non-veg</option>
+                          </Select>
                         </div>
                       ) : (
                         <>
@@ -336,13 +371,63 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
         <div className="space-y-3">
           <Input placeholder="Item name" value={item.name} onChange={(event) => setItem({ ...item, name: event.target.value })} />
           <div className="grid grid-cols-2 gap-3">
-            <Input type="number" placeholder="Price (INR)" value={item.price} onChange={(event) => setItem({ ...item, price: event.target.value })} />
+            <Select value={item.isVeg} onChange={(event) => setItem({ ...item, isVeg: event.target.value })}>
+              <option value="veg">Veg</option>
+              <option value="nonveg">Non-veg</option>
+            </Select>
             <Input type="number" min={0} max={90} placeholder="Discount %" value={item.discountPercent} onChange={(event) => setItem({ ...item, discountPercent: event.target.value })} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input placeholder="Size (e.g. Regular, Medium, Large)" value={item.sizeLabel} onChange={(event) => setItem({ ...item, sizeLabel: event.target.value })} />
-            <Input type="number" placeholder="Size order" value={item.sizeOrder} onChange={(event) => setItem({ ...item, sizeOrder: event.target.value })} />
+
+          <div className="rounded-xl border border-neutral-200 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#202126]">Sizes &amp; prices</p>
+                <p className="mt-0.5 text-xs text-[#777981]">
+                  Leave the size name blank for a dish sold one way. Sizes differ per dish, so add only what this one has.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSizeRows((rows) => [...rows, { label: "", price: "" }])}
+              >
+                <Plus size={14} /> Add type
+              </Button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {sizeRows.map((row, index) => (
+                <div key={index} className="grid grid-cols-[1fr_7rem_auto] items-center gap-2">
+                  <Input
+                    placeholder={index === 0 ? "Size (e.g. Regular) — optional" : "Size (e.g. Medium)"}
+                    value={row.label}
+                    onChange={(event) =>
+                      setSizeRows((rows) => rows.map((entry, i) => (i === index ? { ...entry, label: event.target.value } : entry)))
+                    }
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="₹ Price"
+                    value={row.price}
+                    onChange={(event) =>
+                      setSizeRows((rows) => rows.map((entry, i) => (i === index ? { ...entry, price: event.target.value } : entry)))
+                    }
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Remove this size"
+                    disabled={sizeRows.length === 1}
+                    onClick={() => setSizeRows((rows) => rows.filter((_, i) => i !== index))}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
+
           <Select value={item.courseId} onChange={(event) => setItem({ ...item, courseId: event.target.value })}>
             <option value="">Select course</option>
             {restaurant.courses.map((course) => (
