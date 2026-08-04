@@ -22,7 +22,7 @@ type Shop = {
 
 type CampusOption = { code: string; name: string };
 
-const PLACEHOLDER = "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=900&q=80";
+const PLACEHOLDER = "/pizza-placeholder.webp";
 
 export function PizzaStoreManager({ initialShop, campuses }: { initialShop: Shop; campuses: CampusOption[] }) {
   const [shop, setShop] = useState(initialShop);

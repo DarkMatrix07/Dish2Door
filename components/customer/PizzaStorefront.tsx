@@ -291,7 +291,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
 
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   const orderingBlocked = !shop.acceptingOrders;
-  const heroImage = shop.imageUrl ?? shop.combos[0]?.imageUrl ?? shop.menuItems[0]?.imageUrl ?? "/dish-placeholder.webp";
+  const heroImage = shop.imageUrl ?? shop.combos[0]?.imageUrl ?? shop.menuItems[0]?.imageUrl ?? "/pizza-placeholder.webp";
 
   function validate() {
     if (orderingBlocked) return toast.error("This shop isn't taking orders right now.");
@@ -520,7 +520,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     className="group relative flex min-w-0 flex-col overflow-hidden rounded-xl bg-white shadow-[0_12px_36px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
                   >
                     <div className="relative">
-                      <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? "/dish-placeholder.webp"} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+                      <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? "/pizza-placeholder.webp"} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
                       {savingsPercent > 0 ? (
                         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#E31837] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-sm">
                           <Flame size={13} /> Save {savingsPercent}%
@@ -620,7 +620,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_28px_rgba(11,31,51,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(11,31,51,0.12)]"
                   >
                     <div className="relative overflow-hidden bg-[#edf1f4]">
-                      <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? "/dish-placeholder.webp"} className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+                      <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? "/pizza-placeholder.webp"} className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
                       {isHotDeal ? (
                         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">
                           <Flame size={12} /> {selected.discountPercent}% off
@@ -769,7 +769,7 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                   <div className="mt-5 space-y-3 border-b border-[#0B1F33]/10 pb-5">
                     {cart.map((line) => (
                       <div key={line.key} className="flex items-center gap-3">
-                        <img loading="lazy" decoding="async" alt={line.name} src={line.imageUrl ?? "/dish-placeholder.webp"} className="h-12 w-12 rounded-lg object-cover" />
+                        <img loading="lazy" decoding="async" alt={line.name} src={line.imageUrl ?? "/pizza-placeholder.webp"} className="h-12 w-12 rounded-lg object-cover" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-bold">{line.name}</p>
                           <p className="text-xs text-[#5A6B7B]">{formatPaise(line.unitPricePaise)} each</p>

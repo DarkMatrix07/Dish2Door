@@ -30,7 +30,7 @@ type Restaurant = {
   menuItems: MenuItem[];
 };
 
-const PLACEHOLDER = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80";
+const PLACEHOLDER = "/pizza-placeholder.webp";
 
 export function PizzaItemsManager({ restaurant: initialRestaurant }: { restaurant: Restaurant }) {
   const [restaurant, setRestaurant] = useState(initialRestaurant);
