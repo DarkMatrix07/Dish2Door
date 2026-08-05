@@ -4,9 +4,9 @@ const INDIA_TIME_ZONE = "Asia/Kolkata";
 
 export const ORDER_SLOT_DETAILS = {
   AFTERNOON: {
-    cutoffMinutes: 13 * 60,
-    cutoffLabel: "Order before 1:00 PM",
-    deliveryLabel: "Deliver by 2:00 PM",
+    cutoffMinutes: 12 * 60,
+    cutoffLabel: "Order before 12:00 PM",
+    deliveryLabel: "Deliver by 1:40 PM",
   },
   NIGHT: {
     cutoffMinutes: 17 * 60 + 45,
