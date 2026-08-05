@@ -30,7 +30,9 @@ export default async function AdminDashboardPage() {
     campusRevenue
   ] = await Promise.all([
     getSettings(),
-    prisma.order.count(),
+    // WhatsApp orders an admin hasn't accepted yet aren't orders yet — every other
+    // stat on this page filters by status, so this one must too.
+    prisma.order.count({ where: { status: { not: "AWAITING_CONFIRMATION" } } }),
     prisma.order.count({ where: { status: "ORDER_CONFIRMED" } }),
     prisma.order.count({ where: { status: "REACHED_CAMPUS" } }),
     prisma.order.count({ where: { deliveryType: "HOSTEL", deliveryReleased: true, status: "REACHED_CAMPUS" } }),

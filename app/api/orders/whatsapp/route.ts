@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createWhatsAppOrder } from "@/lib/orders";
 import { assertOrderSlotAvailable, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
+import { rateLimit } from "@/lib/rate-limit";
 import {
   buildWhatsAppOrderLink,
   buildWhatsAppOrderMessage,
@@ -44,9 +45,24 @@ const bodySchema = z.object({
     .min(1)
 });
 
+// Unlike the online path there is no payment step gating this endpoint, so each POST
+// writes a real order row straight into the admin's confirmation queue. Cap it per
+// phone number: a genuine customer places one order, not six in ten minutes.
+const MAX_ORDERS = 5;
+const WINDOW_MS = 10 * 60 * 1000;
+
 export async function POST(request: Request) {
   try {
     const body = bodySchema.parse(await request.json());
+
+    const phoneKey = body.customer.phone.replace(/\D/g, "").slice(-10);
+    if (!rateLimit(`whatsapp-order:${phoneKey}`, MAX_ORDERS, WINDOW_MS)) {
+      return NextResponse.json(
+        { error: "Too many orders from this number. Please wait a few minutes and try again." },
+        { status: 429 }
+      );
+    }
+
     assertOrderSlotAvailable(body.customer.orderSlot);
 
     const { order, shop, campus } = await createWhatsAppOrder(body.customer, body.items);

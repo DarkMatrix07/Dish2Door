@@ -323,6 +323,25 @@ export async function cleanupStalePendingOrders() {
   return result.count;
 }
 
+// The same problem on the WhatsApp path: the order row is written when the customer
+// taps "Place order", BEFORE they send anything on WhatsApp. Abandon it there and the
+// row would sit in the confirmation queue forever. The window is much longer than the
+// online one because a real customer has to leave the site, land in WhatsApp and send
+// the message — and the admin then has to actually read it.
+export const AWAITING_CONFIRMATION_TTL_MS = 6 * 60 * 60 * 1000;
+
+export async function cleanupStaleWhatsAppOrders() {
+  const cutoff = new Date(Date.now() - AWAITING_CONFIRMATION_TTL_MS);
+  const result = await prisma.order.deleteMany({
+    where: {
+      source: OrderSource.CUSTOMER_WHATSAPP,
+      status: OrderStatus.AWAITING_CONFIRMATION,
+      createdAt: { lt: cutoff }
+    }
+  });
+  return result.count;
+}
+
 // Idempotent: safe to call from the browser verify-payment path AND the Razorpay
 // webhook. The first caller to flip PENDING -> PAID_ONLINE "wins" (atomic conditional
 // update) and runs the one-time side effects (coupon increment + notification). Any
@@ -476,13 +495,14 @@ export async function createManualOrder(details: CustomerDetails, items: OrderIt
 // AWAITING_CONFIRMATION and stays out of the kitchen and delivery lists until an admin
 // accepts it. No payment-handling fee is charged because no gateway is involved.
 export async function createWhatsAppOrder(details: CustomerDetails, items: OrderItemInput[]) {
-  const settings = await getSettings();
   const customerPhone = requireNormalizedPhone(details.phone);
   const campus = await resolveCampus(details.campusCode);
 
-  if (!settings.ordersOpen) throw new Error("Orders are closed");
+  // Deliberately NOT gated on the global settings.ordersOpen / ordering window: a
+  // WhatsApp shop keeps its own hours through its `acceptingOrders` toggle (checked
+  // below). Otherwise the shop would render as open while every checkout failed.
+  // Delivery slot cutoffs still apply — the caller checks those.
   assertHostelDeliveryAllowed(details.deliveryType, campus, details.orderSlot);
-  assertOrderingWindowOpen(settings.orderingOpenMinute, settings.orderingCloseMinute);
 
   return prisma.$transaction(async (tx) => {
     const session = await getOrCreateCurrentSession();
@@ -552,11 +572,16 @@ export async function confirmWhatsAppOrder(orderId: string) {
   return order;
 }
 
+// Sweeps the day's confirmed orders to REACHED_CAMPUS in one click. WhatsApp-mode
+// shops are excluded: they run their own handover flow, so a sweep from the main
+// dashboard must not advance them (or fire their notifications). Those orders are
+// moved individually from the per-order controls on the Orders page.
 export async function markAllReachedCampus() {
   const activeOrders = await prisma.order.findMany({
     where: {
       status: OrderStatus.ORDER_CONFIRMED,
-      paymentStatus: { in: [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY, PaymentStatus.UNPAID] }
+      paymentStatus: { in: [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY, PaymentStatus.UNPAID] },
+      restaurant: { orderMode: "ONLINE_PAYMENT" }
     },
     select: { id: true }
   });
@@ -710,7 +735,11 @@ export async function cancelOrder(orderId: string, refund: boolean) {
   const existing = await prisma.order.findFirst({
     where: {
       id: orderId,
-      status: { in: [OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] }
+      // AWAITING_CONFIRMATION belongs here too: rejecting a WhatsApp order that an
+      // admin never accepted is a cancellation, and it is the only way to clear one.
+      status: {
+        in: [OrderStatus.AWAITING_CONFIRMATION, OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS]
+      }
     }
   });
   if (!existing) {

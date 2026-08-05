@@ -69,8 +69,26 @@ export function buildWhatsAppOrderMessage(order: WhatsAppOrderSummary) {
     .join("\n");
 }
 
+// Every shop number we deal with is an Indian mobile, so a bare 10-digit number is
+// normalised to 91XXXXXXXXXX. wa.me resolves a number WITHOUT a country code against
+// the viewer's own locale, which fails or opens the wrong contact — the country code
+// is not optional. Returns null when the input is not a usable Indian mobile.
+export function normalizeIndianWhatsAppNumber(input: string): string | null {
+  const digits = input.replace(/\D/g, "");
+  // Tolerate 0-prefixed local dialling (09876543210) and an existing 91 / +91.
+  const local = digits.startsWith("91") && digits.length === 12
+    ? digits.slice(2)
+    : digits.startsWith("0") && digits.length === 11
+      ? digits.slice(1)
+      : digits;
+
+  if (!/^[6-9]\d{9}$/.test(local)) return null;
+  return `91${local}`;
+}
+
 export function buildWhatsAppOrderLink(message: string, phoneNumber = SUPPORT_WHATSAPP_NUMBER) {
-  // wa.me needs the number without "+" and the text percent-encoded.
-  const digits = phoneNumber.replace(/\D/g, "");
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  // wa.me needs the number without "+" and the text percent-encoded. Fall back to the
+  // support line rather than building a link to a number WhatsApp cannot resolve.
+  const number = normalizeIndianWhatsAppNumber(phoneNumber) ?? SUPPORT_WHATSAPP_NUMBER;
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
