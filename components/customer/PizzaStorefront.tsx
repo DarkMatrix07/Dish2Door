@@ -26,10 +26,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { SiteNav } from "@/components/customer/SiteNav";
-import { HostelPicker } from "@/components/customer/HostelPicker";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
 import { readStoredIdentity, writeStoredIdentity } from "@/lib/customer-identity";
-import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
 type PizzaMenuItem = {
@@ -286,7 +284,7 @@ function CoursePicker({
   );
 }
 
-export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaShop; campuses: CampusPublic[]; serverNowMs: number }) {
+export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses: CampusPublic[] }) {
   // Undetermined until the effect reads localStorage — avoids flashing the "wrong campus"
   // state before we actually know which campus the device is set to.
   const [campusCode, setCampusCode] = useState<string | null>(null);
@@ -311,38 +309,16 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ trackingCode: string; totalPaise: number; whatsappUrl: string } | null>(null);
-  const [customer, setCustomer] = useState({ name: "", email: "", phone: "", deliveryType: "GATE" as "GATE" | "HOSTEL", hostelBlock: "", orderSlot: "AFTERNOON" as "AFTERNOON" | "NIGHT" | "" });
-  const [clockOffsetMs] = useState(() => serverNowMs - Date.now());
-  const [indiaMinutes, setIndiaMinutes] = useState<number | null>(null);
+  // No order slot on this shop: the WhatsApp thread is where timing gets agreed, so
+  // the checkout never asks for Afternoon/Night. Hostel delivery goes with it — it is
+  // only permitted on the night slot, which no longer exists here — leaving campus
+  // gate pickup as the single drop-off.
+  const [customer, setCustomer] = useState({ name: "", email: "", phone: "" });
 
   useEffect(() => {
     const stored = readStoredIdentity();
     if (stored) setCustomer((current) => ({ ...current, name: stored.name, email: stored.email, phone: stored.phone }));
   }, []);
-
-  useEffect(() => {
-    const update = () => setIndiaMinutes(getIndiaMinutes(new Date(Date.now() + clockOffsetMs)));
-    update();
-    const timer = window.setInterval(update, 30_000);
-    return () => window.clearInterval(timer);
-  }, [clockOffsetMs]);
-
-  const hostelIsNightOnly = Boolean(campus?.hostelDeliveryEnabled && campus.hostelDeliveryNightOnly);
-  const nightSlotClosed = indiaMinutes !== null && indiaMinutes >= ORDER_SLOT_DETAILS.NIGHT.cutoffMinutes;
-
-  useEffect(() => {
-    if (!hostelIsNightOnly) return;
-    setCustomer((current) =>
-      current.deliveryType === "HOSTEL" && current.orderSlot !== "NIGHT"
-        ? { ...current, orderSlot: nightSlotClosed ? "" : "NIGHT" }
-        : current
-    );
-  }, [hostelIsNightOnly, nightSlotClosed]);
-
-  useEffect(() => {
-    if (!campus || campus.hostelDeliveryEnabled) return;
-    setCustomer((current) => (current.deliveryType === "HOSTEL" ? { ...current, deliveryType: "GATE", hostelBlock: "" } : current));
-  }, [campus]);
 
   const availableCourses = shop.courses.filter((course) => shop.menuItems.some((item) => item.courseId === course.id));
 
@@ -405,9 +381,9 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
   const totals = useMemo(() => {
     const subtotalPaise = cart.reduce((sum, line) => sum + line.unitPricePaise * line.quantity, 0);
     const platformFeePaise = campus?.platformFeePaise ?? 0;
-    const hostelFeePaise = customer.deliveryType === "HOSTEL" ? campus?.hostelDeliveryFeePaise ?? 0 : 0;
-    return { subtotalPaise, platformFeePaise, hostelFeePaise, totalPaise: subtotalPaise + platformFeePaise + hostelFeePaise };
-  }, [cart, campus, customer.deliveryType]);
+    // Gate pickup only, so there is never a hostel delivery fee on this shop.
+    return { subtotalPaise, platformFeePaise, hostelFeePaise: 0, totalPaise: subtotalPaise + platformFeePaise };
+  }, [cart, campus]);
 
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   const orderingBlocked = !shop.acceptingOrders;
@@ -420,10 +396,6 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
     if (customer.name.trim().length < 2) return toast.error("Please enter your name.");
     if (!/^[6-9]\d{9}$/.test(customer.phone.replace(/\D/g, "").slice(-10))) return toast.error("Enter a valid 10-digit Indian mobile number.");
     if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address, or leave it blank.");
-    if (customer.deliveryType === "HOSTEL" && !campus.hostelDeliveryEnabled) return toast.error("Hostel delivery is coming soon here. Please choose gate pickup.");
-    if (customer.deliveryType === "HOSTEL" && hostelIsNightOnly && customer.orderSlot !== "NIGHT") return toast.error("Hostel delivery runs on night orders only.");
-    if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Select your hostel block.");
-    if (!customer.orderSlot) return toast.error("Ordering has closed for today's slots.");
     return true;
   }
 
@@ -439,10 +411,8 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
             name: customer.name.trim(),
             email: customer.email.trim() || undefined,
             phone: customer.phone.trim(),
-            deliveryType: customer.deliveryType,
-            hostelBlock: customer.deliveryType === "HOSTEL" ? customer.hostelBlock : undefined,
-            campusCode: campus.code,
-            orderSlot: customer.orderSlot
+            deliveryType: "GATE",
+            campusCode: campus.code
           },
           items: cart.map((line) => (line.kind === "combo" ? { comboId: line.id, quantity: line.quantity } : { menuItemId: line.id, quantity: line.quantity }))
         })
@@ -954,65 +924,17 @@ export function PizzaStorefront({ shop, campuses, serverNowMs }: { shop: PizzaSh
                     <label className="text-sm font-bold sm:col-span-2">Email (optional)<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} placeholder="you@example.com" /></label>
                   </div>
 
-                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                    {[{ value: "GATE", title: "Campus gate", copy: "Meet us at the campus gate" }, { value: "HOSTEL", title: "Your hostel", copy: hostelIsNightOnly ? "Night orders only" : "We bring it to your block" }].map((option) => {
-                      const locked = option.value === "HOSTEL" && !campus?.hostelDeliveryEnabled;
-                      const selected = customer.deliveryType === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          disabled={locked}
-                          aria-disabled={locked}
-                          onClick={() => { if (locked) return; setCustomer({ ...customer, deliveryType: option.value as "GATE" | "HOSTEL", hostelBlock: option.value === "HOSTEL" ? customer.hostelBlock : "" }); }}
-                          className={`relative rounded-xl border p-4 text-left transition ${locked ? "cursor-not-allowed border-[#0B1F33]/8 bg-[#F6F7F9] text-[#5A6B7B]/50" : selected ? "border-[#E31837] bg-[#E31837] text-white" : "border-[#0B1F33]/15 bg-white hover:border-[#006491]"}`}
-                        >
-                          <MapPin size={18} className={locked ? "text-[#5A6B7B]/40" : selected ? "text-white" : "text-[#006491]"} />
-                          <span className="mt-3 block text-sm font-black">{option.title}</span>
-                          <span className={`mt-0.5 block text-xs ${locked ? "text-[#5A6B7B]/50" : selected ? "text-white/80" : "text-[#5A6B7B]"}`}>{locked ? "Coming soon" : option.copy}</span>
-                          {locked ? <span className="absolute right-2.5 top-2.5 rounded-full bg-[#0B1F33]/8 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#5A6B7B]">Soon</span> : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <AnimatePresence>
-                    {customer.deliveryType === "HOSTEL" ? (
-                      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-4">
-                        <div className="pizza-hostel-picker"><HostelPicker value={customer.hostelBlock} onChange={(hostelBlock) => setCustomer({ ...customer, hostelBlock })} /></div>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-
-                  <div className="mt-6">
-                    <p className="text-sm font-bold">Order slot</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {([
-                        { value: "AFTERNOON", label: "Afternoon", ...ORDER_SLOT_DETAILS.AFTERNOON },
-                        { value: "NIGHT", label: "Night", ...ORDER_SLOT_DETAILS.NIGHT }
-                      ] as const).map((slot) => {
-                        const blockedByHostel = customer.deliveryType === "HOSTEL" && hostelIsNightOnly && slot.value !== "NIGHT";
-                        const unavailable = blockedByHostel || indiaMinutes === null || indiaMinutes >= slot.cutoffMinutes;
-                        return (
-                          <button
-                            key={slot.value}
-                            type="button"
-                            disabled={unavailable}
-                            onClick={() => setCustomer({ ...customer, orderSlot: slot.value })}
-                            className={`relative min-h-20 rounded-xl border px-3 py-3 text-left transition ${unavailable ? "cursor-not-allowed border-[#0B1F33]/8 bg-[#F6F7F9] text-[#5A6B7B]/50" : customer.orderSlot === slot.value ? "border-[#E31837] bg-[#E31837] text-white" : "border-[#0B1F33]/15 bg-white text-[#0B1F33] hover:border-[#006491]"}`}
-                          >
-                            <span className="block text-sm font-black">{slot.label}</span>
-                            <span className={`mt-1 block text-[11px] font-medium leading-4 ${unavailable ? "text-[#5A6B7B]/50" : customer.orderSlot === slot.value ? "text-white/80" : "text-[#5A6B7B]"}`}>{slot.cutoffLabel}</span>
-                          </button>
-                        );
-                      })}
+                  <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#0B1F33]/15 bg-white p-4">
+                    <MapPin size={18} className="mt-0.5 shrink-0 text-[#006491]" />
+                    <div>
+                      <p className="text-sm font-black">Campus gate pickup</p>
+                      <p className="mt-0.5 text-xs text-[#5A6B7B]">We'll agree the handover time with you on WhatsApp.</p>
                     </div>
                   </div>
 
                   <div className="mt-7 space-y-2 rounded-xl border border-[#0B1F33]/10 bg-[#F6F7F9] p-4 text-sm">
                     <div className="flex justify-between text-[#5A6B7B]"><span>Items subtotal</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.subtotalPaise)}</span></div>
                     <div className="flex justify-between text-[#5A6B7B]"><span>Platform fee</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.platformFeePaise)}</span></div>
-                    {customer.deliveryType === "HOSTEL" ? <div className="flex justify-between text-[#5A6B7B]"><span>Hostel delivery</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.hostelFeePaise)}</span></div> : null}
                     <div className="flex justify-between border-t border-[#0B1F33]/10 pt-2 text-base font-black text-[#0B1F33]"><span>Total</span><span className="tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
                     <p className="pt-1 text-xs leading-5 text-[#5A6B7B]/80">No online payment here. Pay by cash or UPI when your order is handed over.</p>
                   </div>

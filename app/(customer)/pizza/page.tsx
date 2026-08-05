@@ -116,10 +116,6 @@ export default async function PizzaPage() {
   }
 
   return (
-    <PizzaStorefront
-      shop={shop}
-      campuses={campuses.map(toPublicCampus)}
-      serverNowMs={Date.now()}
-    />
+    <PizzaStorefront shop={shop} campuses={campuses.map(toPublicCampus)} />
   );
 }

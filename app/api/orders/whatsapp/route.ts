@@ -23,7 +23,8 @@ const bodySchema = z.object({
       deliveryType: z.nativeEnum(DeliveryType),
       hostelBlock: optionalHostelBlockSchema,
       campusCode: z.string().min(1).optional(),
-      orderSlot: z.nativeEnum(OrderSlot)
+      // Optional: a WhatsApp shop can run without slots and agree timing in the chat.
+      orderSlot: z.nativeEnum(OrderSlot).optional()
     })
     .superRefine((customer, context) => {
       if (customer.deliveryType === DeliveryType.HOSTEL && !customer.hostelBlock) {
@@ -63,7 +64,8 @@ export async function POST(request: Request) {
       );
     }
 
-    assertOrderSlotAvailable(body.customer.orderSlot);
+    // Only enforce a cutoff when the shop actually asked for a slot.
+    if (body.customer.orderSlot) assertOrderSlotAvailable(body.customer.orderSlot);
 
     const { order, shop, campus } = await createWhatsAppOrder(body.customer, body.items);
 
