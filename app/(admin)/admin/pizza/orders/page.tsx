@@ -36,6 +36,7 @@ export default async function PizzaOrdersPage() {
     subtotalPaise: order.subtotalPaise,
     platformFeePaise: order.platformFeePaise,
     hostelFeePaise: order.hostelFeePaise,
+    taxPaise: order.taxPaise,
     couponDiscountPaise: order.couponDiscountPaise,
     totalPaise: order.totalPaise,
     createdAt: order.createdAt.toISOString(),

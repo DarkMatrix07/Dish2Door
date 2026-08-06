@@ -23,6 +23,7 @@ type Order = {
   subtotalPaise: number;
   platformFeePaise: number;
   hostelFeePaise: number;
+  taxPaise: number;
   couponDiscountPaise: number;
   totalPaise: number;
   createdAt: string;
@@ -106,6 +107,12 @@ export function PizzaOrdersQueue({ orders: initialOrders }: { orders: Order[] })
                     <span>Subtotal</span>
                     <span className="tabular-nums">{formatPaise(order.subtotalPaise)}</span>
                   </div>
+                  {order.taxPaise ? (
+                    <div className="flex items-center justify-between text-neutral-500">
+                      <span>GST (5%)</span>
+                      <span className="tabular-nums">{formatPaise(order.taxPaise)}</span>
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between text-neutral-500">
                     <span>Platform fee</span>
                     <span className="tabular-nums">{formatPaise(order.platformFeePaise)}</span>

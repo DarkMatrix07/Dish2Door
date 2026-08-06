@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
+import { calculateGst, GST_RATE_BPS } from "@/lib/money";
 import { readStoredIdentity, writeStoredIdentity } from "@/lib/customer-identity";
 import { formatPaise } from "@/lib/utils";
 
@@ -381,8 +382,10 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
   const totals = useMemo(() => {
     const subtotalPaise = cart.reduce((sum, line) => sum + line.unitPricePaise * line.quantity, 0);
     const platformFeePaise = campus?.platformFeePaise ?? 0;
+    // Mirrors the server's calculateTotals — the saved order is still authoritative.
+    const taxPaise = calculateGst(subtotalPaise, GST_RATE_BPS);
     // Gate pickup only, so there is never a hostel delivery fee on this shop.
-    return { subtotalPaise, platformFeePaise, hostelFeePaise: 0, totalPaise: subtotalPaise + platformFeePaise };
+    return { subtotalPaise, platformFeePaise, hostelFeePaise: 0, taxPaise, totalPaise: subtotalPaise + platformFeePaise + taxPaise };
   }, [cart, campus]);
 
   const itemCount = cart.reduce((sum, line) => sum + line.quantity, 0);
@@ -934,6 +937,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
 
                   <div className="mt-7 space-y-2 rounded-xl border border-[#0B1F33]/10 bg-[#F6F7F9] p-4 text-sm">
                     <div className="flex justify-between text-[#5A6B7B]"><span>Items subtotal</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.subtotalPaise)}</span></div>
+                    <div className="flex justify-between text-[#5A6B7B]"><span>GST (5%)</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.taxPaise)}</span></div>
                     <div className="flex justify-between text-[#5A6B7B]"><span>Platform fee</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.platformFeePaise)}</span></div>
                     <div className="flex justify-between border-t border-[#0B1F33]/10 pt-2 text-base font-black text-[#0B1F33]"><span>Total</span><span className="tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
                     <p className="pt-1 text-xs leading-5 text-[#5A6B7B]/80">No online payment here. Pay by cash or UPI when your order is handed over.</p>

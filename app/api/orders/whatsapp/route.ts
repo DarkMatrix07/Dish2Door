@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       subtotalPaise: order.subtotalPaise,
       platformFeePaise: order.platformFeePaise,
       hostelFeePaise: order.hostelFeePaise,
+      taxPaise: order.taxPaise,
       totalPaise: order.totalPaise
     });
 

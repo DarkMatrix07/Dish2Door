@@ -18,6 +18,7 @@ export type WhatsAppOrderSummary = {
   subtotalPaise: number;
   platformFeePaise: number;
   hostelFeePaise: number;
+  taxPaise?: number;
   totalPaise: number;
 };
 
@@ -34,6 +35,7 @@ export function buildWhatsAppOrderMessage(order: WhatsAppOrderSummary) {
 
   const bill = [
     `Items: ${rupees(order.subtotalPaise)}`,
+    order.taxPaise && order.taxPaise > 0 ? `GST (5%): ${rupees(order.taxPaise)}` : null,
     order.platformFeePaise > 0 ? `Platform fee: ${rupees(order.platformFeePaise)}` : null,
     order.hostelFeePaise > 0 ? `Hostel delivery: ${rupees(order.hostelFeePaise)}` : null,
     `*Total: ${rupees(order.totalPaise)}*`

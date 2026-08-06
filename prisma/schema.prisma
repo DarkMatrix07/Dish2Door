@@ -276,6 +276,7 @@ model Order {
   couponCode            String?
   couponDiscountPaise   Int          @default(0)
   paymentFeePaise       Int          @default(0)
+  taxPaise              Int          @default(0)
   totalPaise            Int
   deliveryReleased      Boolean      @default(false)
   releasedAt            DateTime?

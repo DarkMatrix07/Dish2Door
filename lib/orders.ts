@@ -8,7 +8,7 @@ import {
   Prisma
 } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { calculateTotals } from "@/lib/money";
+import { calculateTotals, GST_RATE_BPS } from "@/lib/money";
 import { resolveCampus } from "@/lib/campus";
 import { generatePasscode, generateTrackingCode, hashPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
@@ -517,8 +517,9 @@ export async function createWhatsAppOrder(details: CustomerDetails, items: Order
       throw new Error(`${shop.name} does not deliver to ${campus.name} yet.`);
     }
 
-    // includePaymentFee = false: nothing goes through Razorpay on this path.
-    const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, campus, false);
+    // includePaymentFee = false: nothing goes through Razorpay on this path. GST is
+    // charged here (and only here) — this shop bills like a restaurant.
+    const totals = calculateTotals(resolved.subtotalPaise, details.deliveryType, campus, false, 0, GST_RATE_BPS);
 
     await upsertOrderCustomer(tx, customerPhone, details);
 
