@@ -3,7 +3,15 @@
 
 export const SUPPORT_WHATSAPP_NUMBER = "916302250978";
 
-export type WhatsAppOrderLine = { name: string; quantity: number; linePaise: number };
+export type WhatsAppOrderLine = {
+  name: string;
+  quantity: number;
+  unitPricePaise: number;
+  linePaise: number;
+  // null when we cannot tell — a combo, or an item with no diet flag set. Those are
+  // listed under their own heading rather than guessed at.
+  isVeg?: boolean | null;
+};
 
 export type WhatsAppOrderSummary = {
   shopName: string;
@@ -28,17 +36,47 @@ function rupees(paise: number) {
   return `₹${Number.isInteger(value) ? value : value.toFixed(2)}`;
 }
 
+function countOf(lines: WhatsAppOrderLine[]) {
+  return lines.reduce((total, line) => total + line.quantity, 0);
+}
+
+// The unit price is only worth repeating when more than one was ordered — otherwise
+// it just restates the line total.
+function itemLine(line: WhatsAppOrderLine) {
+  const each = line.quantity > 1 ? ` _(${rupees(line.unitPricePaise)} each)_` : "";
+  return `• ${line.quantity} × ${line.name} — ${rupees(line.linePaise)}${each}`;
+}
+
+// Grouped veg / non-veg so whoever places the order at the counter sees the split at
+// a glance. A group is only printed when it has something in it, so an all-veg order
+// never carries an empty "Non-veg" heading.
+function itemSection(lines: WhatsAppOrderLine[]) {
+  const veg = lines.filter((line) => line.isVeg === true);
+  const nonVeg = lines.filter((line) => line.isVeg === false);
+  const unknown = lines.filter((line) => line.isVeg !== true && line.isVeg !== false);
+
+  // Nothing is marked, so grouping would add headings without adding information.
+  if (!veg.length && !nonVeg.length) return lines.map(itemLine).join("\n");
+
+  return [
+    veg.length ? `🟢 *VEG (${countOf(veg)})*\n${veg.map(itemLine).join("\n")}` : null,
+    nonVeg.length ? `🔴 *NON-VEG (${countOf(nonVeg)})*\n${nonVeg.map(itemLine).join("\n")}` : null,
+    unknown.length ? `⚪ *COMBOS & OTHER (${countOf(unknown)})*\n${unknown.map(itemLine).join("\n")}` : null
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export function buildWhatsAppOrderMessage(order: WhatsAppOrderSummary) {
-  const items = order.lines
-    .map((line) => `• ${line.quantity} × ${line.name} — ${rupees(line.linePaise)}`)
-    .join("\n");
+  const totalUnits = countOf(order.lines);
+  const items = itemSection(order.lines);
 
   const bill = [
     `Items: ${rupees(order.subtotalPaise)}`,
     order.taxPaise && order.taxPaise > 0 ? `GST (5%): ${rupees(order.taxPaise)}` : null,
     order.platformFeePaise > 0 ? `Platform fee: ${rupees(order.platformFeePaise)}` : null,
     order.hostelFeePaise > 0 ? `Hostel delivery: ${rupees(order.hostelFeePaise)}` : null,
-    `*Total: ${rupees(order.totalPaise)}*`
+    `*TOTAL: ${rupees(order.totalPaise)}*`
   ]
     .filter(Boolean)
     .join("\n");
@@ -49,18 +87,20 @@ export function buildWhatsAppOrderMessage(order: WhatsAppOrderSummary) {
       : "Campus gate pickup";
 
   return [
-    `*New ${order.shopName} order*`,
+    `*NEW ${order.shopName.toUpperCase()} ORDER*`,
     `Order code: *${order.trackingCode}*`,
     "",
-    "*Items*",
+    `*ITEMS — ${totalUnits} ${totalUnits === 1 ? "item" : "items"}*`,
     items,
     "",
-    "*Bill*",
+    "*BILL*",
     bill,
     "",
-    "*Delivery*",
+    "*CUSTOMER*",
     `Name: ${order.customerName}`,
     `Phone: ${order.customerPhone}`,
+    "",
+    "*DELIVERY*",
     `Campus: ${order.campusName}`,
     dropOff,
     order.slotLabel ? `Slot: ${order.slotLabel}` : null,

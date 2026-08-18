@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DeliveryType, OrderSlot } from "@prisma/client";
 import { z } from "zod";
+import { prisma } from "@/lib/db";
 import { createWhatsAppOrder } from "@/lib/orders";
 import { assertOrderSlotAvailable, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
@@ -69,6 +70,15 @@ export async function POST(request: Request) {
 
     const { order, shop, campus } = await createWhatsAppOrder(body.customer, body.items);
 
+    // Diet flags for the veg / non-veg split in the message. Read from the menu rather
+    // than the order line, which only snapshots the name and price. Combo lines carry
+    // no menuItemId and stay unmarked rather than being guessed at.
+    const menuItemIds = order.items.map((item) => item.menuItemId).filter((id): id is string => Boolean(id));
+    const dietFlags = menuItemIds.length
+      ? await prisma.menuItem.findMany({ where: { id: { in: menuItemIds } }, select: { id: true, isVeg: true } })
+      : [];
+    const vegById = new Map(dietFlags.map((item) => [item.id, item.isVeg]));
+
     const message = buildWhatsAppOrderMessage({
       shopName: shop.name,
       trackingCode: order.trackingCode,
@@ -81,7 +91,9 @@ export async function POST(request: Request) {
       lines: order.items.map((item) => ({
         name: item.nameSnapshot,
         quantity: item.quantity,
-        linePaise: item.linePaise
+        unitPricePaise: item.pricePaise,
+        linePaise: item.linePaise,
+        isVeg: item.menuItemId ? vegById.get(item.menuItemId) ?? null : null
       })),
       subtotalPaise: order.subtotalPaise,
       platformFeePaise: order.platformFeePaise,

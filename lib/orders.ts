@@ -198,7 +198,9 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
     const unit = Math.round(item.pricePaise * (1 - item.discountPercent / 100));
     return {
       menuItemId: item.id,
-      nameSnapshot: item.name,
+      // Sized items share one name across their rows ("Margherita" x Regular/Medium/
+      // Large), so without the label the order line says nothing about what to make.
+      nameSnapshot: item.sizeLabel ? `${item.name} (${item.sizeLabel})` : item.name,
       pricePaise: unit,
       quantity,
       linePaise: unit * quantity
