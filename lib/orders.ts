@@ -327,10 +327,13 @@ export async function cleanupStalePendingOrders() {
 
 // The same problem on the WhatsApp path: the order row is written when the customer
 // taps "Place order", BEFORE they send anything on WhatsApp. Abandon it there and the
-// row would sit in the confirmation queue forever. The window is much longer than the
-// online one because a real customer has to leave the site, land in WhatsApp and send
-// the message — and the admin then has to actually read it.
-export const AWAITING_CONFIRMATION_TTL_MS = 6 * 60 * 60 * 1000;
+// row would sit in the confirmation queue forever.
+//
+// A day, not hours. We cannot tell an abandoned order from one that was genuinely
+// sent and is waiting to be read, so the window has to outlast the shop being closed
+// overnight — deleting a real order placed at 10pm before the admin opens the queue
+// next morning is far worse than leaving a dead row around for an extra day.
+export const AWAITING_CONFIRMATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function cleanupStaleWhatsAppOrders() {
   const cutoff = new Date(Date.now() - AWAITING_CONFIRMATION_TTL_MS);
