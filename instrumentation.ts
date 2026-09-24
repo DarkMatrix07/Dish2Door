@@ -4,15 +4,30 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { cleanupStalePendingOrders } = await import("@/lib/orders");
+  const { cleanupStalePendingOrders, cleanupStaleWhatsAppOrders } = await import("@/lib/orders");
+  const { evictExpiredRateLimits } = await import("@/lib/rate-limit");
   const { processDueNotificationRetries } = await import("@/lib/notifications");
   const { revertExpiredEveryoneMode } = await import("@/lib/spin-promo");
   const { sendDueReviewReminders } = await import("@/lib/review-reminders");
+  const { reconcilePendingPaymentEvents } = await import("@/lib/payment-reconciliation");
 
-  const runCleanup = () =>
+  const runPaymentReconciliation = () => reconcilePendingPaymentEvents().catch(() => {
+    console.error("[payments] inbox sweep failed");
+  });
+  setTimeout(runPaymentReconciliation, 5_000);
+  setInterval(runPaymentReconciliation, 30_000);
+
+  const runCleanup = () => {
     cleanupStalePendingOrders().catch((error) => {
       console.error("[cleanup] stale pending orders failed:", error);
     });
+    cleanupStaleWhatsAppOrders().catch((error) => {
+      console.error("[cleanup] stale WhatsApp orders failed:", error);
+    });
+    evictExpiredRateLimits().catch((error) => {
+      console.error("[cleanup] rate limit eviction failed:", error);
+    });
+  };
 
   // First sweep shortly after boot, then every minute.
   setTimeout(runCleanup, 15_000);

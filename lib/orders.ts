@@ -1,3 +1,4 @@
+import { PublicError } from "@/lib/public-error";
 import {
   DeliveryType,
   NotificationEvent,
@@ -52,21 +53,21 @@ function assertHostelDeliveryAllowed(
 ) {
   if (deliveryType !== DeliveryType.HOSTEL) return;
   if (!campus.hostelDeliveryEnabled) {
-    throw new Error("Hostel delivery is coming soon. Please choose campus gate pickup.");
+    throw new PublicError("Hostel delivery is coming soon. Please choose campus gate pickup.");
   }
   if (campus.hostelDeliveryNightOnly && orderSlot !== OrderSlot.NIGHT) {
-    throw new Error("Hostel delivery runs on night orders only. Choose the night slot, or pick campus gate pickup.");
+    throw new PublicError("Hostel delivery runs on night orders only. Choose the night slot, or pick campus gate pickup.");
   }
 }
 
 function requireNormalizedPhone(value: string) {
   const phone = normalizePhone(value);
-  if (!isValidIndianMobile(phone)) throw new Error("Enter a valid 10-digit Indian mobile number");
+  if (!isValidIndianMobile(phone)) throw new PublicError("Enter a valid 10-digit Indian mobile number");
   return phone;
 }
 
 // Every order attaches to the Customer spine, keyed by normalized phone. Name/email
-// are refreshed from the latest order so the customer record stays current, and the
+// are recorded only for new customers; guest input cannot overwrite an existing profile. The
 // row must exist before the order is written because Order.customerId references it.
 async function upsertOrderCustomer(
   tx: Prisma.TransactionClient,
@@ -76,7 +77,7 @@ async function upsertOrderCustomer(
   await tx.customer.upsert({
     where: { phone },
     create: { phone, name: details.name || null, email: details.email || null },
-    update: { name: details.name || undefined, email: details.email || undefined }
+    update: {}
   });
 }
 
@@ -110,7 +111,7 @@ async function uniqueTrackingCode(tx: Prisma.TransactionClient) {
     const exists = await tx.order.findUnique({ where: { trackingCode } });
     if (!exists) return trackingCode;
   }
-  throw new Error("Could not generate a unique tracking code");
+  throw new PublicError("Could not generate a unique tracking code");
 }
 
 type ResolvedLine = {
@@ -127,13 +128,26 @@ type ResolvedLine = {
 // belong to a single restaurant.
 async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[]) {
   if (items.length === 0) {
-    throw new Error("Cart is empty");
+    throw new PublicError("Cart is empty");
   }
+  if (items.length > 30) {
+    throw new PublicError("Cart is too large");
+  }
+
+  const merged = new Map<string, OrderItemInput>();
+  for (const input of items) {
+    const key = input.menuItemId ? `m:${input.menuItemId}` : `c:${input.comboId}`;
+    const previous = merged.get(key);
+    const quantity = (previous?.quantity ?? 0) + input.quantity;
+    if (quantity > 20) throw new PublicError("Quantity is too high for one item");
+    merged.set(key, { ...input, quantity });
+  }
+  items = [...merged.values()];
 
   const menuInputs = items.filter((input) => input.menuItemId);
   const comboInputs = items.filter((input) => input.comboId);
   if (menuInputs.length + comboInputs.length !== items.length) {
-    throw new Error("Invalid cart line");
+    throw new PublicError("Invalid cart line");
   }
 
   const menuIds = menuInputs.map((input) => input.menuItemId as string);
@@ -154,10 +168,10 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
   ]);
 
   if (menuItems.length !== new Set(menuIds).size) {
-    throw new Error("A selected item is out of stock or its restaurant is inactive. Refresh and choose an available item.");
+    throw new PublicError("A selected item is out of stock or its restaurant is inactive. Refresh and choose an available item.");
   }
   if (combos.length !== new Set(comboIds).size) {
-    throw new Error("A selected combo is no longer available. Refresh and try again.");
+    throw new PublicError("A selected combo is no longer available. Refresh and try again.");
   }
 
   // Every line — menu items and combo components alike — must share one restaurant.
@@ -166,7 +180,7 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
     ...combos.map((combo) => combo.restaurantId)
   ]);
   if (restaurantIds.size !== 1) {
-    throw new Error("One order can contain items from only one restaurant");
+    throw new PublicError("One order can contain items from only one restaurant");
   }
   const restaurantId = [...restaurantIds][0];
 
@@ -178,11 +192,11 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
 
     if (input.comboId) {
       const combo = comboMap.get(input.comboId);
-      if (!combo) throw new Error("Invalid combo");
-      if (combo.items.length === 0) throw new Error(`"${combo.name}" is not available right now.`);
+      if (!combo) throw new PublicError("Invalid combo");
+      if (combo.items.length === 0) throw new PublicError(`"${combo.name}" is not available right now.`);
       // A combo is only sellable while every component item is in stock.
       const soldOut = combo.items.find((line) => !line.menuItem.available);
-      if (soldOut) throw new Error(`"${combo.name}" is unavailable — ${soldOut.menuItem.name} is sold out.`);
+      if (soldOut) throw new PublicError(`"${combo.name}" is unavailable — ${soldOut.menuItem.name} is sold out.`);
       const contents = combo.items.map((line) => `${line.quantity}× ${line.menuItem.name}`).join(", ");
       return {
         menuItemId: null,
@@ -194,7 +208,7 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
     }
 
     const item = menuMap.get(input.menuItemId as string);
-    if (!item) throw new Error("Invalid menu item");
+    if (!item) throw new PublicError("Invalid menu item");
     const unit = Math.round(item.pricePaise * (1 - item.discountPercent / 100));
     return {
       menuItemId: item.id,
@@ -212,14 +226,14 @@ async function resolveItems(tx: Prisma.TransactionClient, items: OrderItemInput[
   return { restaurantId, orderItems, subtotalPaise };
 }
 
-export async function createPendingOnlineOrder(details: CustomerDetails, items: OrderItemInput[]) {
+export async function createPendingOnlineOrder(details: CustomerDetails, items: OrderItemInput[], checkoutAttemptId?: string) {
   const settings = await getSettings();
   const customerPhone = requireNormalizedPhone(details.phone);
 
   const campus = await resolveCampus(details.campusCode);
 
   if (!settings.ordersOpen) {
-    throw new Error("Orders are closed");
+    throw new PublicError("Orders are closed");
   }
 
   assertHostelDeliveryAllowed(details.deliveryType, campus, details.orderSlot);
@@ -234,13 +248,13 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     // request could push its items through the paid checkout and skip confirmation.
     const shop = await tx.restaurant.findUnique({ where: { id: resolved.restaurantId } });
     if (!shop || shop.orderMode !== "ONLINE_PAYMENT") {
-      throw new Error("This shop is ordered over WhatsApp, not paid for online.");
+      throw new PublicError("This shop is ordered over WhatsApp, not paid for online.");
     }
     if (!shop.acceptingOrders) {
-      throw new Error(`${shop.name} is closed right now. Please try again later.`);
+      throw new PublicError(`${shop.name} is closed right now. Please try again later.`);
     }
     if (shop.restrictedToCampusCode && shop.restrictedToCampusCode !== campus.code) {
-      throw new Error(`${shop.name} does not deliver to ${campus.name} yet.`);
+      throw new PublicError(`${shop.name} does not deliver to ${campus.name} yet.`);
     }
 
     const coupon = details.couponCode
@@ -252,16 +266,20 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
     if (coupon) {
       const boundReward = await tx.spinReward.findFirst({ where: { couponCode: coupon.code } });
       if (boundReward && normalizePhone(boundReward.phone) !== customerPhone) {
-        throw new Error("This reward coupon is linked to the phone number that won it and can't be used on another account.");
+        throw new PublicError("This reward coupon is linked to the phone number that won it and can't be used on another account.");
       }
     }
-    const validCoupon =
+    const couponLooksValid =
       coupon &&
       coupon.active &&
       (!coupon.expiresAt || coupon.expiresAt > new Date()) &&
-      (coupon.maxUses === null || coupon.usedCount < coupon.maxUses)
+      (coupon.maxUses === null || coupon.usedCount + coupon.heldCount < coupon.maxUses)
         ? coupon
         : null;
+    if (details.couponCode && !couponLooksValid) {
+      throw new PublicError("That coupon cannot be applied. Review the total before paying.");
+    }
+    const validCoupon = couponLooksValid;
     const couponDiscountPaise = validCoupon
       ? Math.round((resolved.subtotalPaise * validCoupon.discountPercent) / 100)
       : 0;
@@ -294,35 +312,89 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
       include: orderInclude
     });
 
+    if (checkoutAttemptId) {
+      await tx.checkoutAttempt.update({ where: { id: checkoutAttemptId }, data: { orderId: order.id } });
+    }
+
     await tx.payment.create({
       data: {
         orderId: order.id,
         status: PaymentStatus.PENDING,
-        amountPaise: totals.totalPaise
+        amountPaise: totals.totalPaise,
+        currency: "INR",
+        captureState: "PENDING"
       }
     });
+
+    if (validCoupon) {
+      const reserved = await tx.$executeRaw`
+        UPDATE "Coupon"
+        SET "heldCount" = "heldCount" + 1, "updatedAt" = NOW()
+        WHERE "id" = ${validCoupon.id}
+          AND "active" = true
+          AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
+          AND ("maxUses" IS NULL OR "usedCount" + "heldCount" < "maxUses")
+      `;
+      if (Number(reserved) !== 1) {
+        throw new PublicError("That coupon cannot be applied. Review the total before paying.");
+      }
+      await tx.couponReservation.create({
+        data: {
+          couponId: validCoupon.id,
+          orderId: order.id,
+          status: "HELD",
+          expiresAt: new Date(Date.now() + PENDING_ORDER_TTL_MS)
+        }
+      });
+    }
 
     return order;
   });
 }
 
 // Online orders are created as PENDING *before* the customer pays. If they close the
-// Razorpay popup without paying, that unpaid order would otherwise linger in the admin
-// list forever. Clear any online PENDING order that hasn't been paid within 5 minutes.
-// OrderItem / Payment / NotificationLog all cascade-delete, so removing the order is
-// enough. A captured payment flips the row to PAID_ONLINE first, so it's never matched.
+// Razorpay popup without paying, mark the local checkout expired after five minutes.
+// Payment evidence and discount reservations remain: local expiry cannot make a
+// provider order unpayable, and late capture still needs an exact reconciliation.
 export const PENDING_ORDER_TTL_MS = 5 * 60 * 1000;
+
+// Only explicit cancellation releases payable capacity: future capture then goes
+// to refund review, so it can never fulfill a quote whose capacity was recycled.
+async function releaseCancelledReservation(tx: Prisma.TransactionClient, orderId: string) {
+  const reservation = await tx.couponReservation.findUnique({ where: { orderId } });
+  if (!reservation || reservation.status !== "HELD") return;
+  const claim = await tx.couponReservation.updateMany({ where: { id: reservation.id, status: "HELD" }, data: {
+    status: "RELEASED", releasedAt: new Date()
+  } });
+  if (claim.count === 1) await tx.coupon.update({ where: { id: reservation.couponId }, data: { heldCount: { decrement: 1 } } });
+}
 
 export async function cleanupStalePendingOrders() {
   const cutoff = new Date(Date.now() - PENDING_ORDER_TTL_MS);
-  const result = await prisma.order.deleteMany({
+  const stale = await prisma.order.findMany({
     where: {
       source: OrderSource.CUSTOMER_ONLINE,
       paymentStatus: PaymentStatus.PENDING,
+      checkoutState: "OPEN",
       createdAt: { lt: cutoff }
-    }
+    },
+    select: { id: true }
   });
-  return result.count;
+
+  let expired = 0;
+  for (const row of stale) {
+    await prisma.$transaction(async (tx) => {
+      const claim = await tx.order.updateMany({
+        where: { id: row.id, paymentStatus: PaymentStatus.PENDING, checkoutState: "OPEN" },
+        data: { checkoutState: "EXPIRED" }
+      });
+      if (claim.count !== 1) return;
+      // Local expiry does not cancel the provider order. Keep its discount capacity
+      // reserved until payment is settled or conclusively made unpayable.
+      expired += 1;
+    });
+  }
+  return expired;
 }
 
 // The same problem on the WhatsApp path: the order row is written when the customer
@@ -337,12 +409,14 @@ export const AWAITING_CONFIRMATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function cleanupStaleWhatsAppOrders() {
   const cutoff = new Date(Date.now() - AWAITING_CONFIRMATION_TTL_MS);
-  const result = await prisma.order.deleteMany({
+  const result = await prisma.order.updateMany({
     where: {
       source: OrderSource.CUSTOMER_WHATSAPP,
       status: OrderStatus.AWAITING_CONFIRMATION,
+      checkoutState: "OPEN",
       createdAt: { lt: cutoff }
-    }
+    },
+    data: { status: OrderStatus.CANCELLED, checkoutState: "ABANDONED" }
   });
   return result.count;
 }
@@ -356,19 +430,83 @@ export async function confirmOnlineOrder(orderId: string, payment: {
   razorpayOrderId: string;
   razorpayPaymentId: string;
   razorpaySignature?: string;
+  amountPaise: number;
+  currency: string;
+  captured: boolean;
 }) {
+  if (!payment.captured) {
+    await prisma.payment.updateMany({
+      where: { orderId, captureState: "PENDING" },
+      data: { captureState: "AUTHORIZED", razorpayOrderId: payment.razorpayOrderId, razorpayPaymentId: payment.razorpayPaymentId }
+    });
+    return { order: null, passcode: null as string | null, pending: true };
+  }
   const passcode = generatePasscode();
   const passcodeHash = await hashPasscode(passcode);
 
+  if (payment.currency !== "INR" || !Number.isInteger(payment.amountPaise)) {
+    throw new PublicError("Payment could not be matched to an order");
+  }
+
   const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
+    const paymentRow = await tx.payment.findUnique({ where: { orderId } });
+    if (!paymentRow || paymentRow.amountPaise !== payment.amountPaise || paymentRow.currency !== "INR" || paymentRow.razorpayOrderId !== payment.razorpayOrderId) {
+      throw new PublicError("Payment could not be matched to an order");
+    }
+    const current = await tx.order.findUnique({ where: { id: orderId } });
+    if (!current) throw new PublicError("Order not found");
+    if (current.status === OrderStatus.CANCELLED) {
+      await releaseCancelledReservation(tx, orderId);
+      const refunded = paymentRow.refundState === "SUCCEEDED" || paymentRow.status === PaymentStatus.REFUNDED;
+      await tx.payment.update({
+        where: { orderId },
+        data: {
+          status: refunded ? PaymentStatus.REFUNDED : PaymentStatus.PAID_ONLINE,
+          captureState: "CAPTURED",
+          // Replayed capture must not downgrade a completed/in-flight refund.
+          refundState: refunded ? "SUCCEEDED" : paymentRow.refundState === "PENDING" ? "PENDING" : "REQUESTED",
+          refundAmountPaise: payment.amountPaise,
+          razorpayOrderId: payment.razorpayOrderId,
+          razorpayPaymentId: payment.razorpayPaymentId
+        }
+      });
+      const cancelled = await tx.order.update({ where: { id: orderId }, data: {
+        paymentStatus: refunded ? PaymentStatus.REFUNDED : PaymentStatus.PAID_ONLINE
+      }, include: orderInclude });
+      return { order: cancelled, claimed: false };
+    }
+
+    const reservation = await tx.couponReservation.findUnique({ where: { orderId } });
+    if (current.paymentStatus === PaymentStatus.PENDING && current.couponCode && reservation?.status !== "HELD") {
+      // Legacy or previously released quotes must acquire capacity atomically. A
+      // captured payment cannot authorize exceeding a coupon's promised capacity.
+      const capacity = await tx.$executeRaw`
+        UPDATE "Coupon" SET "usedCount" = "usedCount" + 1, "updatedAt" = NOW()
+        WHERE "code" = ${current.couponCode}
+          AND ("maxUses" IS NULL OR "usedCount" + "heldCount" < "maxUses")
+      `;
+      if (Number(capacity) !== 1) {
+        await tx.payment.update({ where: { orderId }, data: {
+          status: PaymentStatus.PAID_ONLINE, captureState: "CAPTURED", refundState: "REQUESTED",
+          refundAmountPaise: payment.amountPaise, razorpayPaymentId: payment.razorpayPaymentId
+        } });
+        const cancelled = await tx.order.update({ where: { id: orderId }, data: {
+          status: OrderStatus.CANCELLED, paymentStatus: PaymentStatus.PAID_ONLINE,
+          checkoutState: "ABANDONED"
+        }, include: orderInclude });
+        return { order: cancelled, claimed: false };
+      }
+    }
+
     const claim = await tx.order.updateMany({
-      where: { id: orderId, paymentStatus: PaymentStatus.PENDING },
-      data: { paymentStatus: PaymentStatus.PAID_ONLINE, trackingPasscodeHash: passcodeHash }
+      where: { id: orderId, paymentStatus: PaymentStatus.PENDING, status: { not: OrderStatus.CANCELLED } },
+      data: { paymentStatus: PaymentStatus.PAID_ONLINE, trackingPasscodeHash: passcodeHash, checkoutState: "OPEN" }
     });
 
     if (claim.count === 0) {
       const existing = await tx.order.findUnique({ where: { id: orderId }, include: orderInclude });
-      if (!existing) throw new Error("Order not found");
+      if (!existing) throw new PublicError("Order not found");
       return { order: existing, claimed: false };
     }
 
@@ -380,18 +518,31 @@ export async function confirmOnlineOrder(orderId: string, payment: {
             status: PaymentStatus.PAID_ONLINE,
             razorpayOrderId: payment.razorpayOrderId,
             razorpayPaymentId: payment.razorpayPaymentId,
-            razorpaySignature: payment.razorpaySignature
+            razorpaySignature: payment.razorpaySignature,
+            captureState: "CAPTURED"
           }
         }
       },
       include: orderInclude
     });
 
-    if (order.couponCode) {
-      await tx.coupon.update({
-        where: { code: order.couponCode },
-        data: { usedCount: { increment: 1 } }
+    if (reservation?.status === "HELD") {
+      const consumed = await tx.couponReservation.updateMany({
+        where: { id: reservation.id, status: "HELD" },
+        data: { status: "CONSUMED", consumedAt: new Date() }
       });
+      if (consumed.count === 1) {
+        await tx.coupon.update({
+          where: { id: reservation.couponId },
+          data: { heldCount: { decrement: 1 }, usedCount: { increment: 1 } }
+        });
+        if (order.couponCode) await redeemSpinRewardIfAny(tx, order.couponCode, order.customerPhone, order.id);
+      }
+    } else if (order.couponCode) {
+      if (reservation) {
+        await tx.couponReservation.update({ where: { id: reservation.id }, data: { status: "CONSUMED", consumedAt: new Date() } });
+      }
+      // Capacity was accounted for above, including pre-migration pending orders.
       await redeemSpinRewardIfAny(tx, order.couponCode, order.customerPhone, order.id);
     }
 
@@ -440,14 +591,24 @@ async function redeemSpinRewardIfAny(
 // Used by the Razorpay webhook: map a Razorpay order id back to our order via the
 // Payment row (persisted at create-payment time), then confirm idempotently. Returns
 // null when the Razorpay order is not ours (the account may be shared with other apps).
-export async function confirmOnlineOrderByRazorpayOrderId(razorpayOrderId: string, razorpayPaymentId: string) {
+export async function confirmOnlineOrderByRazorpayOrderId(
+  razorpayOrderId: string,
+  razorpayPaymentId: string,
+  capture: { amountPaise: number; currency: string; captured: boolean }
+) {
   const paymentRow = await prisma.payment.findFirst({
     where: { razorpayOrderId },
     select: { orderId: true }
   });
   if (!paymentRow) return null;
 
-  return confirmOnlineOrder(paymentRow.orderId, { razorpayOrderId, razorpayPaymentId });
+  return confirmOnlineOrder(paymentRow.orderId, {
+    razorpayOrderId,
+    razorpayPaymentId,
+    amountPaise: capture.amountPaise,
+    currency: capture.currency,
+    captured: capture.captured
+  });
 }
 
 export async function createManualOrder(details: CustomerDetails, items: OrderItemInput[], paymentStatus: PaymentStatus) {
@@ -515,11 +676,11 @@ export async function createWhatsAppOrder(details: CustomerDetails, items: Order
     const resolved = await resolveItems(tx, items);
 
     const shop = await tx.restaurant.findUnique({ where: { id: resolved.restaurantId } });
-    if (!shop || !shop.active) throw new Error("This shop is not available right now.");
-    if (shop.orderMode !== "WHATSAPP") throw new Error("This shop takes payment online, not over WhatsApp.");
-    if (!shop.acceptingOrders) throw new Error(`${shop.name} is closed right now. Please try again later.`);
+    if (!shop || !shop.active) throw new PublicError("This shop is not available right now.");
+    if (shop.orderMode !== "WHATSAPP") throw new PublicError("This shop takes payment online, not over WhatsApp.");
+    if (!shop.acceptingOrders) throw new PublicError(`${shop.name} is closed right now. Please try again later.`);
     if (shop.restrictedToCampusCode && shop.restrictedToCampusCode !== campus.code) {
-      throw new Error(`${shop.name} does not deliver to ${campus.name} yet.`);
+      throw new PublicError(`${shop.name} does not deliver to ${campus.name} yet.`);
     }
 
     // includePaymentFee = false: nothing goes through Razorpay on this path. GST is
@@ -558,7 +719,7 @@ export async function createWhatsAppOrder(details: CustomerDetails, items: Order
 // then does it appear in today's orders, the kitchen sheet and delivery lists.
 export async function confirmWhatsAppOrder(orderId: string) {
   const existing = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!existing) throw new Error("Order not found");
+  if (!existing) throw new PublicError("Order not found");
   if (existing.status !== OrderStatus.AWAITING_CONFIRMATION) {
     // Already handled (double click, two admins) — return it rather than erroring.
     return prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
@@ -643,11 +804,11 @@ export async function markDeliveryReached(orderId: string, assignedHostelBlocks:
     });
 
     if (!existing) {
-      throw new Error("Order is not available to mark reached");
+      throw new PublicError("Order is not available to mark reached");
     }
 
     return tx.order.update({
-      where: { id: orderId },
+      where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED, deliveryReleased: true, hostelBlock: { in: assignedHostelBlocks } },
       data: { status: OrderStatus.REACHED_CAMPUS, reachedCampusAt: new Date() },
       include: orderInclude
     });
@@ -675,11 +836,11 @@ export async function markDelivered(
     });
 
     if (!existing) {
-      throw new Error("Delivery is not available or already completed");
+      throw new PublicError("Delivery is not available or already completed");
     }
 
     return tx.order.update({
-      where: { id: orderId },
+      where: { id: orderId, status: OrderStatus.REACHED_CAMPUS, deliveryReleased: true, hostelBlock: { in: assignedHostelBlocks } },
       data: {
         status: OrderStatus.DELIVERED,
         deliveredById,
@@ -700,11 +861,11 @@ export async function markOrderReachedCampus(orderId: string) {
     where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED }
   });
   if (!existing) {
-    throw new Error("Only confirmed orders can be marked reached campus");
+    throw new PublicError("Only confirmed orders can be marked reached campus");
   }
 
   const order = await prisma.order.update({
-    where: { id: orderId },
+    where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED },
     data: { status: OrderStatus.REACHED_CAMPUS, reachedCampusAt: new Date() },
     include: orderInclude
   });
@@ -718,11 +879,11 @@ export async function adminMarkOrderDelivered(orderId: string, deliveredById: st
     where: { id: orderId, status: OrderStatus.REACHED_CAMPUS }
   });
   if (!existing) {
-    throw new Error("Only orders that reached campus can be marked delivered");
+    throw new PublicError("Only orders that reached campus can be marked delivered");
   }
 
   const order = await prisma.order.update({
-    where: { id: orderId },
+    where: { id: orderId, status: OrderStatus.REACHED_CAMPUS },
     data: {
       status: OrderStatus.DELIVERED,
       deliveredById,
@@ -737,34 +898,35 @@ export async function adminMarkOrderDelivered(orderId: string, deliveredById: st
   return order;
 }
 
-export async function cancelOrder(orderId: string, refund: boolean) {
-  const existing = await prisma.order.findFirst({
-    where: {
-      id: orderId,
-      // AWAITING_CONFIRMATION belongs here too: rejecting a WhatsApp order that an
-      // admin never accepted is a cancellation, and it is the only way to clear one.
-      status: {
-        in: [OrderStatus.AWAITING_CONFIRMATION, OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS]
+export async function cancelOrder(orderId: string, refund: boolean, pendingOnly = false) {
+  return prisma.$transaction(async (tx) => {
+    // Same lock order as capture: neither operation may resurrect a cancelled order
+    // or overwrite a captured payment with a stale PENDING value.
+    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
+    const existing = await tx.order.findUnique({ where: { id: orderId } });
+    if (!existing || !([OrderStatus.AWAITING_CONFIRMATION, OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] as OrderStatus[]).includes(existing.status)) {
+      throw new PublicError("Only active orders can be cancelled");
+    }
+    if (pendingOnly) {
+      const payment = await tx.payment.findUnique({ where: { orderId } });
+      if (existing.source !== OrderSource.CUSTOMER_ONLINE || existing.checkoutState !== "EXPIRED" || existing.paymentStatus !== PaymentStatus.PENDING || payment?.captureState !== "PENDING" || payment.refundState !== "NONE" || Boolean(payment.razorpayPaymentId)) {
+        throw new PublicError("This payment is already being processed. Check payment status instead of paying again.");
       }
     }
-  });
-  if (!existing) {
-    throw new Error("Only active orders can be cancelled");
-  }
-
-  const shouldRefund = refund && existing.paymentStatus === PaymentStatus.PAID_ONLINE;
-
-  return prisma.$transaction(async (tx) => {
+    const shouldRefund = refund && existing.paymentStatus === PaymentStatus.PAID_ONLINE;
     const order = await tx.order.update({
       where: { id: orderId },
       data: {
         status: OrderStatus.CANCELLED,
-        paymentStatus: shouldRefund ? PaymentStatus.REFUNDED : existing.paymentStatus,
-        ...(shouldRefund ? { payment: { update: { status: PaymentStatus.REFUNDED } } } : {})
+        checkoutState: "ABANDONED",
+        // A request is not a completed refund. Preserve captured payment truth.
+        ...(shouldRefund ? { payment: { update: {
+          refundState: "REQUESTED", refundAmountPaise: existing.totalPaise
+        } } } : {})
       },
       include: orderInclude
     });
-
+    await releaseCancelledReservation(tx, order.id);
     await restoreSpinRewardForCancelledOrder(tx, order.id, order.couponCode);
     return order;
   });

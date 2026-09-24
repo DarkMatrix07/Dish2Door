@@ -1,3 +1,5 @@
+import { publicErrorMessage } from "@/lib/public-error";
+import { toOrderMutationView } from "@/lib/order-views";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
@@ -26,12 +28,12 @@ export async function POST(request: Request) {
 
     // No money moved through us on this path, so there is nothing to refund on reject.
     const order = action === "confirm" ? await confirmWhatsAppOrder(id) : await cancelOrder(id, false);
-    return NextResponse.json({ order });
+    return NextResponse.json({ order: order ? toOrderMutationView(order) : null });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
     }
-    const message = error instanceof Error ? error.message : "Could not update the order";
+    const message = publicErrorMessage(error, "Could not update the order");
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

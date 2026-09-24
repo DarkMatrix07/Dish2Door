@@ -2,12 +2,14 @@ import { notFound } from "next/navigation";
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { PizzaItemsManager } from "@/components/admin/PizzaItemsManager";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const SHOP_SLUG = "dominos-pizza";
 
 export default async function AdminPizzaItemsPage() {
+  await requireRole(["ADMIN"]);
   const shop = await prisma.restaurant.findUnique({
     where: { slug: SHOP_SLUG },
     include: {

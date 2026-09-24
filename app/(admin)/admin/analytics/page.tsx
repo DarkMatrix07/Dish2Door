@@ -3,6 +3,7 @@ import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/compone
 import { CampusBadge } from "@/components/admin/CampusBadge";
 import { prisma } from "@/lib/db";
 import { formatPaise } from "@/lib/utils";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ const PAID_WHERE = {
 };
 
 export default async function AnalyticsPage() {
+  await requireRole(["ADMIN"]);
   const todayStart = istDayStartUtc(0);
   const last7Start = istDayStartUtc(6);
   const last30Start = istDayStartUtc(29);

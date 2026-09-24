@@ -1,3 +1,5 @@
+import { publicErrorMessage } from "@/lib/public-error";
+import { toOrderMutationView } from "@/lib/order-views";
 import { NextResponse } from "next/server";
 import { requireApiRole } from "@/lib/auth";
 import { markDeliveryReached } from "@/lib/orders";
@@ -9,10 +11,10 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   try {
     const { id } = await params;
     const order = await markDeliveryReached(id, user.assignedHostelBlocks);
-    return NextResponse.json({ order });
+    return NextResponse.json({ order: toOrderMutationView(order) });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not mark reached" },
+      { error: publicErrorMessage(error, "Could not mark reached") },
       { status: 400 }
     );
   }

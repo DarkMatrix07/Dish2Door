@@ -80,12 +80,10 @@ export async function POST(request: Request) {
         };
 
     return NextResponse.json({
-      orderCount: effectiveCount,
-      totalReviewed: reviewedCount,
       hasOutstandingReward: Boolean(outstanding),
       usedToday: Boolean(usage),
       eligible: qualifies && !outstanding,
-      progress,
+      progress: progress ? { reviewed: progress.reviewed, required: progress.required, remaining: progress.remaining } : null,
       reward
     });
   } catch (error) {

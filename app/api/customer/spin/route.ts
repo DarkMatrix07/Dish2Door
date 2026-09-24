@@ -98,7 +98,8 @@ export async function POST(request: Request) {
         prisma.customer.upsert({
           where: { phone },
           create: { phone, name: body.name || null, email: body.email || null },
-          update: { name: body.name || undefined, email: body.email || undefined }
+          // An unverified phone number does not authorize profile edits.
+          update: {}
         }),
         prisma.coupon.create({
           data: {

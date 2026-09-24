@@ -1,3 +1,5 @@
+import { publicErrorMessage } from "@/lib/public-error";
+import { toOrderMutationView } from "@/lib/order-views";
 import { NextResponse } from "next/server";
 import { DeliveryType, OrderSlot, PaymentStatus } from "@prisma/client";
 import { z } from "zod";
@@ -38,10 +40,10 @@ export async function POST(request: Request) {
       body.items,
       body.paymentStatus
     );
-    return NextResponse.json(result);
+    return NextResponse.json({ order: toOrderMutationView(result.order), passcode: result.passcode });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not create manual order" },
+      { error: publicErrorMessage(error, "Could not create manual order") },
       { status: 400 }
     );
   }

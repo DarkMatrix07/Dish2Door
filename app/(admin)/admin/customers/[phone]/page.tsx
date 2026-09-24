@@ -7,12 +7,14 @@ import { prisma } from "@/lib/db";
 import { formatIstDateTime } from "@/lib/ist-day";
 import { SPIN_ORDERS_PER_REWARD } from "@/lib/spin-wheel";
 import { formatPaise } from "@/lib/utils";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const PAID_STATUSES: PaymentStatus[] = [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY];
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ phone: string }> }) {
+  await requireRole(["ADMIN"]);
   const { phone } = await params;
 
   const customer = await prisma.customer.findUnique({

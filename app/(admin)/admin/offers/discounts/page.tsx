@@ -1,10 +1,12 @@
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { DiscountsManager } from "@/components/admin/DiscountsManager";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDiscountsPage() {
+  await requireRole(["ADMIN"]);
   const restaurants = await prisma.restaurant.findMany({
     include: { menuItems: { orderBy: { name: "asc" } } },
     orderBy: { name: "asc" }

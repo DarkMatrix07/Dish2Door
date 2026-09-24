@@ -1,3 +1,5 @@
+import { publicErrorMessage } from "@/lib/public-error";
+import { toOrderMutationView } from "@/lib/order-views";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
@@ -20,14 +22,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await request.json().catch(() => ({}));
     const handover = schema.parse(body ?? {});
     const order = await markDelivered(id, user.id, user.assignedHostelBlocks, handover);
-    return NextResponse.json({ order });
+    return NextResponse.json({ order: toOrderMutationView(order) });
   } catch (error) {
     const message =
       error instanceof z.ZodError
         ? "Check the handover details"
-        : error instanceof Error
-          ? error.message
-          : "Could not mark delivered";
+        : publicErrorMessage(error, "Could not mark delivered");
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

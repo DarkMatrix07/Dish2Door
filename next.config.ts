@@ -28,6 +28,15 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*.(woff|woff2|ttf|otf)",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
+      },
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Content-Security-Policy-Report-Only", value: "frame-ancestors 'none'; object-src 'none'" }
+        ]
       }
     ];
   }

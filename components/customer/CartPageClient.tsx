@@ -10,9 +10,10 @@ import { SiteFooter } from "@/components/customer/SiteFooter";
 import { HostelPicker } from "@/components/customer/HostelPicker";
 import { SpinWheel } from "@/components/customer/SpinWheel";
 import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
-import { readStoredIdentity, writeStoredIdentity, type CustomerIdentity } from "@/lib/customer-identity";
+import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity, type CustomerIdentity } from "@/lib/customer-identity";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
 import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
+import { getCheckoutAttempt, markCheckoutPending, completeCheckoutAttempt, claimCheckout, releaseCheckout, hasPendingCheckout, getPendingCheckout, saveCheckoutProof, completePendingCheckout, markCheckoutTerminal } from "@/lib/checkout-attempt-client";
 import { formatPaise } from "@/lib/utils";
 
 declare global {
@@ -135,6 +136,11 @@ export function CartPageClient({
   const campus = campuses.find((entry) => entry.code === campusCode) ?? campuses[0];
   const [cart, setCart] = useState<StoredCartItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const checkoutActive = useRef(false);
+  const [rememberContact, setRememberContact] = useState(false);
+  const [awaitingCapture, setAwaitingCapture] = useState(false);
+  const [expiredCheckout, setExpiredCheckout] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
   const [indiaMinutes, setIndiaMinutes] = useState<number | null>(null);
@@ -153,6 +159,7 @@ export function CartPageClient({
   const [wheelOpen, setWheelOpen] = useState(false);
 
   useEffect(() => setCart(readStoredCart()), []);
+  useEffect(() => setAwaitingCapture(hasPendingCheckout()), []);
 
   useEffect(() => {
     const stored = readStoredCampus();
@@ -214,6 +221,7 @@ export function CartPageClient({
     const storedCampus = readStoredCampus();
     const knownCampus = storedCampus && campuses.some((entry) => entry.code === storedCampus) ? storedCampus : "";
     if (stored) {
+      setRememberContact(true);
       setIdentity(stored);
       setCustomer((current) => ({ ...current, name: stored.name, email: stored.email, phone: stored.phone }));
       void checkSpinEligibility(stored);
@@ -241,7 +249,7 @@ export function CartPageClient({
 
     chooseCampus(identityDraft.campusCode);
     const who: CustomerIdentity = { name, email, phone };
-    writeStoredIdentity(who);
+    writeStoredIdentity(who, { remember: rememberContact });
     setIdentity(who);
     setCustomer((current) => ({ ...current, name, email, phone }));
     setIdentityGateOpen(false);
@@ -330,15 +338,17 @@ export function CartPageClient({
 
   const orderingClosed = indiaMinutes !== null && (indiaMinutes < windowOpenMinute || indiaMinutes >= windowCloseMinute);
 
-  function validateCheckoutDetails() {
-    if (orderingClosed) return toast.error(`Ordering is open between ${formatIndiaMinutes(windowOpenMinute)} and ${formatIndiaMinutes(windowCloseMinute)}.`);
-    if (!cart.length) return toast.error("Your cart is empty.");
-    if (!customer.name || !customer.email || !customer.phone) return toast.error("Name, email, and phone are required.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address.");
-    if (customer.deliveryType === "HOSTEL" && !campus.hostelDeliveryEnabled) return toast.error("Hostel delivery is coming soon. Please choose campus gate pickup.");
-    if (customer.deliveryType === "HOSTEL" && hostelIsNightOnly && customer.orderSlot !== "NIGHT") return toast.error("Hostel delivery runs on night orders only. Choose the night slot, or pick campus gate pickup.");
-    if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) return toast.error("Hostel block is required for hostel delivery.");
-    if (!customer.orderSlot) return toast.error("Ordering has closed for today's delivery slots.");
+  function validateCheckoutDetails(): boolean {
+    if (checkoutActive.current) return false;
+    if (indiaMinutes === null || orderingClosed) { toast.error(`Ordering is open between ${formatIndiaMinutes(windowOpenMinute)} and ${formatIndiaMinutes(windowCloseMinute)}.`); return false; }
+    if (awaitingCapture || hasPendingCheckout()) { toast.message("A payment is already being captured. Don't pay again. Your passcode will arrive by email and WhatsApp."); return false; }
+    if (!cart.length) { toast.error("Your cart is empty."); return false; }
+    if (!customer.name || !customer.email || !customer.phone) { toast.error("Name, email, and phone are required."); return false; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) { toast.error("Enter a valid email address."); return false; }
+    if (customer.deliveryType === "HOSTEL" && !campus.hostelDeliveryEnabled) { toast.error("Hostel delivery is coming soon. Please choose campus gate pickup."); return false; }
+    if (customer.deliveryType === "HOSTEL" && hostelIsNightOnly && customer.orderSlot !== "NIGHT") { toast.error("Hostel delivery runs on night orders only. Choose the night slot, or pick campus gate pickup."); return false; }
+    if (customer.deliveryType === "HOSTEL" && !customer.hostelBlock) { toast.error("Hostel block is required for hostel delivery."); return false; }
+    if (!customer.orderSlot) { toast.error("Ordering has closed for today's delivery slots."); return false; }
     return true;
   }
 
@@ -346,21 +356,121 @@ export function CartPageClient({
     if (validateCheckoutDetails()) setConfirmEmailOpen(true);
   }
 
+  async function checkPaymentStatus() {
+    const pending = getPendingCheckout();
+    if (!pending || checkingPayment) return;
+    setCheckingPayment(true);
+    try {
+      if (pending.proof) {
+        const verifiedResponse = await fetch("/api/orders/verify-payment", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pending.proof)
+        });
+        const verified = await verifiedResponse.json();
+        if (verifiedResponse.ok && verified.trackingCode) {
+          completePendingCheckout();
+          clearStoredCart();
+          window.location.href = `/orders/${verified.trackingCode}`;
+          return;
+        }
+        if (verified.status === "refund_pending") {
+          markCheckoutTerminal();
+          setAwaitingCapture(false);
+          toast.message("This payment needs a refund review. Please contact support; don't pay again for this order.");
+          return;
+        }
+      }
+      const response = await fetch("/api/orders/create-payment", {
+        headers: { "Idempotency-Key": pending.key, "Checkout-Capability": pending.capability },
+        cache: "no-store"
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Could not check payment yet.");
+      if (result.status === "confirmed" && result.trackingCode) {
+        completePendingCheckout();
+        clearStoredCart();
+        window.location.href = `/orders/${result.trackingCode}`;
+      } else if (result.status === "refund_pending") {
+        markCheckoutTerminal();
+        setAwaitingCapture(false);
+        toast.message("This payment needs a refund review. Please contact support; don't pay again for this order.");
+      } else if (result.status === "cancelled") {
+        completePendingCheckout();
+        setAwaitingCapture(false);
+        setExpiredCheckout(false);
+        toast.message("The previous checkout was cancelled. You can start again.");
+      } else if (result.status === "expired" && !pending.proof) {
+        setExpiredCheckout(true);
+        toast.message("This unpaid checkout has expired. Cancel it below to start again. If money was deducted, contact support instead.");
+      } else {
+        setExpiredCheckout(false);
+        toast.message("Payment is still being confirmed. Please check again shortly; don't pay again.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not check payment yet.");
+    } finally {
+      setCheckingPayment(false);
+    }
+  }
+
+  async function cancelExpiredCheckout() {
+    const pending = getPendingCheckout();
+    if (!pending || checkingPayment || !expiredCheckout) return;
+    if (!window.confirm("Cancel this expired checkout? Continue only if no money was deducted. If you paid, check payment status or contact support instead.")) return;
+    setCheckingPayment(true);
+    try {
+      const response = await fetch("/api/orders/create-payment", {
+        method: "DELETE", headers: { "Idempotency-Key": pending.key, "Checkout-Capability": pending.capability }
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Could not cancel this checkout.");
+      completePendingCheckout();
+      setAwaitingCapture(false);
+      setExpiredCheckout(false);
+      toast.success("Expired checkout cancelled. You can start again.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not cancel this checkout.");
+    } finally {
+      setCheckingPayment(false);
+    }
+  }
+
   async function checkout() {
     if (!validateCheckoutDetails()) return;
     setConfirmEmailOpen(false);
 
+    checkoutActive.current = true;
     setBusy(true);
+    let modalOpened = false;
+    let checkoutOwner: string | null = null;
     try {
+      checkoutOwner = await claimCheckout();
+      if (!checkoutOwner) { toast.message("A checkout is already open in this browser. Finish or close it before trying again."); return; }
       const loaded = await loadRazorpayScript();
       if (!loaded || !window.Razorpay) throw new Error("Razorpay checkout could not load");
+      const body = JSON.stringify({ customer: { ...customer, couponCode: coupon?.code, campusCode: campus.code }, items: cart.map((item) => item.kind === "combo" && item.comboId ? { comboId: item.comboId, quantity: item.quantity } : { menuItemId: item.id, quantity: item.quantity }) });
+      const attempt = await getCheckoutAttempt(body);
+      if (attempt.terminal) {
+        toast.message("This checkout cannot be paid again. Please contact support about the previous payment.");
+        return;
+      }
+      if (attempt.pending) {
+        markCheckoutPending(attempt, checkoutOwner);
+        setAwaitingCapture(true);
+        toast.message("Your previous payment is still being confirmed. Check your email or contact support; don't pay again.");
+        return;
+      }
       const response = await fetch("/api/orders/create-payment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer: { ...customer, couponCode: coupon?.code, campusCode: campus.code }, items: cart.map((item) => item.kind === "combo" && item.comboId ? { comboId: item.comboId, quantity: item.quantity } : { menuItemId: item.id, quantity: item.quantity }) })
+        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.key, "Checkout-Capability": attempt.capability },
+        body
       });
       const payment = await response.json();
-      if (!response.ok) throw new Error(payment.error ?? "Could not start payment");
+      if (!response.ok) {
+        if (response.status === 409) { markCheckoutPending(attempt, checkoutOwner); setAwaitingCapture(true); }
+        throw new Error(payment.error ?? "Could not start payment");
+      }
+      writeStoredIdentity({ name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone.trim() }, { remember: rememberContact });
 
       new window.Razorpay({
         key: payment.razorpayKeyId,
@@ -370,14 +480,37 @@ export function CartPageClient({
         description: cart[0]?.restaurantName,
         order_id: payment.razorpayOrderId,
         prefill: { name: customer.name, email: customer.email, contact: customer.phone },
+        modal: { ondismiss: () => { if (checkoutOwner) releaseCheckout(checkoutOwner); checkoutActive.current = false; setBusy(false); } },
         handler: async (result: Record<string, string>) => {
-          const verifyResponse = await fetch("/api/orders/verify-payment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: payment.orderId, razorpayOrderId: result.razorpay_order_id, razorpayPaymentId: result.razorpay_payment_id, razorpaySignature: result.razorpay_signature })
-          });
-          const verified = await verifyResponse.json();
-          if (!verifyResponse.ok) return toast.error(verified.error ?? "Payment verification failed");
+          markCheckoutPending(attempt, checkoutOwner ?? undefined);
+          saveCheckoutProof({ razorpayOrderId: result.razorpay_order_id, razorpayPaymentId: result.razorpay_payment_id, razorpaySignature: result.razorpay_signature });
+          setAwaitingCapture(true);
+          try {
+          const payload = { orderId: payment.orderId, razorpayOrderId: result.razorpay_order_id, razorpayPaymentId: result.razorpay_payment_id, razorpaySignature: result.razorpay_signature };
+          let verifyResponse: Response | null = null;
+          let verified: { error?: string; status?: string; passcode?: string; trackingCode?: string } = {};
+          for (let attempt = 0; attempt < 4; attempt += 1) {
+            verifyResponse = await fetch("/api/orders/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            verified = await verifyResponse.json();
+            if (verifyResponse.status !== 202 && verified.status !== "pending") break;
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+          if (!verifyResponse) return;
+          if (verifyResponse.status === 202 || verified.status === "pending") {
+            setAwaitingCapture(true);
+            toast.message("Payment is being captured. Don't pay again. Your passcode will arrive by email and WhatsApp.");
+            return;
+          }
+          if (!verifyResponse.ok) {
+            if (verified.status === "refund_pending") { markCheckoutTerminal(); setAwaitingCapture(false); }
+            toast.error(verified.error ?? "Payment verification failed. Please contact support; don't pay again.");
+            return;
+          }
+          completeCheckoutAttempt(attempt);
           clearStoredCart();
           if (verified.passcode) {
             window.sessionStorage.setItem(`dish2door_passcode_${verified.trackingCode}`, verified.passcode);
@@ -386,12 +519,19 @@ export function CartPageClient({
             toast.success("Order confirmed. Your passcode has been sent by email and WhatsApp.");
           }
           window.location.href = `/orders/${verified.trackingCode}`;
+          } catch {
+            toast.message("We couldn't confirm payment yet. Check your email or contact support; don't pay again.");
+          } finally {
+            checkoutActive.current = false;
+            setBusy(false);
+          }
         }
       }).open();
+      modalOpened = true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Checkout failed");
     } finally {
-      setBusy(false);
+      if (!modalOpened) { if (checkoutOwner) releaseCheckout(checkoutOwner); checkoutActive.current = false; setBusy(false); }
     }
   }
 
@@ -505,7 +645,10 @@ export function CartPageClient({
             <div className="mt-6 border-y border-black/10 py-5"><label className="text-sm font-bold">Have a coupon?</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button></div>{coupon ? <p className="mt-3 flex items-center gap-2 text-sm font-bold text-[#34705a]"><Check size={14} /> {coupon.code} gives {coupon.discountPercent}% off</p> : null}</div>
             <div className="mt-6 space-y-3 text-sm text-[#625b50]">{campuses.length > 1 ? <div className="flex justify-between"><span>Campus</span><span className="font-bold text-[#171713]">{campus.name}</span></div> : null}<div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(campus.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
             <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><span className="text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
-            <button type="button" disabled={busy || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span><ArrowRight size={18} /></button>
+            <button type="button" className="mt-4 text-sm underline" onClick={() => { forgetStoredIdentity(); setRememberContact(false); toast.success("Saved contact details removed from this device."); }}>Forget saved contact details</button>
+            <button type="button" disabled={busy || awaitingCapture || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{awaitingCapture ? "Payment confirmation pending" : busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span><ArrowRight size={18} /></button>
+            {awaitingCapture ? <button type="button" disabled={checkingPayment} onClick={checkPaymentStatus} className="mt-3 w-full rounded-md border border-black/20 px-4 py-3 text-sm font-bold disabled:opacity-50">{checkingPayment ? "Checking payment..." : "Check payment status"}</button> : null}
+            {awaitingCapture && expiredCheckout ? <div className="mt-3 text-sm"><p>If money was deducted, contact support before starting another payment.</p><button type="button" disabled={checkingPayment} onClick={cancelExpiredCheckout} className="mt-2 underline disabled:opacity-50">Cancel expired checkout and start again</button></div> : null}
             <p className="mt-4 text-xs leading-5 text-[#817a70]">After payment, your tracking link and private 4-digit passcode are sent by WhatsApp and email.</p>
           </aside>
         </section>
@@ -540,7 +683,7 @@ export function CartPageClient({
               <p className="mt-4 text-xs leading-5 text-[#817a70]">Please check carefully. The confirmation email may occasionally arrive in your Spam or Junk folder.</p>
               <div className="mt-7 grid gap-2 sm:grid-cols-[0.8fr_1.2fr]">
                 <button type="button" onClick={() => setConfirmEmailOpen(false)} className="min-h-12 rounded-md border border-black/15 px-4 text-sm font-black transition hover:border-black/35 hover:bg-black/[0.03]">Edit email</button>
-                <button type="button" onClick={checkout} className="cart-dark-link flex min-h-12 items-center justify-center gap-3 rounded-md bg-[#171713] px-4 text-sm font-black transition hover:bg-[#c65d24]">Email is correct <ArrowRight size={16} /></button>
+                <button type="button" disabled={busy || awaitingCapture} onClick={checkout} className="cart-dark-link flex min-h-12 items-center justify-center gap-3 rounded-md bg-[#171713] px-4 text-sm font-black transition hover:bg-[#c65d24]">Email is correct <ArrowRight size={16} /></button>
               </div>
             </motion.div>
           </motion.div>
@@ -596,6 +739,8 @@ export function CartPageClient({
                 <label className="block text-sm font-bold">Full name<input className={`${fieldClass} mt-2`} autoComplete="name" value={identityDraft.name} onChange={(event) => setIdentityDraft({ ...identityDraft, name: event.target.value })} placeholder="Your name" /></label>
                 <label className="block text-sm font-bold">Phone number<input className={`${fieldClass} mt-2`} inputMode="tel" autoComplete="tel" value={identityDraft.phone} onChange={(event) => setIdentityDraft({ ...identityDraft, phone: event.target.value })} placeholder="10-digit number" /></label>
                 <label className="block text-sm font-bold">Email address<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={identityDraft.email} onChange={(event) => setIdentityDraft({ ...identityDraft, email: event.target.value })} placeholder="you@example.com" /></label>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rememberContact} onChange={(event) => { setRememberContact(event.target.checked); if (!event.target.checked) forgetStoredIdentity(); }} />Remember my contact details on this device for 30 days</label>
+                <button type="button" className="text-sm underline" onClick={() => { forgetStoredIdentity(); setRememberContact(false); }}>Forget saved contact details</button>
                 <button type="submit" className="cart-dark-link flex min-h-14 w-full items-center justify-center gap-3 rounded-md bg-[#171713] px-4 py-3 font-black transition hover:bg-[#c65d24]">Continue to cart <ArrowRight size={16} /></button>
               </form>
             </motion.div>

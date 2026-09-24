@@ -88,10 +88,14 @@ server {
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_cache_bypass $http_upgrade;
   }
 }
 ```
+
+Set `TRUST_PROXY=1` in the app environment when this nginx config is in front of it. The app trusts `X-Real-IP` only in that case. Without it, per-address limits stay off and a separate site-wide WhatsApp cap still applies.
 
 Then enable SSL:
 
@@ -105,3 +109,12 @@ sudo certbot --nginx -d your-domain.com
 - Delivery: `delivery@campus.local` / `delivery123`
 
 Change these immediately for production.
+
+
+## Security remediation rollout
+
+Before deploying the remediation commit, back up PostgreSQL and stop old application/worker writers while applying `npx prisma migrate deploy`. The migration retains payment evidence and backfills pending coupon capacity; duplicate non-null provider IDs cause a transactional rollback and must be reconciled before retry. It has been exercised on disposable PostgreSQL WASM, but the deployment database and Razorpay test-mode flows still need verification.
+
+Set the pinned `VPS_SSH_HOST_KEY` secret before using the deploy workflow. Production seeding does not provision demo staff accounts; use `scripts/bootstrap-admin.ts` and rotate any pre-existing demo credentials. Run the long-lived Node server so durable payment inbox retries execute.
+
+See `security/PAYMENT-RECONCILIATION-RUNBOOK.md` for unmatched payment triage, explicit cancellation of abandoned discount reservations, and manual provider refunds. A requested refund is not marked refunded until provider confirmation. See `security/REMEDIATION-RESULTS.md` for validation and the broader audit tasks still open. Merging locally does not run these deployment steps.

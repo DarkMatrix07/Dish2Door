@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
-import { confirmOnlineOrderByRazorpayOrderId } from "@/lib/orders";
+import { prisma } from "@/lib/db";
+import { reconcilePaymentEvent } from "@/lib/payment-reconciliation";
 
 // Razorpay signs each webhook with the webhook secret (set in the dashboard),
 // which is separate from the API key secret.
@@ -16,7 +17,7 @@ function verifySignature(bodyText: string, signature: string, secret: string) {
 type RazorpayWebhookBody = {
   event?: string;
   payload?: {
-    payment?: { entity?: { id?: string; order_id?: string } };
+    payment?: { entity?: { id?: string; order_id?: string; amount?: number; currency?: string; status?: string } };
     order?: { entity?: { id?: string } };
   };
 };
@@ -47,8 +48,25 @@ export async function POST(request: Request) {
       const razorpayPaymentId = payment?.id ?? "";
 
       if (razorpayOrderId) {
-        // Returns null when the Razorpay order is not ours (shared account) — safely ignored.
-        await confirmOnlineOrderByRazorpayOrderId(razorpayOrderId, razorpayPaymentId);
+        const amount = payment?.amount;
+        const currency = payment?.currency;
+        if (!razorpayPaymentId || !Number.isSafeInteger(amount) || !currency) {
+          return NextResponse.json({ error: "Incomplete payment event" }, { status: 500 });
+        }
+        const providerEventId = `${body.event}:${razorpayPaymentId || razorpayOrderId}:${amount}`;
+        const stored = await prisma.paymentEvent.upsert({
+          where: { providerEventId },
+          update: {},
+          create: {
+            providerEventId,
+            razorpayOrderId,
+            razorpayPaymentId,
+            amountPaise: amount!,
+            currency,
+            eventType: body.event || "unknown"
+          }
+        });
+        await reconcilePaymentEvent(stored.id);
       }
     }
     // Always ack 2xx for handled/ignored events so Razorpay stops retrying.
@@ -56,7 +74,7 @@ export async function POST(request: Request) {
   } catch (error) {
     // Transient failure (e.g. DB) — return 500 so Razorpay retries the delivery.
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Webhook processing failed" },
+      { error: "Webhook processing failed" },
       { status: 500 }
     );
   }

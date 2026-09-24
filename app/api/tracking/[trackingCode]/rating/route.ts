@@ -3,7 +3,7 @@ import { OrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifyOrderPasscode } from "@/lib/order-codes";
-import { clearRateLimit, rateLimit } from "@/lib/rate-limit";
+import { clientAddress, consumeRateLimit } from "@/lib/rate-limit";
 
 const schema = z.object({
   passcode: z.string().length(4),
@@ -25,8 +25,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     return NextResponse.json({ error: "Enter a valid passcode and ratings." }, { status: 400 });
   }
 
-  if (!rateLimit(`rating:${trackingCode}`, MAX_ATTEMPTS, WINDOW_MS)) {
-    return NextResponse.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });
+  const source = clientAddress(request);
+  const limits = await Promise.all([
+    consumeRateLimit(`rating:${trackingCode}`, MAX_ATTEMPTS, WINDOW_MS),
+    ...(source ? [consumeRateLimit(`rating-source:${source}`, 40, WINDOW_MS)] : [])
+  ]);
+  if (limits.some((limit) => !limit.allowed)) {
+    return NextResponse.json({ error: "Invalid passcode" }, { status: 429 });
   }
 
   const order = await prisma.order.findUnique({
@@ -34,8 +39,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     include: { rating: true }
   });
 
-  if (!order?.trackingPasscodeHash) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  const hash = order?.trackingPasscodeHash || "$2b$12$J4BhNMwYX78srLdhdi6EluJ6GlnQuVKB9ph5WfRFGngYHBdId0lC.";
+  const ok = await verifyOrderPasscode(body.passcode, hash);
+  if (!ok || !order?.trackingPasscodeHash) {
+    return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
   }
 
   if (order.status !== OrderStatus.DELIVERED) {
@@ -45,13 +52,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
   if (order.rating) {
     return NextResponse.json({ error: "Rating already submitted" }, { status: 400 });
   }
-
-  const ok = await verifyOrderPasscode(body.passcode, order.trackingPasscodeHash, order.trackingCode, true);
-  if (!ok) {
-    return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
-  }
-
-  clearRateLimit(`rating:${trackingCode}`);
 
   const rating = await prisma.rating.create({
     data: {
