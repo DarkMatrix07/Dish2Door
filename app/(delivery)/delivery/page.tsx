@@ -1,13 +1,14 @@
 import { DeliveryType, OrderStatus } from "@prisma/client";
 import { DeliveryDashboard } from "@/components/delivery/DeliveryDashboard";
-import { getCurrentUser } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { orderInclude } from "@/lib/order-select";
+import { toDeliveryOrderView } from "@/lib/order-views";
 
 export const dynamic = "force-dynamic";
 
 export default async function DeliveryPage() {
-  const user = await getCurrentUser();
+  const user = await requireRole(["DELIVERY"]);
   const now = new Date();
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
@@ -18,7 +19,7 @@ export default async function DeliveryPage() {
     prisma.order.findMany({
       where: {
         deliveryType: DeliveryType.HOSTEL,
-        hostelBlock: { in: user?.assignedHostelBlocks ?? [] },
+        hostelBlock: { in: user.assignedHostelBlocks },
         deliveryReleased: true,
         status: { in: [OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] }
       },
@@ -27,18 +28,18 @@ export default async function DeliveryPage() {
     }),
     prisma.order.count({
       where: {
-        deliveredById: user?.id,
+        deliveredById: user.id,
         deliveredAt: { gte: startOfToday }
       }
     }),
     prisma.order.count({
       where: {
-        deliveredById: user?.id,
+        deliveredById: user.id,
         deliveredAt: { gte: startOfWeek }
       }
     }),
-    prisma.order.count({ where: { deliveredById: user?.id } })
+    prisma.order.count({ where: { deliveredById: user.id } })
   ]);
 
-  return <DeliveryDashboard initialOrders={orders} assignedHostelBlocks={user?.assignedHostelBlocks ?? []} stats={{ deliveredToday, deliveredThisWeek, deliveredTotal, pending: orders.length }} />;
+  return <DeliveryDashboard initialOrders={orders.map(toDeliveryOrderView)} assignedHostelBlocks={user.assignedHostelBlocks} stats={{ deliveredToday, deliveredThisWeek, deliveredTotal, pending: orders.length }} />;
 }

@@ -1,3 +1,4 @@
+import { PublicError } from "@/lib/public-error";
 import type { OrderSlot } from "@prisma/client";
 
 const INDIA_TIME_ZONE = "Asia/Kolkata";
@@ -49,12 +50,12 @@ export function formatIndiaMinutes(minutes: number) {
 
 export function assertOrderingWindowOpen(openMinute: number, closeMinute: number, date = new Date()) {
   if (!isWithinOrderingWindow(openMinute, closeMinute, date)) {
-    throw new Error(`Ordering is open between ${formatIndiaMinutes(openMinute)} and ${formatIndiaMinutes(closeMinute)}.`);
+    throw new PublicError(`Ordering is open between ${formatIndiaMinutes(openMinute)} and ${formatIndiaMinutes(closeMinute)}.`);
   }
 }
 
 export function assertOrderSlotAvailable(slot: OrderSlot, date = new Date()) {
   if (!isOrderSlotAvailable(slot, date)) {
-    throw new Error(`${slot === "AFTERNOON" ? "Afternoon" : "Night"} orders closed at ${formatIndiaMinutes(ORDER_SLOT_DETAILS[slot].cutoffMinutes)}. Please choose an available slot.`);
+    throw new PublicError(`${slot === "AFTERNOON" ? "Afternoon" : "Night"} orders closed at ${formatIndiaMinutes(ORDER_SLOT_DETAILS[slot].cutoffMinutes)}. Please choose an available slot.`);
   }
 }

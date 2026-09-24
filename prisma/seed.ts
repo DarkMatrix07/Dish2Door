@@ -2,6 +2,19 @@ import { hashPassword } from "../lib/auth";
 import { prisma } from "../lib/db";
 
 async function main() {
+  const isProduction = process.env.NODE_ENV === "production";
+  const seedDemoUsers = process.env.SEED_DEMO_DATA === "1";
+
+  if (isProduction) {
+    if (seedDemoUsers) {
+      throw new Error(
+        "Refusing to seed demo data in production (SEED_DEMO_DATA=1). Use scripts/bootstrap-admin.ts to create staff accounts."
+      );
+    }
+    console.log("Production seed skipped demo data");
+    return;
+  }
+
   await prisma.systemSettings.upsert({
     where: { id: "default" },
     update: {},
@@ -17,28 +30,32 @@ async function main() {
     }
   });
 
-  await prisma.user.upsert({
-    where: { email: "admin@campus.local" },
-    update: {},
-    create: {
-      name: "Campus Admin",
-      email: "admin@campus.local",
-      role: "ADMIN",
-      passwordHash: await hashPassword("admin123")
-    }
-  });
+  if (seedDemoUsers) {
+    await prisma.user.upsert({
+      where: { email: "admin@campus.local" },
+      update: {},
+      create: {
+        name: "Campus Admin",
+        email: "admin@campus.local",
+        role: "ADMIN",
+        passwordHash: await hashPassword("admin123")
+      }
+    });
 
-  await prisma.user.upsert({
-    where: { email: "delivery@campus.local" },
-    update: {},
-    create: {
-      name: "Delivery Lead",
-      email: "delivery@campus.local",
-      phone: "9999999999",
-      role: "DELIVERY",
-      passwordHash: await hashPassword("delivery123")
-    }
-  });
+    await prisma.user.upsert({
+      where: { email: "delivery@campus.local" },
+      update: {},
+      create: {
+        name: "Delivery Lead",
+        email: "delivery@campus.local",
+        phone: "9999999999",
+        role: "DELIVERY",
+        passwordHash: await hashPassword("delivery123")
+      }
+    });
+  } else {
+    console.log("Skipping demo users (set SEED_DEMO_DATA=1 outside production to create them)");
+  }
 
   const restaurants = [
     {

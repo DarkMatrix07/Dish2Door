@@ -160,7 +160,7 @@ export function OrdersTable({
     if (!window.confirm(`Cancel order ${order.trackingCode} for ${order.customerName}?`)) return;
     let refund = false;
     if (order.paymentStatus === "PAID_ONLINE") {
-      refund = window.confirm("This order was paid online. Mark it as refunded too?");
+      refund = window.confirm("This order was paid online. Request refund review too? The refund must still be issued and confirmed through the payment provider.");
     }
     orderAction(order, "cancel", refund);
   }

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { formatIstDateTime, istDayKey, istDayStartUtc } from "@/lib/ist-day";
 import { WHEEL_SEGMENTS } from "@/lib/spin-wheel";
 import { formatPaise } from "@/lib/utils";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ function rewardState(reward: { redeemedAt: Date | null; expiredAt: Date | null }
 }
 
 export default async function RewardsPage() {
+  await requireRole(["ADMIN"]);
   const todayStart = istDayStartUtc(0);
   const todayKey = istDayKey(new Date());
 

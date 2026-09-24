@@ -7,7 +7,6 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orderEmailHtml, sendOrderEmail } from "@/lib/mail";
-import { generateReviewPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
 import { getSettings } from "@/lib/settings";
 import {
@@ -27,7 +26,7 @@ function reminderCopy(remainingReviews: number) {
   return {
     subject: "How was your order? Rate it to earn a discount",
     headline: "How was your food?",
-    body: `You haven't rated your last order yet. ${reward} It takes about ten seconds.`
+    body: `You haven't rated your last order yet. ${reward} It takes about ten seconds. Use the four-digit passcode from your original order email.`
   };
 }
 
@@ -68,11 +67,10 @@ export async function sendDueReviewReminders(now = new Date()) {
     const copy = reminderCopy(reviewsUntilSpin(effectiveCount));
 
     try {
-      const reviewPasscode = generateReviewPasscode(order.trackingCode);
       await sendOrderEmail(
         order,
         copy.subject,
-        orderEmailHtml(order, copy.headline, copy.body, reviewPasscode, "Rate your order")
+        orderEmailHtml(order, copy.headline, copy.body, undefined, "Rate your order")
       );
       await prisma.notificationLog.create({
         data: {

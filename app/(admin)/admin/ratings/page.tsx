@@ -1,6 +1,7 @@
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ function ratingText(value: number) {
 }
 
 export default async function AdminRatingsPage() {
+  await requireRole(["ADMIN"]);
   const ratings = await prisma.rating.findMany({
     include: {
       order: {

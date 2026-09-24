@@ -3,10 +3,12 @@ import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { ManualOrderForm } from "@/components/admin/ManualOrderForm";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewManualOrderPage() {
+  await requireRole(["ADMIN"]);
   const campuses = await prisma.campus.findMany({
     where: { active: true },
     select: { id: true, code: true, name: true },

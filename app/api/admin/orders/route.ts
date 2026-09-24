@@ -1,3 +1,4 @@
+import { toAdminOrderView } from "@/lib/order-views";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireApiRole } from "@/lib/auth";
@@ -81,5 +82,5 @@ export async function GET(request: Request) {
     prisma.order.count({ where })
   ]);
 
-  return NextResponse.json({ orders, total, page, pageSize });
+  return NextResponse.json({ orders: orders.map(toAdminOrderView), total, page, pageSize });
 }

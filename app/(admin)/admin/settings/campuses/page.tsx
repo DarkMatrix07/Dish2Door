@@ -1,10 +1,12 @@
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { CampusesManager } from "@/components/admin/CampusesManager";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCampusesPage() {
+  await requireRole(["ADMIN"]);
   const campuses = await prisma.campus.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
   });

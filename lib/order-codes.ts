@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import bcrypt from "bcryptjs";
 import { env } from "@/lib/env";
 
@@ -14,7 +14,7 @@ export function generateTrackingCode(length = 7) {
 }
 
 export function generatePasscode() {
-  return String(Math.floor(1000 + Math.random() * 9000));
+  return String(randomInt(0, 10000)).padStart(4, "0");
 }
 
 export function hashPasscode(passcode: string) {
@@ -38,15 +38,7 @@ export function generateReviewPasscode(trackingCode: string) {
   return deriveReviewPasscode(trackingCode, secret);
 }
 
-export async function verifyOrderPasscode(
-  passcode: string,
-  hash: string,
-  trackingCode: string,
-  allowReviewPasscode: boolean
-) {
-  if (await verifyPasscode(passcode, hash)) return true;
-  if (!allowReviewPasscode) return false;
-
-  const expected = generateReviewPasscode(trackingCode);
-  return timingSafeEqual(Buffer.from(passcode), Buffer.from(expected));
+export async function verifyOrderPasscode(passcode: string, hash: string) {
+  if (!/^\d{4}$/.test(passcode)) return false;
+  return verifyPasscode(passcode, hash);
 }

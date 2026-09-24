@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { OrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifyOrderPasscode } from "@/lib/order-codes";
-import { orderInclude } from "@/lib/order-select";
-import { clearRateLimit, rateLimit } from "@/lib/rate-limit";
+import { clientAddress, consumeRateLimit } from "@/lib/rate-limit";
+import { toTrackingView } from "@/lib/order-views";
 
 const schema = z.object({
   passcode: z.string().length(4)
@@ -25,31 +24,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     return NextResponse.json({ error: "Enter the 4-digit passcode." }, { status: 400 });
   }
 
-  if (!rateLimit(`verify:${trackingCode}`, MAX_ATTEMPTS, WINDOW_MS)) {
-    return NextResponse.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });
+  if (!/^[A-Z2-9]{7}$/.test(trackingCode)) {
+    return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
+  }
+
+  const source = clientAddress(request);
+  const limits = [
+    consumeRateLimit(`verify:${trackingCode}`, MAX_ATTEMPTS, WINDOW_MS),
+    ...(source ? [consumeRateLimit(`verify-source:${source}`, 40, WINDOW_MS)] : [])
+  ];
+  const [codeLimit, sourceLimit] = await Promise.all(limits);
+  if (!codeLimit.allowed || (sourceLimit && !sourceLimit.allowed)) {
+    return NextResponse.json({ error: "Invalid passcode" }, { status: 429 });
   }
 
   const order = await prisma.order.findUnique({
     where: { trackingCode },
-    include: orderInclude
+    include: {
+      restaurant: { select: { name: true } },
+      items: { select: { nameSnapshot: true, quantity: true, linePaise: true } },
+      rating: { select: { id: true } }
+    }
   });
 
-  if (!order?.trackingPasscodeHash) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  }
-
-  const ok = await verifyOrderPasscode(
-    body.passcode,
-    order.trackingPasscodeHash,
-    order.trackingCode,
-    order.status === OrderStatus.DELIVERED
-  );
-  if (!ok) {
+  const hash = order?.trackingPasscodeHash || "$2b$12$J4BhNMwYX78srLdhdi6EluJ6GlnQuVKB9ph5WfRFGngYHBdId0lC.";
+  const ok = await verifyOrderPasscode(body.passcode, hash);
+  if (!ok || !order?.trackingPasscodeHash) {
     return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
   }
 
-  // Successful unlock — clear the throttle for this tracking code.
-  clearRateLimit(`verify:${trackingCode}`);
-  const { trackingPasscodeHash: _trackingPasscodeHash, ...safeOrder } = order;
-  return NextResponse.json({ order: safeOrder });
+  return NextResponse.json({ order: toTrackingView(order) });
 }

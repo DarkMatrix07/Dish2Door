@@ -28,7 +28,7 @@ import { SiteFooter } from "@/components/customer/SiteFooter";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
 import { calculateGst, GST_RATE_BPS } from "@/lib/money";
-import { readStoredIdentity, writeStoredIdentity } from "@/lib/customer-identity";
+import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity } from "@/lib/customer-identity";
 import { formatPaise } from "@/lib/utils";
 
 type PizzaMenuItem = {
@@ -309,6 +309,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
   const [cart, setCart] = useState<CartLine[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [rememberContact, setRememberContact] = useState(false);
   const [result, setResult] = useState<{ trackingCode: string; totalPaise: number; whatsappUrl: string } | null>(null);
   // No order slot on this shop: the WhatsApp thread is where timing gets agreed, so
   // the checkout never asks for Afternoon/Night. Hostel delivery goes with it — it is
@@ -318,7 +319,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
 
   useEffect(() => {
     const stored = readStoredIdentity();
-    if (stored) setCustomer((current) => ({ ...current, name: stored.name, email: stored.email, phone: stored.phone }));
+    if (stored) { setRememberContact(true); setCustomer((current) => ({ ...current, name: stored.name, email: stored.email, phone: stored.phone })); }
   }, []);
 
   const availableCourses = shop.courses.filter((course) => shop.menuItems.some((item) => item.courseId === course.id));
@@ -392,18 +393,18 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
   const orderingBlocked = !shop.acceptingOrders;
   const heroImage = shop.imageUrl ?? shop.combos[0]?.imageUrl ?? shop.menuItems[0]?.imageUrl ?? "/pizza-placeholder.webp";
 
-  function validate() {
-    if (orderingBlocked) return toast.error("This shop isn't taking orders right now.");
-    if (!cart.length) return toast.error("Add something to your order first.");
-    if (!campus) return toast.error("Please choose your campus.");
-    if (customer.name.trim().length < 2) return toast.error("Please enter your name.");
-    if (!/^[6-9]\d{9}$/.test(customer.phone.replace(/\D/g, "").slice(-10))) return toast.error("Enter a valid 10-digit Indian mobile number.");
-    if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) return toast.error("Enter a valid email address, or leave it blank.");
+  function validate(): boolean {
+    if (orderingBlocked) { toast.error("This shop isn't taking orders right now."); return false; }
+    if (!cart.length) { toast.error("Add something to your order first."); return false; }
+    if (!campus) { toast.error("Please choose your campus."); return false; }
+    if (customer.name.trim().length < 2) { toast.error("Please enter your name."); return false; }
+    if (!/^[6-9]\d{9}$/.test(customer.phone.replace(/\D/g, "").slice(-10))) { toast.error("Enter a valid 10-digit Indian mobile number."); return false; }
+    if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) { toast.error("Enter a valid email address, or leave it blank."); return false; }
     return true;
   }
 
   async function submitOrder() {
-    if (!validate() || !campus) return;
+    if (busy || !validate() || !campus) return;
     setBusy(true);
     try {
       const response = await fetch("/api/orders/whatsapp", {
@@ -422,7 +423,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Could not place the order");
-      writeStoredIdentity({ name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone.trim() });
+      writeStoredIdentity({ name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone.trim() }, { remember: rememberContact });
       setCart([]);
       setResult(data);
       window.open(data.whatsappUrl, "_blank");
@@ -926,6 +927,9 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                     <label className="text-sm font-bold">Phone number<input className={`${fieldClass} mt-2`} inputMode="tel" autoComplete="tel" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} placeholder="10-digit number" /></label>
                     <label className="text-sm font-bold sm:col-span-2">Email (optional)<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} placeholder="you@example.com" /></label>
                   </div>
+
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rememberContact} onChange={(event) => { setRememberContact(event.target.checked); if (!event.target.checked) forgetStoredIdentity(); }} />Remember my contact details on this device for 30 days</label>
+                <button type="button" className="text-sm underline" onClick={() => { forgetStoredIdentity(); setRememberContact(false); }}>Forget saved contact details</button>
 
                   <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#0B1F33]/15 bg-white p-4">
                     <MapPin size={18} className="mt-0.5 shrink-0 text-[#006491]" />

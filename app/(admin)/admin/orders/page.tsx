@@ -1,7 +1,9 @@
+import { toAdminOrderView } from "@/lib/order-views";
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { OrdersTable } from "@/components/admin/OrdersTable";
 import { prisma } from "@/lib/db";
 import { orderInclude } from "@/lib/order-select";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +11,7 @@ const PAGE_SIZE = 20;
 const CONFIRMED_ONLY = { status: { not: "AWAITING_CONFIRMATION" } } as const;
 
 export default async function AdminOrdersPage() {
+  await requireRole(["ADMIN"]);
   const [orders, total, restaurants, sessions, campuses] = await Promise.all([
     // Unconfirmed WhatsApp orders are not real orders yet — they live on their own
     // admin page until an admin accepts them.
@@ -27,7 +30,7 @@ export default async function AdminOrdersPage() {
         description="Search and filter orders, manage each order's status, and trigger campus or delivery actions."
       />
       <OrdersTable
-        initialOrders={orders}
+        initialOrders={orders.map(toAdminOrderView)}
         initialTotal={total}
         pageSize={PAGE_SIZE}
         restaurants={restaurants}

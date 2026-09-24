@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
 import { SPIN_ORDERS_PER_REWARD } from "@/lib/spin-wheel";
 import { formatPaise } from "@/lib/utils";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  await requireRole(["ADMIN"]);
   const { q } = await searchParams;
   const search = (q ?? "").trim();
 

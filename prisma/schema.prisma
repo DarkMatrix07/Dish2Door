@@ -54,6 +54,37 @@ enum PaymentStatus {
   UNPAID
 }
 
+enum CheckoutState {
+  OPEN
+  EXPIRED
+  ABANDONED
+}
+
+enum ReservationStatus {
+  HELD
+  CONSUMED
+  RELEASED
+}
+
+enum CaptureState {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+}
+
+enum RefundState {
+  NONE
+  REQUESTED
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum ReviewTokenPurpose {
+  REVIEW
+}
+
 enum NotificationChannel {
   EMAIL
   WHATSAPP
@@ -92,6 +123,8 @@ model User {
   accounts      Account[]
   appSessions   AppSession[]
   deliveries    Order[]       @relation("DeliveredBy")
+  deliveryAssignments DeliveryAssignment[]
+  auditEvents   AuditEvent[]
 }
 
 model Session {
@@ -305,6 +338,15 @@ model Order {
   campus                Campus?      @relation(fields: [campusId], references: [id], onDelete: SetNull)
   spinRewards           SpinReward[]
   notificationLogs      NotificationLog[]
+  // OPEN until the unpaid checkout window passes. Expired rows stay so a late
+  // capture can still be matched. Never hard-delete a row that has a payment.
+  checkoutState         CheckoutState @default(OPEN)
+  quoteExpiresAt        DateTime?
+  couponReservations    CouponReservation[]
+  checkoutAttempts      CheckoutAttempt[]
+  reviewTokens          ReviewToken[]
+  paymentEvents         PaymentEvent[]
+  outboxEvents          OutboxEvent[]
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 
@@ -334,13 +376,18 @@ model OrderItem {
 model Payment {
   id                 String        @id @default(cuid())
   orderId            String        @unique
-  order              Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order              Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
   provider           String        @default("razorpay")
-  razorpayOrderId    String?
-  razorpayPaymentId  String?
+  razorpayOrderId    String?       @unique
+  razorpayPaymentId  String?       @unique
   razorpaySignature  String?
   status             PaymentStatus @default(PENDING)
   amountPaise        Int
+  currency           String        @default("INR")
+  captureState       CaptureState  @default(PENDING)
+  refundState        RefundState   @default(NONE)
+  refundAmountPaise  Int           @default(0)
+  refundReference    String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 }
@@ -419,6 +466,7 @@ model Campus {
   paymentChargePercentBps Int
   paymentChargeFixedPaise Int      @default(0)
   orders                  Order[]
+  deliveryAssignments     DeliveryAssignment[]
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }
@@ -431,7 +479,10 @@ model Coupon {
   active          Boolean  @default(true)
   maxUses         Int?
   usedCount       Int      @default(0)
+  // Capacity held by open checkouts. usedCount + heldCount must stay <= maxUses.
+  heldCount       Int      @default(0)
   expiresAt       DateTime?
+  reservations    CouponReservation[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -522,4 +573,121 @@ model Customer {
   orders        Order[]
   spins         SpinUsage[]
   rewards       SpinReward[]
+  // Always false under the current guest design. A matching phone is not ownership.
+  identityVerified Boolean @default(false)
+}
+
+// Campus is required for access. Legacy block-only rows are inserted with campusId
+// null and grant nothing until an administrator maps them.
+model DeliveryAssignment {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campusId    String?
+  campus      Campus?  @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  hostelBlock String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, campusId, hostelBlock])
+  @@index([userId])
+}
+
+model CouponReservation {
+  id         String            @id @default(cuid())
+  couponId   String
+  coupon     Coupon            @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  orderId    String
+  order      Order             @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  status     ReservationStatus @default(HELD)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  releasedAt DateTime?
+  createdAt  DateTime          @default(now())
+
+  @@unique([orderId])
+  @@index([couponId, status])
+}
+
+model CheckoutAttempt {
+  id                  String   @id @default(cuid())
+  idempotencyKeyHash  String   @unique
+  capabilityHash      String
+  payloadHash         String
+  orderId             String?  @unique
+  order               Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now())
+
+  @@index([capabilityHash])
+}
+
+model ReviewToken {
+  id        String             @id @default(cuid())
+  orderId   String
+  order     Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  tokenHash String             @unique
+  purpose   ReviewTokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime           @default(now())
+
+  @@index([orderId])
+}
+
+model PaymentEvent {
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  lastError String?
+  @@index([processedAt, nextAttemptAt])
+  id                String    @id @default(cuid())
+  providerEventId   String    @unique
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  amountPaise       Int?
+  currency          String?
+  eventType         String
+  matched           Boolean   @default(false)
+  processedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  orderId           String?
+  order             Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([razorpayOrderId])
+}
+
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  orderId     String
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  dedupeKey   String    @unique
+  eventType   String
+  claimedAt   DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([orderId])
+}
+
+model RateLimitBucket {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String?
+  outcome    String
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
 }

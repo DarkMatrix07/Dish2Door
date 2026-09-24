@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { confirmOnlineOrderByRazorpayOrderId } from "@/lib/orders";
-import { verifyRazorpaySignature } from "@/lib/razorpay";
+import { fetchRazorpayPayment, verifyRazorpaySignature } from "@/lib/razorpay";
 
 const bodySchema = z.object({
   // orderId is accepted for backwards compatibility but intentionally NOT trusted:
@@ -24,19 +24,34 @@ export async function POST(request: Request) {
     // Resolve the order strictly from the signed razorpayOrderId via the Payment row
     // (persisted at create-payment time). Never confirm a client-supplied orderId — a
     // valid signature from one payment could otherwise confirm a different unpaid order.
-    const result = await confirmOnlineOrderByRazorpayOrderId(body.razorpayOrderId, body.razorpayPaymentId);
+    const providerPayment = await fetchRazorpayPayment(body.razorpayPaymentId);
+    if (providerPayment.order_id !== body.razorpayOrderId) {
+      return NextResponse.json({ error: "Payment could not be matched to an order" }, { status: 400 });
+    }
+    const captured = providerPayment.status === "captured";
+    const result = await confirmOnlineOrderByRazorpayOrderId(body.razorpayOrderId, body.razorpayPaymentId, {
+      amountPaise: Number(providerPayment.amount),
+      currency: providerPayment.currency || "",
+      captured
+    });
     if (!result) {
       return NextResponse.json({ error: "Payment could not be matched to an order" }, { status: 400 });
     }
+    if (result.pending || !result.order) {
+      return NextResponse.json({ status: "pending", error: "Payment is not captured yet." }, { status: 202 });
+    }
 
     const { order, passcode } = result;
+    if (order.status === "CANCELLED") {
+      return NextResponse.json({ status: "refund_pending", error: "Payment received, but this order cannot be fulfilled. Your refund requires support review. Please do not pay again." }, { status: 409 });
+    }
     return NextResponse.json({
       trackingCode: order.trackingCode,
-      passcode // may be null if the webhook already confirmed this order first
+      passcode
     });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not verify payment" },
+      { error: "Could not verify payment. Please retry verification or contact support; do not pay again." },
       { status: 400 }
     );
   }

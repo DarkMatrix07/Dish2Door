@@ -1,6 +1,7 @@
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { TodaysOrders } from "@/components/admin/TodaysOrders";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ function istTodayRange() {
 }
 
 export default async function TodaysOrdersPage() {
+  await requireRole(["ADMIN"]);
   const { start, end, label } = istTodayRange();
 
   const orders = await prisma.order.findMany({

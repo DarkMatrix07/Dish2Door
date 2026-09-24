@@ -1,3 +1,5 @@
+import { publicErrorMessage } from "@/lib/public-error";
+import { toOrderMutationView } from "@/lib/order-views";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
@@ -19,19 +21,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (body.action === "reached") {
       const order = await markOrderReachedCampus(id);
-      return NextResponse.json({ order });
+      return NextResponse.json({ order: toOrderMutationView(order) });
     }
 
     if (body.action === "delivered") {
       const order = await adminMarkOrderDelivered(id, user.id);
-      return NextResponse.json({ order });
+      return NextResponse.json({ order: toOrderMutationView(order) });
     }
 
     const order = await cancelOrder(id, body.refund ?? false);
-    return NextResponse.json({ order });
+    return NextResponse.json({ order: toOrderMutationView(order) });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not update order" },
+      { error: publicErrorMessage(error, "Could not update order") },
       { status: 400 }
     );
   }

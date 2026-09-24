@@ -1,3 +1,4 @@
+import { PublicError } from "@/lib/public-error";
 import type { Campus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { CampusPublic } from "@/lib/customer-campus";
@@ -30,18 +31,23 @@ export async function listActiveCampuses() {
   });
 }
 
-// Resolves the campus for an order. Falls back to the default campus so a stale client
-// (or an older admin form that never sent a campus) can still place an order.
-export async function resolveCampus(code?: string | null) {
+// An explicit code must be that campus and active. An omitted code may use the
+// documented active default only. Inactive and unknown codes are rejected.
+export async function resolveCampus(code?: string | null, options?: { allowDefault?: boolean }) {
   const wanted = code?.trim();
   if (wanted) {
     const campus = await prisma.campus.findUnique({ where: { code: wanted } });
-    if (campus?.active) return campus;
+    if (!campus || !campus.active) {
+      throw new PublicError("That campus is not accepting orders.");
+    }
+    return campus;
   }
+
+  if (options?.allowDefault === false) {
+    throw new PublicError("Choose a campus before placing the order.");
+  }
+
   const fallback = await prisma.campus.findUnique({ where: { code: DEFAULT_CAMPUS_CODE } });
-  if (fallback) return fallback;
-  // Nothing seeded yet (e.g. a brand-new database): use the first active campus.
-  const [first] = await listActiveCampuses();
-  if (!first) throw new Error("No campus is configured. Add one in admin before taking orders.");
-  return first;
+  if (fallback?.active) return fallback;
+  throw new PublicError("Choose a campus before placing the order.");
 }

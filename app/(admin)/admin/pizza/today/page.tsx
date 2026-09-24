@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { PizzaTodaysOrders } from "@/components/admin/PizzaTodaysOrders";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ function istTodayRange() {
 }
 
 export default async function PizzaTodaysOrdersPage() {
+  await requireRole(["ADMIN"]);
   const restaurant = await prisma.restaurant.findUnique({ where: { slug: RESTAURANT_SLUG }, select: { id: true, name: true } });
   if (!restaurant) notFound();
 

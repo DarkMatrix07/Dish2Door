@@ -7,10 +7,12 @@ import { prisma } from "@/lib/db";
 import { orderInclude } from "@/lib/order-select";
 import { getSettings } from "@/lib/settings";
 import { formatPaise } from "@/lib/utils";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
+  await requireRole(["ADMIN"]);
   const [
     settings,
     totalOrders,

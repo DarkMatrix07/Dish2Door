@@ -3,6 +3,7 @@ import { DeliveryType, OrderStatus } from "@prisma/client";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { orderInclude } from "@/lib/order-select";
+import { toDeliveryOrderView } from "@/lib/order-views";
 
 export async function GET() {
   const user = await requireApiRole(["DELIVERY"]);
@@ -46,5 +47,8 @@ export async function GET() {
     })
   ]);
 
-  return NextResponse.json({ orders, stats: { deliveredToday, deliveredThisWeek, deliveredTotal, pending: orders.length } });
+  return NextResponse.json({
+    orders: orders.map(toDeliveryOrderView),
+    stats: { deliveredToday, deliveredThisWeek, deliveredTotal, pending: orders.length }
+  });
 }

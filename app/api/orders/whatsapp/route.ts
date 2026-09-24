@@ -1,3 +1,4 @@
+import { publicErrorMessage } from "@/lib/public-error";
 import { NextResponse } from "next/server";
 import { DeliveryType, OrderSlot } from "@prisma/client";
 import { z } from "zod";
@@ -5,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { createWhatsAppOrder } from "@/lib/orders";
 import { assertOrderSlotAvailable, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientAddress, consumeRateLimit } from "@/lib/rate-limit";
 import {
   buildWhatsAppOrderLink,
   buildWhatsAppOrderMessage,
@@ -58,7 +59,13 @@ export async function POST(request: Request) {
     const body = bodySchema.parse(await request.json());
 
     const phoneKey = body.customer.phone.replace(/\D/g, "").slice(-10);
-    if (!rateLimit(`whatsapp-order:${phoneKey}`, MAX_ORDERS, WINDOW_MS)) {
+    const source = clientAddress(request);
+    const limits = await Promise.all([
+      consumeRateLimit(`whatsapp-order:${phoneKey}`, MAX_ORDERS, WINDOW_MS),
+      consumeRateLimit("whatsapp-global", 120, WINDOW_MS),
+      ...(source ? [consumeRateLimit(`whatsapp-source:${source}`, 40, WINDOW_MS)] : [])
+    ]);
+    if (limits.some((limit) => !limit.allowed)) {
       return NextResponse.json(
         { error: "Too many orders from this number. Please wait a few minutes and try again." },
         { status: 429 }
@@ -114,7 +121,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const message = error instanceof Error ? error.message : "Could not place the order";
+    const message = publicErrorMessage(error, "Could not place the order");
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -1,10 +1,12 @@
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { CouponsManager } from "@/components/admin/CouponsManager";
 import { prisma } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCouponsPage() {
+  await requireRole(["ADMIN"]);
   const coupons = await prisma.coupon.findMany({ orderBy: { createdAt: "desc" }, take: 50 });
 
   return (

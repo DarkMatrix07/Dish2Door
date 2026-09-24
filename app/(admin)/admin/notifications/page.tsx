@@ -4,10 +4,12 @@ import { NotificationsPanel } from "@/components/admin/NotificationsPanel";
 import { NotificationToggles } from "@/components/admin/NotificationToggles";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminNotificationsPage() {
+  await requireRole(["ADMIN"]);
   const settings = await getSettings();
   const [failedLogs, recentLogs] = await Promise.all([
     prisma.notificationLog.findMany({
