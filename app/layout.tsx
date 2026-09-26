@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Suspense } from "react";
 import { Toaster } from "sonner";
 import { BrandIntro } from "@/components/customer/BrandIntro";
+import { MotionProvider } from "@/components/MotionProvider";
+import { NavigationProgress } from "@/components/NavigationProgress";
 import "./globals.css";
 
 const manrope = localFont({
@@ -31,10 +34,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Runs before first paint: a visitor who already saw the intro this session
+            must not get a flash of it while the page hydrates. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{if(sessionStorage.getItem('dish2door-intro-seen'))document.documentElement.classList.add('intro-seen')}catch(e){}" }} />
+      </head>
       <body className={`${manrope.variable} ${spaceMono.variable}`}>
-        <BrandIntro />
-        {children}
+        <MotionProvider>
+          <Suspense fallback={null}>
+            <NavigationProgress />
+          </Suspense>
+          <BrandIntro />
+          {children}
+        </MotionProvider>
         <Toaster richColors position="top-center" />
       </body>
     </html>

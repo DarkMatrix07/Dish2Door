@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Flame, Minus, Plus, Sparkles, Store, TrendingUp, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
+import { FadeImage } from "@/components/customer/FadeImage";
 import type { FeaturedCombo, FeaturedData, FeaturedDish } from "@/lib/featured";
 import { getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
@@ -12,26 +13,28 @@ const ITEM_FALLBACK = "/dish-placeholder.webp";
 type Props = {
   data: FeaturedData;
   quantityOf: (cartId: string) => number;
-  onAddDish: (dish: FeaturedDish) => void;
+  onAddDish: (dish: FeaturedDish, source?: Element | null) => void;
   onStepDish: (dish: FeaturedDish, delta: number) => void;
-  onAddCombo: (combo: FeaturedCombo) => void;
+  onAddCombo: (combo: FeaturedCombo, source?: Element | null) => void;
   onStepCombo: (combo: FeaturedCombo, delta: number) => void;
   onOpenRestaurant: (restaurantId: string) => void;
   onBrowseKitchens: () => void;
 };
 
-function Stepper({ quantity, onStep, onAdd, label }: { quantity: number; onStep: (delta: number) => void; onAdd: () => void; label: string }) {
+function Stepper({ quantity, onStep, onAdd, label }: { quantity: number; onStep: (delta: number) => void; onAdd: (source: Element) => void; label: string }) {
   if (quantity > 0) {
     return (
-      <div className="flex h-10 items-center rounded-md bg-[#171713] text-white shadow-[0_8px_24px_rgba(23,23,19,0.16)]">
-        <button type="button" aria-label={`Decrease ${label}`} onClick={() => onStep(-1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 active:scale-95"><Minus size={15} /></button>
-        <span className="w-7 text-center text-sm font-black tabular-nums">{quantity}</span>
-        <button type="button" aria-label={`Increase ${label}`} onClick={() => onStep(1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 active:scale-95"><Plus size={15} /></button>
-      </div>
+      <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 520, damping: 30 }} className="flex h-10 items-center rounded-md bg-[#171713] text-white shadow-[0_8px_24px_rgba(23,23,19,0.16)]">
+        <button type="button" aria-label={`Decrease ${label}`} onClick={() => onStep(-1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 active:scale-90"><Minus size={15} /></button>
+        <span className="w-7 overflow-hidden text-center text-sm font-black tabular-nums">
+          <motion.span key={quantity} initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.18 }} className="inline-block">{quantity}</motion.span>
+        </span>
+        <button type="button" aria-label={`Increase ${label}`} onClick={() => onStep(1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10 active:scale-90"><Plus size={15} /></button>
+      </motion.div>
     );
   }
   return (
-    <button type="button" onClick={onAdd} className="h-10 min-w-20 rounded-md border border-black/15 bg-white px-4 text-sm font-black text-[#171713] transition duration-200 hover:border-[#f6b73c] hover:bg-[#f6b73c] active:scale-[0.98]">
+    <button type="button" onClick={(event) => onAdd(event.currentTarget)} className="h-10 min-w-20 rounded-md border border-black/15 bg-white px-4 text-sm font-black text-[#171713] transition duration-200 hover:border-[#f6b73c] hover:bg-[#f6b73c] active:scale-95">
       Add
     </button>
   );
@@ -88,7 +91,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
         className="group relative flex w-60 shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-black/10 bg-white/70 transition hover:-translate-y-1 hover:shadow-[0_18px_50px_rgba(23,23,19,0.10)] sm:w-auto"
       >
         <div className="relative aspect-[4/3] overflow-hidden bg-[#ded8cd]">
-          <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" />
+          <FadeImage alt={dish.name} src={dish.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover transition-[opacity,transform] duration-700 group-hover:scale-[1.05]" />
           {rank ? <span className="absolute left-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-[#171713] text-xs font-black text-[#f6b73c]">#{rank}</span> : null}
           {dish.discountPercent ? <span className="absolute right-3 top-3 rounded-md bg-[#f6b73c] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#171713]">{dish.discountPercent}% off</span> : null}
         </div>
@@ -105,7 +108,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
               <span className="block font-black tabular-nums">{formatPaise(dish.finalPricePaise)}</span>
               {dish.discountPercent ? <span className="text-xs tabular-nums text-[#9a9388] line-through">{formatPaise(dish.pricePaise)}</span> : null}
             </div>
-            <Stepper quantity={quantity} label={dish.name} onAdd={() => onAddDish(dish)} onStep={(delta) => onStepDish(dish, delta)} />
+            <Stepper quantity={quantity} label={dish.name} onAdd={(source) => onAddDish(dish, source)} onStep={(delta) => onStepDish(dish, delta)} />
           </div>
         </div>
       </motion.article>
@@ -125,7 +128,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
         className="group relative flex w-60 shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-[#171713]/12 bg-[#171713] text-white transition hover:-translate-y-1 sm:w-auto"
       >
         <div className="relative aspect-[4/3] overflow-hidden bg-[#2a2a24]">
-          <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-[1.05]" />
+          <FadeImage alt={combo.name} src={combo.imageUrl ?? ITEM_FALLBACK} className="h-full w-full object-cover transition-[opacity,transform] duration-700 group-hover:scale-[1.05]" />
           <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-[#f6b73c] px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-[#171713]"><Sparkles size={11} /> Combo</span>
           {combo.savingsPercent > 0 ? <span className="absolute right-3 top-3 rounded-md bg-white px-2 py-1 text-[10px] font-black text-[#171713]">Save {combo.savingsPercent}%</span> : null}
         </div>
@@ -138,7 +141,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
               <span className="block font-black tabular-nums">{formatPaise(combo.comboPricePaise)}</span>
               {combo.savingsPaise > 0 ? <span className="text-xs tabular-nums text-white/45 line-through">{formatPaise(combo.realTotalPaise)}</span> : null}
             </div>
-            <Stepper quantity={quantity} label={combo.name} onAdd={() => onAddCombo(combo)} onStep={(delta) => onStepCombo(combo, delta)} />
+            <Stepper quantity={quantity} label={combo.name} onAdd={(source) => onAddCombo(combo, source)} onStep={(delta) => onStepCombo(combo, delta)} />
           </div>
         </div>
       </motion.article>
@@ -167,6 +170,7 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.55 }}
+          data-fly-source=""
           className="mt-10 overflow-hidden rounded-3xl bg-[#171713] text-white shadow-[0_30px_80px_rgba(23,23,19,0.22)]"
         >
           <div className="grid gap-0 lg:grid-cols-[1.05fr_1fr]">
@@ -184,14 +188,14 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
                   <span className="text-3xl font-black tabular-nums">{formatPaise(hero.finalPricePaise)}</span>
                   {hero.discountPercent ? <span className="ml-2 text-sm tabular-nums text-white/45 line-through">{formatPaise(hero.pricePaise)}</span> : null}
                 </div>
-                <Stepper quantity={quantityOf(hero.id)} label={hero.name} onAdd={() => onAddDish(hero)} onStep={(delta) => onStepDish(hero, delta)} />
+                <Stepper quantity={quantityOf(hero.id)} label={hero.name} onAdd={(source) => onAddDish(hero, source)} onStep={(delta) => onStepDish(hero, delta)} />
               </div>
               <p className="mt-5 inline-flex items-center gap-1.5 text-xs font-bold text-white/45">
                 <Flame size={13} className="text-[#f6b73c]" /> {hero.orderCount} plates ordered in the last 60 days
               </p>
             </div>
             <div className="order-1 relative min-h-56 lg:order-2 lg:min-h-[24rem]">
-              <img loading="lazy" decoding="async" alt={hero.name} src={hero.imageUrl ?? ITEM_FALLBACK} className="absolute inset-0 h-full w-full object-cover" />
+              <FadeImage alt={hero.name} src={hero.imageUrl ?? ITEM_FALLBACK} loading="eager" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#171713] via-[#171713]/25 to-transparent lg:bg-gradient-to-r" />
             </div>
           </div>

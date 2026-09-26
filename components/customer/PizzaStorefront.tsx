@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AnimatedPaise } from "@/components/customer/AnimatedPaise";
+import { FadeImage } from "@/components/customer/FadeImage";
 import { RememberDetails } from "@/components/customer/RememberDetails";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -30,6 +32,7 @@ import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/cu
 import { calculateGst, GST_RATE_BPS } from "@/lib/money";
 import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity } from "@/lib/customer-identity";
 import { MAX_LINE_QUANTITY } from "@/lib/cart";
+import { flyToCart, tapFeedback } from "@/lib/cart-feedback";
 import { formatPaise } from "@/lib/utils";
 
 type PizzaMenuItem = {
@@ -427,7 +430,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
     return cart.find((line) => line.kind === kind && line.id === id)?.quantity ?? 0;
   }
 
-  function addLine(kind: "item" | "combo", id: string, name: string, imageUrl: string | null, unitPricePaise: number) {
+  function addLine(kind: "item" | "combo", id: string, name: string, imageUrl: string | null, unitPricePaise: number, source?: Element | null) {
     if (lineQuantity(kind, id) >= MAX_LINE_QUANTITY) {
       toast.error(`You can order up to ${MAX_LINE_QUANTITY} of one item.`, { id: "line-quantity-cap" });
       return;
@@ -438,6 +441,8 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
       if (existing) return current.map((line) => (line.key === key ? { ...line, quantity: line.quantity + 1 } : line));
       return [...current, { key, kind, id, name, imageUrl, unitPricePaise, quantity: 1 }];
     });
+    if (lineQuantity(kind, id) === 0) flyToCart(source ?? null);
+    else tapFeedback();
   }
 
   function adjustLine(kind: "item" | "combo", id: string, delta: number) {
@@ -447,6 +452,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
     }
     const key = `${kind}:${id}`;
     setCart((current) => current.map((line) => (line.key === key ? { ...line, quantity: line.quantity + delta } : line)).filter((line) => line.quantity > 0));
+    tapFeedback();
   }
 
   const totals = useMemo(() => {
@@ -595,9 +601,10 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
             <button
               type="button"
               onClick={() => setCheckoutOpen(true)}
+              data-cart-target=""
               className="flex h-9 shrink-0 items-center gap-2 rounded-full bg-[#E31837] px-3.5 text-xs font-black text-white transition hover:bg-[#c81330] sm:h-10 sm:px-4 sm:text-sm"
             >
-              <ShoppingBag size={15} /> {itemCount} <span className="hidden sm:inline">&middot; {formatPaise(totals.subtotalPaise)}</span>
+              <ShoppingBag size={15} /> <motion.span key={itemCount} initial={{ scale: 1.4 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 520, damping: 16 }} className="inline-block tabular-nums">{itemCount}</motion.span> <span className="hidden sm:inline">&middot; <AnimatedPaise value={totals.subtotalPaise} /></span>
             </button>
           ) : null}
         </div>
@@ -683,7 +690,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                     className="group relative flex min-w-0 flex-col overflow-hidden rounded-xl bg-white shadow-[0_12px_36px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(0,0,0,0.35)]"
                   >
                     <div className="relative">
-                      <img loading="lazy" decoding="async" alt={combo.name} src={combo.imageUrl ?? "/pizza-placeholder.webp"} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+                      <FadeImage alt={combo.name} src={combo.imageUrl ?? "/pizza-placeholder.webp"} className="aspect-[16/10] w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-[1.035]" />
                       {savingsPercent > 0 ? (
                         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#E31837] px-3 py-1 text-xs font-black uppercase tracking-wide text-white shadow-sm">
                           <Flame size={13} /> Save {savingsPercent}%
@@ -702,7 +709,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                         {qty === 0 ? (
                           <button
                             type="button"
-                            onClick={() => addLine("combo", combo.id, combo.name, combo.imageUrl, combo.comboPricePaise)}
+                            onClick={(event) => addLine("combo", combo.id, combo.name, combo.imageUrl, combo.comboPricePaise, event.currentTarget)}
                             className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0B1F33] text-sm font-black text-white transition hover:bg-[#006491]"
                           >
                             <Plus size={15} /> Add combo
@@ -710,7 +717,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                         ) : (
                           <div className="flex h-11 items-center justify-between rounded-lg border border-[#0B1F33]/15 bg-[#F6F7F9] px-1">
                             <button type="button" aria-label={`Decrease ${combo.name}`} onClick={() => adjustLine("combo", combo.id, -1)} className="grid h-9 w-9 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Minus size={14} /></button>
-                            <span className="text-sm font-black tabular-nums text-[#0B1F33]">{qty}</span>
+                            <span className="overflow-hidden text-sm font-black tabular-nums text-[#0B1F33]"><motion.span key={qty} initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.18 }} className="inline-block">{qty}</motion.span></span>
                             <button type="button" aria-label={`Increase ${combo.name}`} onClick={() => adjustLine("combo", combo.id, 1)} className="grid h-9 w-9 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Plus size={14} /></button>
                           </div>
                         )}
@@ -811,7 +818,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                     className="group grid min-w-0 grid-cols-[minmax(0,1fr)_8.75rem] overflow-hidden rounded-xl border border-[#0B1F33]/8 bg-white shadow-[0_8px_28px_rgba(11,31,51,0.055)] transition duration-300 hover:-translate-y-0.5 hover:border-[#0B1F33]/14 hover:shadow-[0_18px_42px_rgba(11,31,51,0.11)] sm:grid-cols-[minmax(0,1fr)_12rem]"
                   >
                     <div className="relative order-2 overflow-hidden bg-[#edf1f4]">
-                      <img loading="lazy" decoding="async" alt={dish.name} src={dish.imageUrl ?? "/pizza-placeholder.webp"} className="h-full min-h-[13.5rem] w-full object-cover transition duration-500 group-hover:scale-[1.035]" />
+                      <FadeImage alt={dish.name} src={dish.imageUrl ?? "/pizza-placeholder.webp"} className="h-full min-h-[13.5rem] w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-[1.035]" />
                       {isHotDeal ? (
                         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-[#E31837] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">
                           <Flame size={12} /> {selected.discountPercent}% off
@@ -836,9 +843,10 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                                 key={size.id}
                                 type="button"
                                 onClick={() => setSelectedSizeByDish((current) => ({ ...current, [dish.key]: size.id }))}
-                                className={`min-h-[2.25rem] rounded-md border px-3 text-xs font-black transition ${picked ? "border-[#0B1F33] bg-[#0B1F33] text-white" : "border-[#0B1F33]/15 bg-white text-[#5A6B7B] hover:border-[#006491] hover:text-[#0B1F33]"}`}
+                                className={`relative min-h-[2.25rem] rounded-md border px-3 text-xs font-black transition-colors ${picked ? "border-[#0B1F33] text-white" : "border-[#0B1F33]/15 bg-white text-[#5A6B7B] hover:border-[#006491] hover:text-[#0B1F33]"}`}
                               >
-                                {size.sizeLabel ?? "Regular"}
+                                {picked ? <motion.span layoutId={`size-${dish.key}`} transition={{ type: "spring", stiffness: 480, damping: 36 }} className="absolute inset-[-1px] rounded-md bg-[#0B1F33]" /> : null}
+                                <span className="relative">{size.sizeLabel ?? "Regular"}</span>
                               </button>
                             );
                           })}
@@ -849,7 +857,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                         <div>
                           {hasSizes ? <p className="text-[11px] font-bold uppercase tracking-wide text-[#5A6B7B]/70">From {formatPaise(cheapestPrice)}</p> : null}
                           <div className="flex items-baseline gap-2">
-                            <span className="text-lg font-black tabular-nums text-[#0B1F33]">{formatPaise(unitPrice)}</span>
+                            <AnimatedPaise value={unitPrice} className="text-lg font-black tabular-nums text-[#0B1F33]" />
                             {selected.discountPercent ? <span className="text-xs text-[#5A6B7B]/70 line-through">{formatPaise(selected.pricePaise)}</span> : null}
                           </div>
                         </div>
@@ -857,7 +865,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                           <button
                             type="button"
                             aria-label={`Add ${cartName}`}
-                            onClick={() => addLine("item", selected.id, cartName, selected.imageUrl, unitPrice)}
+                            onClick={(event) => addLine("item", selected.id, cartName, selected.imageUrl, unitPrice, event.currentTarget)}
                             className="flex h-10 items-center gap-2 rounded-md bg-[#E31837] px-3.5 text-sm font-black text-white transition hover:bg-[#c81330] active:scale-[0.98]"
                           >
                             <Plus size={15} /> Add
@@ -865,7 +873,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                         ) : (
                           <div className="flex h-10 items-center rounded-md border border-[#0B1F33]/15 bg-[#F6F7F9]">
                             <button type="button" aria-label={`Decrease ${cartName}`} onClick={() => adjustLine("item", selected.id, -1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Minus size={13} /></button>
-                            <span className="w-7 text-center text-sm font-black tabular-nums text-[#0B1F33]">{qty}</span>
+                            <span className="w-7 overflow-hidden text-center text-sm font-black tabular-nums text-[#0B1F33]"><motion.span key={qty} initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.18 }} className="inline-block">{qty}</motion.span></span>
                             <button type="button" aria-label={`Increase ${cartName}`} onClick={() => adjustLine("item", selected.id, 1)} className="grid h-10 w-10 place-items-center rounded-md text-[#0B1F33] transition hover:bg-white"><Plus size={13} /></button>
                           </div>
                         )}
@@ -900,13 +908,14 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             onClick={() => setCheckoutOpen(true)}
+            data-cart-target=""
             className="fixed inset-x-5 bottom-5 z-40 mx-auto flex h-16 max-w-md items-center justify-between rounded-2xl bg-[#E31837] px-6 text-white shadow-[0_20px_60px_rgba(227,24,55,0.35)] transition hover:bg-[#c81330] sm:hidden"
           >
             <span className="flex items-center gap-3 font-black">
               <ShoppingBag size={19} /> {itemCount} {itemCount === 1 ? "item" : "items"}
             </span>
             <span className="flex items-center gap-2 font-black tabular-nums">
-              {formatPaise(totals.subtotalPaise)} <ArrowRight size={16} />
+              <AnimatedPaise value={totals.subtotalPaise} /> <ArrowRight size={16} />
             </span>
           </motion.button>
         ) : null}
@@ -1016,7 +1025,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                     <div className="flex justify-between text-[#5A6B7B]"><span>Items subtotal</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.subtotalPaise)}</span></div>
                     <div className="flex justify-between text-[#5A6B7B]"><span>GST (5%)</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.taxPaise)}</span></div>
                     <div className="flex justify-between text-[#5A6B7B]"><span>Platform fee</span><span className="tabular-nums text-[#0B1F33]">{formatPaise(totals.platformFeePaise)}</span></div>
-                    <div className="flex justify-between border-t border-[#0B1F33]/10 pt-2 text-base font-black text-[#0B1F33]"><span>Total</span><span className="tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
+                    <div className="flex justify-between border-t border-[#0B1F33]/10 pt-2 text-base font-black text-[#0B1F33]"><span>Total</span><AnimatedPaise value={totals.totalPaise} className="tabular-nums" /></div>
                     <p className="pt-1 text-xs leading-5 text-[#5A6B7B]/80">No online payment here. Pay by cash or UPI when your order is handed over.</p>
                   </div>
 

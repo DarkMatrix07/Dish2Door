@@ -87,6 +87,75 @@ dd {
   .dish-loading-bar { animation-duration: 2.5s; }
 }
 
+/* Mobile browsers flash a grey box on every tap; buttons here have their own
+   pressed states, so the flash only made taps feel laggy. */
+a,
+button,
+label,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The intro already played this session (class set before first paint). */
+.intro-seen [data-brand-intro] {
+  display: none;
+}
+
+/* Page-shaped placeholders shown while a customer page loads. */
+.skeleton {
+  background: linear-gradient(90deg, rgba(23, 19, 14, 0.06) 0%, rgba(23, 19, 14, 0.11) 40%, rgba(23, 19, 14, 0.06) 80%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 110% 0; }
+  100% { background-position: -110% 0; }
+}
+
+/* Top navigation bar: races to ~80% while the next page loads, then completes. */
+.nav-progress-bar {
+  width: 0;
+  animation: nav-progress 2.4s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+
+.nav-progress-bar.nav-progress-done {
+  width: 100%;
+  animation: nav-progress-finish 0.45s ease-out forwards;
+}
+
+@keyframes nav-progress {
+  0% { width: 0; }
+  100% { width: 82%; }
+}
+
+@keyframes nav-progress-finish {
+  0% { opacity: 1; }
+  60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Photos fade in once decoded instead of popping in line by line. In the components
+   layer so utilities on the same image (opacity-60 for sold out, transition-*) still
+   win; images that also scale on hover use transition-[opacity,transform]. */
+@layer components {
+  .fade-img {
+    opacity: 0;
+    transition: opacity 0.45s ease, transform 0.7s ease;
+  }
+
+  .fade-img[data-loaded="true"] {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  .nav-progress-bar { animation-duration: 0.01s; }
+  .fade-img { transition: none; }
+  html { scroll-behavior: auto; }
+}
+
 .admin-app {
   --admin-border: rgba(32, 33, 38, 0.1);
   background:

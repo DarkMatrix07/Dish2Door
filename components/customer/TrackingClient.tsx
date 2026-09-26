@@ -1,10 +1,11 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useAnimationControls } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, Check, CheckCircle2, Gift, LockKeyhole, Mail, MapPin, MessageCircle, ReceiptText, RefreshCw, ShieldCheck, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Confetti } from "@/components/customer/Confetti";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { readApiJson } from "@/lib/api-client";
@@ -58,6 +59,10 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [ratingBusy, setRatingBusy] = useState(false);
+  // A wrong passcode shakes the card, like a phone lock screen.
+  const unlockCard = useAnimationControls();
+  // Set when the customer lands here straight from a successful payment.
+  const [celebrate, setCelebrate] = useState(false);
   const [rating, setRating] = useState({ foodRating: 5, deliveryRating: 5, review: "" });
 
   useEffect(() => {
@@ -65,11 +70,11 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
     if (savedPasscode) {
       setPasscode(savedPasscode);
       window.sessionStorage.removeItem(`dish2door_passcode_${trackingCode}`);
-      void verify(savedPasscode);
+      void verify(savedPasscode, { celebrate: true });
     }
   }, [trackingCode]);
 
-  async function verify(passcodeOverride?: string, options: { refresh?: boolean } = {}) {
+  async function verify(passcodeOverride?: string, options: { refresh?: boolean; celebrate?: boolean } = {}) {
     if (options.refresh) setRefreshing(true); else setBusy(true);
     try {
       const response = await fetch(`/api/tracking/${trackingCode}/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: passcodeOverride ?? passcode }) });
@@ -80,8 +85,10 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
       if (!response.ok) throw new Error(data.error ?? "Could not verify this order");
       setOrder(data.order);
       if (options.refresh) toast.success("Status updated");
+      if (options.celebrate && data.order.status !== "CANCELLED") setCelebrate(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not verify this order");
+      if (!options.refresh) void unlockCard.start({ x: [0, -12, 12, -8, 8, -3, 0], transition: { duration: 0.45 } });
     } finally {
       setBusy(false);
       setRefreshing(false);
@@ -129,7 +136,7 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <div className="mt-9 flex flex-wrap gap-5 text-sm font-bold text-[#625b50]"><span className="flex items-center gap-2"><ShieldCheck size={17} className="text-[#c65d24]" /> Private details</span><span className="flex items-center gap-2"><MapPin size={17} className="text-[#c65d24]" /> Live status</span></div>
             </div>
 
-            <div className="rounded-2xl bg-white p-6 shadow-[0_28px_90px_rgba(58,43,22,0.1)] sm:p-8">
+            <motion.div animate={unlockCard} className="rounded-2xl bg-white p-6 shadow-[0_28px_90px_rgba(58,43,22,0.1)] sm:p-8">
               <span className="grid h-12 w-12 place-items-center rounded-lg bg-[#171713] text-[#f6b73c]"><LockKeyhole size={21} /></span>
               <h2 className="mt-7 text-2xl font-black tracking-[-0.035em]">Unlock tracking</h2>
               <p className="mt-2 text-sm leading-6 text-[#716a5f]">Order reference <span className="font-mono font-bold text-[#171713]">{trackingCode}</span></p>
@@ -142,10 +149,27 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               </label>
               <button type="button" disabled={busy || passcode.length !== 4} onClick={() => verify()} className="tracking-dark-link mt-4 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] disabled:cursor-not-allowed disabled:opacity-40"><span>{busy ? "Checking passcode..." : "View my order"}</span><LockKeyhole size={17} /></button>
               <p className="mt-4 text-xs leading-5 text-[#8b8479]">Keep this passcode private. Anyone with the link and passcode can view the order.</p>
-            </div>
+            </motion.div>
           </motion.section>
         ) : (
           <motion.section key="order" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="mx-auto max-w-[1200px] px-5 py-12 pb-24 sm:px-8 lg:px-12 lg:py-16">
+            {celebrate ? (
+              <>
+                <Confetti />
+                <motion.div
+                  initial={{ opacity: 0, y: -12, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 24, delay: 0.15 }}
+                  className="mb-9 flex items-center gap-4 rounded-2xl bg-[#171713] p-5 text-white shadow-[0_24px_60px_rgba(23,23,19,0.22)] sm:p-6"
+                >
+                  <motion.span initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 420, damping: 14, delay: 0.3 }} className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#f6b73c] text-[#171713]"><Check size={24} strokeWidth={3} /></motion.span>
+                  <div>
+                    <p className="text-lg font-black tracking-[-0.02em]">Payment received — your order is confirmed!</p>
+                    <p className="mt-0.5 text-sm text-white/60">We&apos;ve sent this tracking link and your passcode by email and WhatsApp.</p>
+                  </div>
+                </motion.div>
+              </>
+            ) : null}
             <div className="flex flex-col gap-6 border-b border-black/12 pb-9 sm:flex-row sm:items-end sm:justify-between">
               <div><div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-[#f6b73c] px-3 py-2 font-mono text-xs font-black">{order.trackingCode}</span>{isCancelled ? <span className="rounded-md bg-[#8a342c] px-3 py-2 text-xs font-black text-white">Cancelled</span> : null}</div><h1 className="mt-5 text-4xl font-black leading-none tracking-[-0.05em] sm:text-6xl">{order.restaurant.name}</h1><p className="mt-4 text-[#6c6458]">For {order.customerName} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Campus gate"}{order.orderSlot ? ` · ${order.orderSlot === "NIGHT" ? "Night" : "Afternoon"}` : ""}</p></div>
               <div className="sm:text-right"><p className="text-sm font-bold text-[#817a70]">Total paid</p><p className="mt-1 text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(order.totalPaise)}</p></div>
@@ -205,15 +229,20 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
             ) : (
               <section className="mt-12">
                 <div className="flex flex-wrap items-end justify-between gap-3"><div className="flex items-center gap-3"><h2 className="text-3xl font-black tracking-[-0.04em]">Order status</h2>{order.status !== "DELIVERED" ? <button type="button" disabled={refreshing} onClick={() => verify(undefined, { refresh: true })} aria-label="Refresh order status" className="grid h-9 w-9 place-items-center rounded-full border border-black/12 text-[#6c6458] transition hover:border-black/30 hover:text-[#171713] disabled:opacity-50"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""} /></button> : null}</div><span className="font-mono text-xs text-[#817a70]">STEP {currentIndex + 1} OF 3</span></div>
-                <div className="mt-7 grid gap-3 md:grid-cols-3">
+                {/* The line fills up to the current step, so progress reads at a glance. */}
+                <div className="mt-7 h-1.5 overflow-hidden rounded-full bg-black/8" role="progressbar" aria-valuemin={1} aria-valuemax={3} aria-valuenow={currentIndex + 1} aria-label="Order progress">
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${((currentIndex + 1) / steps.length) * 100}%` }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.2 }} className="h-full rounded-full bg-[#f6b73c]" />
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
                   {steps.map((step, index) => {
                     const done = index <= currentIndex;
                     const current = index === currentIndex;
                     return (
-                      <article key={step.key} className={`relative min-h-44 rounded-xl border p-5 transition ${current ? "border-[#171713] bg-[#171713] text-white" : done ? "border-[#f6b73c] bg-[#f6b73c]/18" : "border-black/10 bg-white/35"}`}>
+                      <motion.article key={step.key} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + index * 0.08, duration: 0.45, ease: [0.22, 1, 0.36, 1] }} className={`relative min-h-44 rounded-xl border p-5 transition ${current ? "border-[#171713] bg-[#171713] text-white" : done ? "border-[#f6b73c] bg-[#f6b73c]/18" : "border-black/10 bg-white/35"}`}>
+                        {current && order.status !== "DELIVERED" ? <span className="absolute bottom-5 right-5 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#f6b73c]"><span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#f6b73c] opacity-70" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#f6b73c]" /></span>Now</span> : null}
                         <div className="flex items-start justify-between"><span className={`font-mono text-xs ${current ? "text-white/50" : "text-[#8c857a]"}`}>{step.number}</span><span className={`grid h-8 w-8 place-items-center rounded-full ${done ? "bg-[#f6b73c] text-[#171713]" : "bg-black/5 text-black/25"}`}>{done ? <Check size={15} strokeWidth={3} /> : null}</span></div>
                         <h3 className="mt-8 text-lg font-black">{step.label}</h3><p className={`mt-2 text-sm leading-6 ${current ? "text-white/55" : "text-[#716a5f]"}`}>{step.helper}</p>
-                      </article>
+                      </motion.article>
                     );
                   })}
                 </div>

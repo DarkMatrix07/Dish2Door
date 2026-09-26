@@ -85,23 +85,23 @@ export function HomeLanding({ hostelDelivery = false }: { hostelDelivery?: boole
             <p className="mt-6 max-w-md leading-7 text-[#6c6458]">We designed Dish2Door around the details that matter on campus: accurate menus, simple handoffs, and communication that keeps you in the loop.</p>
           </div>
           <div className="divide-y divide-black/12 border-y border-black/12">
-            {promises.map((item) => (
-              <article key={item.title} className="group grid gap-5 py-8 sm:grid-cols-[3rem_1fr_auto] sm:items-start sm:gap-6 lg:py-9">
+            {promises.map((item, index) => (
+              <motion.article key={item.title} initial={{ opacity: 0, y: 22 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.55, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }} className="group grid gap-5 py-8 sm:grid-cols-[3rem_1fr_auto] sm:items-start sm:gap-6 lg:py-9">
                 <span className="pt-1 font-mono text-xs text-[#9b9182]">{item.number}</span>
                 <div><h3 className="text-2xl font-bold tracking-[-0.025em]">{item.title}</h3><p className="mt-3 max-w-xl leading-7 text-[#6c6458]">{item.copy}</p></div>
                 <span className="flex h-11 w-11 items-center justify-center rounded-full border border-black/12 text-[#c65d24] transition duration-300 group-hover:border-[#c65d24] group-hover:bg-[#c65d24] group-hover:text-white"><item.icon size={19} strokeWidth={1.8} /></span>
-              </article>
+              </motion.article>
             ))}
           </div>
         </div>
       </section>
 
       <section className="px-5 pb-8 sm:px-8 lg:px-12 lg:pb-12">
-        <div className="relative mx-auto max-w-[1344px] overflow-hidden rounded-[2rem] bg-[#1c1b17] px-6 py-16 text-white sm:px-10 lg:grid lg:grid-cols-[1fr_auto] lg:items-end lg:px-16 lg:py-20">
+        <motion.div initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }} className="relative mx-auto max-w-[1344px] overflow-hidden rounded-[2rem] bg-[#1c1b17] px-6 py-16 text-white sm:px-10 lg:grid lg:grid-cols-[1fr_auto] lg:items-end lg:px-16 lg:py-20">
           <div className="absolute -right-12 -top-28 h-80 w-80 rounded-full border border-white/10" /><div className="absolute -right-28 -top-12 h-80 w-80 rounded-full border border-white/10" />
           <div className="relative"><p className="text-sm font-bold text-[#f6b73c]">Lunch plans, sorted.</p><h2 className="mt-4 max-w-3xl text-4xl font-black leading-[0.98] tracking-[-0.04em] text-balance sm:text-6xl">See what&apos;s cooking around campus today.</h2></div>
           <Link href="/menu" className="home-gold-cta group relative mt-9 inline-flex min-h-14 items-center gap-5 rounded-md bg-[#f6b73c] px-7 font-bold transition duration-300 hover:-translate-y-0.5 hover:bg-white lg:ml-12 lg:mt-0">Browse the menu <ArrowRight className="transition-transform duration-300 group-hover:translate-x-1" size={19} /></Link>
-        </div>
+        </motion.div>
       </section>
       <SiteFooter />
     </main>

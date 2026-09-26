@@ -15,6 +15,9 @@ import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity, type Cus
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
 import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { getCheckoutAttempt, markCheckoutPending, completeCheckoutAttempt, claimCheckout, releaseCheckout, hasPendingCheckout, getPendingCheckout, saveCheckoutProof, completePendingCheckout, markCheckoutTerminal } from "@/lib/checkout-attempt-client";
+import { AnimatedPaise } from "@/components/customer/AnimatedPaise";
+import { FadeImage } from "@/components/customer/FadeImage";
+import { tapFeedback } from "@/lib/cart-feedback";
 import { formatPaise } from "@/lib/utils";
 import { SUPPORT_WHATSAPP_NUMBER } from "@/lib/whatsapp-order";
 
@@ -327,6 +330,7 @@ export function CartPageClient({
       return;
     }
     persist(cart.map((item) => item.id === id ? { ...item, quantity: item.quantity + delta } : item).filter((item) => item.quantity > 0));
+    tapFeedback();
   }
 
   function emptyCart() {
@@ -629,16 +633,27 @@ export function CartPageClient({
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
             <div className="flex items-center justify-between border-b border-black/12 pb-4"><h2 className="text-2xl font-black tracking-[-0.035em]">From {cart[0]?.restaurantName}</h2><button type="button" onClick={emptyCart} className="inline-flex items-center gap-2 text-sm font-bold text-[#8a342c] transition hover:text-[#b23f32]"><Trash2 size={15} /> Clear cart</button></div>
             <div>
+              {/* Removing a line (− to zero) slides it out and closes the gap, instead of
+                  the list jumping. */}
+              <AnimatePresence initial={false}>
               {cart.map((item) => (
-                <motion.article layout key={item.id} className="grid grid-cols-[6.5rem_1fr] gap-4 border-b border-black/10 py-6 sm:grid-cols-[7.5rem_1fr_auto] sm:items-center sm:gap-6">
-                  <img loading="lazy" decoding="async" alt={item.name} className="h-28 w-full rounded-xl object-cover" src={item.imageUrl ?? "/dish-placeholder.webp"} />
+                <motion.article
+                  layout
+                  key={item.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -40, height: 0, paddingTop: 0, paddingBottom: 0, borderBottomWidth: 0, transition: { duration: 0.28, ease: [0.4, 0, 0.2, 1] } }}
+                  className="grid grid-cols-[6.5rem_1fr] gap-4 overflow-hidden border-b border-black/10 py-6 sm:grid-cols-[7.5rem_1fr_auto] sm:items-center sm:gap-6"
+                >
+                  <div className="overflow-hidden rounded-xl bg-[#e9e3d8]"><FadeImage alt={item.name} className="h-28 w-full object-cover" src={item.imageUrl ?? "/dish-placeholder.webp"} /></div>
                   <div className="min-w-0"><h3 className="text-lg font-black tracking-[-0.025em] sm:text-xl">{item.name}</h3>{item.description ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#716a5f]">{item.description}</p> : null}<div className="mt-3 flex items-center gap-2"><span className="font-black tabular-nums">{formatPaise(discountedUnitPrice(item))}</span>{item.discountPercent ? <span className="text-sm text-[#9a9388] line-through">{formatPaise(item.pricePaise)}</span> : null}</div></div>
                   <div className="col-span-2 flex items-center justify-between sm:col-span-1 sm:flex-col sm:items-end sm:gap-3">
-                    <div className="flex h-10 items-center rounded-md border border-black/12 bg-white/70"><button type="button" aria-label={`Decrease ${item.name}`} onClick={() => updateQty(item.id, -1)} className="grid h-10 w-10 place-items-center transition hover:bg-[#f6b73c]"><Minus size={14} /></button><span className="w-8 text-center text-sm font-black tabular-nums">{item.quantity}</span><button type="button" aria-label={`Increase ${item.name}`} onClick={() => updateQty(item.id, 1)} className="grid h-10 w-10 place-items-center transition hover:bg-[#f6b73c]"><Plus size={14} /></button></div>
-                    <p className="text-lg font-black tabular-nums">{formatPaise(discountedUnitPrice(item) * item.quantity)}</p>
+                    <div className="flex h-10 items-center rounded-md border border-black/12 bg-white/70"><button type="button" aria-label={`Decrease ${item.name}`} onClick={() => updateQty(item.id, -1)} className="grid h-10 w-10 place-items-center transition hover:bg-[#f6b73c]"><Minus size={14} /></button><span className="w-8 overflow-hidden text-center text-sm font-black tabular-nums"><motion.span key={item.quantity} initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.18 }} className="inline-block">{item.quantity}</motion.span></span><button type="button" aria-label={`Increase ${item.name}`} onClick={() => updateQty(item.id, 1)} className="grid h-10 w-10 place-items-center transition hover:bg-[#f6b73c]"><Plus size={14} /></button></div>
+                    <AnimatedPaise value={discountedUnitPrice(item) * item.quantity} className="text-lg font-black tabular-nums" />
                   </div>
                 </motion.article>
               ))}
+              </AnimatePresence>
             </div>
 
             {campuses.length > 1 ? (
@@ -738,8 +753,8 @@ export function CartPageClient({
               ) : null}
             </div>
             <div className="mt-6 space-y-3 text-sm text-[#625b50]">{campuses.length > 1 ? <div className="flex justify-between"><span>Campus</span><span className="font-bold text-[#171713]">{campus.name}</span></div> : null}<div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(campus.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}{customer.deliveryType === "HOSTEL" ? <div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div> : null}<div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
-            <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><span className="text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
-            <button type="button" disabled={busy || awaitingCapture || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{awaitingCapture ? (expiredCheckout ? "Previous checkout timed out" : "Payment confirmation pending") : busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span><ArrowRight size={18} /></button>
+            <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><AnimatedPaise value={totals.totalPaise} className="text-3xl font-black tracking-[-0.04em] tabular-nums" /></div>
+            <button type="button" disabled={busy || awaitingCapture || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link group mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{awaitingCapture ? (expiredCheckout ? "Previous checkout timed out" : "Payment confirmation pending") : busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span>{busy ? <span className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true" /> : <ArrowRight size={18} className="transition-transform group-hover:translate-x-0.5" />}</button>
             {awaitingCapture && expiredCheckout ? (
               <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-4 rounded-xl border border-[#c65d24]/25 bg-[#c65d24]/[0.06] p-4">
                 <p className="flex items-center gap-2 text-sm font-black"><AlertTriangle size={16} className="shrink-0 text-[#c65d24]" /> Your last payment window timed out</p>

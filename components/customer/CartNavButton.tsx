@@ -28,6 +28,7 @@ export function CartNavButton() {
   return (
     <Link
       href="/cart"
+      data-cart-target=""
       aria-label={count ? `Cart, ${count} ${count === 1 ? "item" : "items"}` : "Cart"}
       className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-300 px-4 font-semibold text-neutral-950 transition hover:bg-amber-200"
     >
