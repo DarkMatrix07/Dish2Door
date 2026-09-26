@@ -671,7 +671,7 @@ export function CartPageClient({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 360, damping: 30 }}
-              className="w-full max-w-lg rounded-t-2xl bg-[#fffdf8] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] sm:rounded-2xl sm:p-7"
+              className="max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-2xl bg-[#fffdf8] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] sm:max-h-[90vh] sm:rounded-2xl sm:p-7"
             >
               <div className="flex items-start justify-between gap-5">
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f6b73c] text-[#171713]"><MailCheck size={22} /></span>
@@ -706,7 +706,7 @@ export function CartPageClient({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 360, damping: 30 }}
-              className="w-full max-w-lg rounded-t-2xl bg-[#fffdf8] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] sm:rounded-2xl sm:p-7"
+              className="max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-2xl bg-[#fffdf8] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] sm:max-h-[90vh] sm:rounded-2xl sm:p-7"
             >
               <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#f6b73c] text-[#171713]"><ShoppingBag size={22} /></span>
               <h2 id="identity-gate-title" className="mt-5 text-3xl font-black tracking-[-0.04em]">Let&apos;s get your details</h2>
