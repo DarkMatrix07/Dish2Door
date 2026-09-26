@@ -7,7 +7,6 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  Clock3,
   Flame,
   GraduationCap,
   HandCoins,
@@ -24,11 +23,13 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { RememberDetails } from "@/components/customer/RememberDetails";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
 import { calculateGst, GST_RATE_BPS } from "@/lib/money";
 import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity } from "@/lib/customer-identity";
+import { MAX_LINE_QUANTITY } from "@/lib/cart";
 import { formatPaise } from "@/lib/utils";
 
 type PizzaMenuItem = {
@@ -310,7 +311,10 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rememberContact, setRememberContact] = useState(false);
-  const [result, setResult] = useState<{ trackingCode: string; totalPaise: number; whatsappUrl: string } | null>(null);
+  // `opened` records whether the browser let us open WhatsApp. iOS Safari blocks a
+  // window.open that follows an awaited request, and the order only reaches the shop
+  // once the customer actually sends the message.
+  const [result, setResult] = useState<{ trackingCode: string; totalPaise: number; whatsappUrl: string; opened: boolean } | null>(null);
   // No order slot on this shop: the WhatsApp thread is where timing gets agreed, so
   // the checkout never asks for Afternoon/Night. Hostel delivery goes with it — it is
   // only permitted on the night slot, which no longer exists here — leaving campus
@@ -321,6 +325,63 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
     const stored = readStoredIdentity();
     if (stored) { setRememberContact(true); setCustomer((current) => ({ ...current, name: stored.name, email: stored.email, phone: stored.phone })); }
   }, []);
+
+  // The cart used to live only in component state, so a refresh or a trip to another
+  // page threw the order away. It is kept per shop and re-priced against the menu the
+  // server just sent, so a stale saved price or a removed dish can never be ordered.
+  const cartStorageKey = `dish2door_pizza_cart_${shop.id}`;
+  const cartHydrated = useRef(false);
+  useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(window.localStorage.getItem(cartStorageKey) ?? "[]");
+      if (Array.isArray(saved)) {
+        const itemsById = new Map(shop.menuItems.map((item) => [item.id, item]));
+        const combosById = new Map(shop.combos.map((combo) => [combo.id, combo]));
+        const restored = saved.flatMap((line: Partial<CartLine>): CartLine[] => {
+          if (!line || typeof line.id !== "string" || !Number.isInteger(line.quantity) || (line.quantity as number) < 1) return [];
+          const quantity = Math.min(line.quantity as number, MAX_LINE_QUANTITY);
+          if (line.kind === "combo") {
+            const combo = combosById.get(line.id);
+            return combo ? [{ key: `combo:${combo.id}`, kind: "combo", id: combo.id, name: combo.name, imageUrl: combo.imageUrl, unitPricePaise: combo.comboPricePaise, quantity }] : [];
+          }
+          const item = itemsById.get(line.id);
+          if (!item) return [];
+          const name = item.sizeLabel ? `${item.name} — ${item.sizeLabel}` : item.name;
+          return [{ key: `item:${item.id}`, kind: "item", id: item.id, name, imageUrl: item.imageUrl, unitPricePaise: discountedPrice(item.pricePaise, item.discountPercent), quantity }];
+        });
+        // Read after mount on purpose: the server-rendered page has an empty cart, and
+        // restoring during render would mismatch hydration.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (restored.length) setCart(restored);
+      }
+    } catch {
+      // Storage unavailable or corrupt: start with an empty cart.
+    }
+    cartHydrated.current = true;
+  }, [cartStorageKey, shop.menuItems, shop.combos]);
+
+  useEffect(() => {
+    if (!cartHydrated.current) return;
+    try {
+      if (cart.length) window.localStorage.setItem(cartStorageKey, JSON.stringify(cart));
+      else window.localStorage.removeItem(cartStorageKey);
+    } catch {
+      // Private browsing: the cart still works for this visit.
+    }
+  }, [cart, cartStorageKey]);
+
+  // Escape closes the checkout drawer, and the page behind it stops scrolling.
+  useEffect(() => {
+    if (!checkoutOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setCheckoutOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [checkoutOpen]);
 
   const availableCourses = shop.courses.filter((course) => shop.menuItems.some((item) => item.courseId === course.id));
 
@@ -367,6 +428,10 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
   }
 
   function addLine(kind: "item" | "combo", id: string, name: string, imageUrl: string | null, unitPricePaise: number) {
+    if (lineQuantity(kind, id) >= MAX_LINE_QUANTITY) {
+      toast.error(`You can order up to ${MAX_LINE_QUANTITY} of one item.`, { id: "line-quantity-cap" });
+      return;
+    }
     setCart((current) => {
       const key = `${kind}:${id}`;
       const existing = current.find((line) => line.key === key);
@@ -376,6 +441,10 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
   }
 
   function adjustLine(kind: "item" | "combo", id: string, delta: number) {
+    if (delta > 0 && lineQuantity(kind, id) + delta > MAX_LINE_QUANTITY) {
+      toast.error(`You can order up to ${MAX_LINE_QUANTITY} of one item.`, { id: "line-quantity-cap" });
+      return;
+    }
     const key = `${kind}:${id}`;
     setCart((current) => current.map((line) => (line.key === key ? { ...line, quantity: line.quantity + delta } : line)).filter((line) => line.quantity > 0));
   }
@@ -425,8 +494,8 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
       if (!response.ok) throw new Error(data.error ?? "Could not place the order");
       writeStoredIdentity({ name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone.trim() }, { remember: rememberContact });
       setCart([]);
-      setResult(data);
-      window.open(data.whatsappUrl, "_blank");
+      const opened = Boolean(window.open(data.whatsappUrl, "_blank"));
+      setResult({ ...data, opened });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not place the order");
     } finally {
@@ -579,8 +648,8 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                 <span className="text-sm font-bold text-white">Pay at handover</span>
               </div>
               <div className="flex items-center gap-3 bg-[#071522]/55 px-4 py-3.5 backdrop-blur-md">
-                <Clock3 size={17} className="text-[#76caee]" />
-                <span className="text-sm font-bold text-white">Campus delivery slots</span>
+                <MapPin size={17} className="text-[#76caee]" />
+                <span className="text-sm font-bold text-white">Campus gate pickup</span>
               </div>
             </div>
           </motion.div>
@@ -864,11 +933,14 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
             >
               {result ? (
                 <div className="py-4 text-center">
-                  <span className="mx-auto grid h-16 w-16 place-items-center rounded-xl bg-[#1F9254]/10 text-[#1F9254]"><Check size={30} strokeWidth={2.5} /></span>
-                  <h2 className="mt-6 text-3xl font-black tracking-[-0.04em]">Order sent!</h2>
+                  <motion.span initial={{ scale: 0.6, rotate: -8 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 380, damping: 16 }} className={`mx-auto grid h-16 w-16 place-items-center rounded-xl ${result.opened ? "bg-[#1F9254]/10 text-[#1F9254]" : "bg-[#25D366]/12 text-[#1a9e4b]"}`}>{result.opened ? <Check size={30} strokeWidth={2.5} /> : <MessageCircle size={30} strokeWidth={2.3} />}</motion.span>
+                  <h2 className="mt-6 text-3xl font-black tracking-[-0.04em]">{result.opened ? "Almost done!" : "One last step"}</h2>
                   <p className="mt-3 leading-7 text-[#5A6B7B]">
-                    Your tracking code is <span className="font-black text-[#E31837]">{result.trackingCode}</span>. Confirm your order on WhatsApp, then pay by cash or UPI when it&apos;s handed over.
+                    {result.opened
+                      ? "Tap Send in WhatsApp. The shop receives your order only when that message is sent."
+                      : "Your order is saved, but the shop only receives it when you send it on WhatsApp. Tap the button below."}
                   </p>
+                  <p className="mt-2 text-sm text-[#5A6B7B]">Tracking code <span className="font-black text-[#E31837]">{result.trackingCode}</span> · pay by cash or UPI at handover.</p>
                   <p className="mt-1 text-sm text-[#5A6B7B]/80">Total: {formatPaise(result.totalPaise)}</p>
                   <div className="mt-7 grid gap-2">
                     <a
@@ -877,7 +949,7 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                       rel="noreferrer"
                       className="flex h-[3.25rem] items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3.5 text-sm font-black text-white transition hover:brightness-105"
                     >
-                      <MessageCircle size={17} /> Open WhatsApp again
+                      <MessageCircle size={17} /> {result.opened ? "Open WhatsApp again" : "Send order on WhatsApp"}
                     </a>
                     <button
                       type="button"
@@ -928,8 +1000,9 @@ export function PizzaStorefront({ shop, campuses }: { shop: PizzaShop; campuses:
                     <label className="text-sm font-bold sm:col-span-2">Email (optional)<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} placeholder="you@example.com" /></label>
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rememberContact} onChange={(event) => { setRememberContact(event.target.checked); if (!event.target.checked) forgetStoredIdentity(); }} />Remember my contact details on this device for 30 days</label>
-                <button type="button" className="text-sm underline" onClick={() => { forgetStoredIdentity(); setRememberContact(false); }}>Forget saved contact details</button>
+                  <div className="mt-4">
+                    <RememberDetails accent="#0B1F33" checked={rememberContact} onChange={(checked) => { setRememberContact(checked); if (!checked) forgetStoredIdentity(); }} />
+                  </div>
 
                   <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#0B1F33]/15 bg-white p-4">
                     <MapPin size={18} className="mt-0.5 shrink-0 text-[#006491]" />

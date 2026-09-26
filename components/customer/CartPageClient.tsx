@@ -2,19 +2,21 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Star, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { HostelPicker } from "@/components/customer/HostelPicker";
+import { RememberDetails } from "@/components/customer/RememberDetails";
 import { SpinWheel } from "@/components/customer/SpinWheel";
-import { clearStoredCart, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
+import { clearStoredCart, MAX_LINE_QUANTITY, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
 import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity, type CustomerIdentity } from "@/lib/customer-identity";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
 import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
 import { getCheckoutAttempt, markCheckoutPending, completeCheckoutAttempt, claimCheckout, releaseCheckout, hasPendingCheckout, getPendingCheckout, saveCheckoutProof, completePendingCheckout, markCheckoutTerminal } from "@/lib/checkout-attempt-client";
 import { formatPaise } from "@/lib/utils";
+import { SUPPORT_WHATSAPP_NUMBER } from "@/lib/whatsapp-order";
 
 declare global {
   interface Window {
@@ -157,6 +159,9 @@ export function CartPageClient({
   const [identityGateOpen, setIdentityGateOpen] = useState(false);
   const [identityDraft, setIdentityDraft] = useState({ name: "", phone: "", email: "", campusCode: "" });
   const [wheelOpen, setWheelOpen] = useState(false);
+  // "2 of 3 reviewed orders" — identify already returns this; showing it is what turns
+  // the wheel into a reason to rate an order.
+  const [spinProgress, setSpinProgress] = useState<{ reviewed: number; required: number; remaining: number } | null>(null);
 
   useEffect(() => setCart(readStoredCart()), []);
   useEffect(() => setAwaitingCapture(hasPendingCheckout()), []);
@@ -203,6 +208,7 @@ export function CartPageClient({
       });
       if (!response.ok) return;
       const data = await response.json();
+      setSpinProgress(data.progress && data.progress.remaining > 0 ? data.progress : null);
       if (data.eligible) {
         setWheelOpen(true);
       } else if (data.reward?.couponCode) {
@@ -234,7 +240,9 @@ export function CartPageClient({
     });
     // The campus decides the fees, so returning customers who have never picked one
     // still go through this step once.
-    if (!stored || !knownCampus) setIdentityGateOpen(true);
+    // Only when there is something to check out: an empty cart has nothing to price,
+    // and a blocking form there just trapped people who tapped "Cart" to look.
+    if ((!stored || !knownCampus) && readStoredCart().length) setIdentityGateOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -287,6 +295,13 @@ export function CartPageClient({
   }, [indiaMinutes]);
 
   useEffect(() => {
+    if (!identityGateOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [identityGateOpen]);
+
+  useEffect(() => {
     if (!confirmEmailOpen) return;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -306,12 +321,20 @@ export function CartPageClient({
   }
 
   function updateQty(id: string, delta: number) {
+    const line = cart.find((item) => item.id === id);
+    if (line && delta > 0 && line.quantity + delta > MAX_LINE_QUANTITY) {
+      toast.error(`You can order up to ${MAX_LINE_QUANTITY} of one item.`, { id: "line-quantity-cap" });
+      return;
+    }
     persist(cart.map((item) => item.id === id ? { ...item, quantity: item.quantity + delta } : item).filter((item) => item.quantity > 0));
   }
 
   function emptyCart() {
+    const previous = cart;
     clearStoredCart();
     setCart([]);
+    // One mis-tap on "Clear cart" used to throw the whole order away.
+    toast("Cart cleared", { action: { label: "Undo", onClick: () => persist(previous) } });
   }
 
   const totals = useMemo(() => {
@@ -334,6 +357,11 @@ export function CartPageClient({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Coupon not valid");
     }
+  }
+
+  function removeCoupon() {
+    setCoupon(null);
+    setCouponCode("");
   }
 
   const orderingClosed = indiaMinutes !== null && (indiaMinutes < windowOpenMinute || indiaMinutes >= windowCloseMinute);
@@ -415,8 +443,9 @@ export function CartPageClient({
 
   async function cancelExpiredCheckout() {
     const pending = getPendingCheckout();
+    // The button itself reads "No money was deducted — start again", so it is the
+    // confirmation; a native confirm() on top of it only added an ugly second step.
     if (!pending || checkingPayment || !expiredCheckout) return;
-    if (!window.confirm("Cancel this expired checkout? Continue only if no money was deducted. If you paid, check payment status or contact support instead.")) return;
     setCheckingPayment(true);
     try {
       const response = await fetch("/api/orders/create-payment", {
@@ -427,12 +456,53 @@ export function CartPageClient({
       completePendingCheckout();
       setAwaitingCapture(false);
       setExpiredCheckout(false);
-      toast.success("Expired checkout cancelled. You can start again.");
+      toast.success("Old checkout cancelled. Tap Pay securely to start a fresh payment.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not cancel this checkout.");
     } finally {
       setCheckingPayment(false);
     }
+  }
+
+  // A 409 on a retried cart means the saved attempt's order can no longer be paid.
+  // Usually it simply timed out: the customer closed Razorpay and came back more than
+  // five minutes later, having never paid. Ask the server what actually happened
+  // instead of assuming "payment confirmation pending" and locking the Pay button.
+  async function resolveConflictedAttempt(attempt: Awaited<ReturnType<typeof getCheckoutAttempt>>, owner: string | null) {
+    let status: string | undefined;
+    let trackingCode: string | undefined;
+    try {
+      const response = await fetch("/api/orders/create-payment", {
+        headers: { "Idempotency-Key": attempt.key, "Checkout-Capability": attempt.capability },
+        cache: "no-store"
+      });
+      const result = await response.json();
+      if (response.ok) { status = result.status; trackingCode = result.trackingCode; }
+    } catch { /* Unknown state: fall through to the cautious default below. */ }
+
+    if (status === "confirmed" && trackingCode) {
+      completeCheckoutAttempt(attempt);
+      clearStoredCart();
+      window.location.href = `/orders/${trackingCode}`;
+      return true;
+    }
+    if (status === "cancelled") {
+      completeCheckoutAttempt(attempt);
+      toast.message("Your earlier checkout was closed. Tap Pay securely to start a fresh payment.");
+      return true;
+    }
+    markCheckoutPending(attempt, owner ?? undefined);
+    if (status === "refund_pending") {
+      markCheckoutTerminal();
+      toast.message("This payment needs a refund review. Please contact support; don't pay again for this order.");
+      return true;
+    }
+    setAwaitingCapture(true);
+    if (status === "expired") {
+      setExpiredCheckout(true);
+      return true;
+    }
+    return false;
   }
 
   async function checkout() {
@@ -467,7 +537,7 @@ export function CartPageClient({
       });
       const payment = await response.json();
       if (!response.ok) {
-        if (response.status === 409) { markCheckoutPending(attempt, checkoutOwner); setAwaitingCapture(true); }
+        if (response.status === 409 && await resolveConflictedAttempt(attempt, checkoutOwner)) return;
         throw new Error(payment.error ?? "Could not start payment");
       }
       writeStoredIdentity({ name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone.trim() }, { remember: rememberContact });
@@ -642,14 +712,46 @@ export function CartPageClient({
 
           <aside className="h-fit rounded-2xl bg-white p-5 shadow-[0_24px_70px_rgba(58,43,22,0.09)] lg:sticky lg:top-6 sm:p-6">
             <div className="flex items-center justify-between"><h2 className="text-2xl font-black tracking-[-0.035em]">Payment summary</h2><ShieldCheck size={21} className="text-[#c65d24]" /></div>
-            <div className="mt-6 border-y border-black/10 py-5"><label className="text-sm font-bold">Have a coupon?</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button></div>{coupon ? <p className="mt-3 flex items-center gap-2 text-sm font-bold text-[#34705a]"><Check size={14} /> {coupon.code} gives {coupon.discountPercent}% off</p> : null}</div>
-            <div className="mt-6 space-y-3 text-sm text-[#625b50]">{campuses.length > 1 ? <div className="flex justify-between"><span>Campus</span><span className="font-bold text-[#171713]">{campus.name}</span></div> : null}<div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(campus.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}<div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div><div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
+            <div className="mt-6 border-y border-black/10 py-5">
+              {coupon ? (
+                <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center justify-between gap-3 rounded-lg border border-[#34705a]/25 bg-[#34705a]/[0.07] px-3.5 py-3">
+                  <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-[#285d4a]"><Check size={15} className="shrink-0" /><span className="truncate"><span className="font-mono font-black">{coupon.code}</span> · {coupon.discountPercent}% off</span></span>
+                  <button type="button" aria-label={`Remove coupon ${coupon.code}`} onClick={removeCoupon} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#285d4a] transition hover:bg-[#34705a]/12"><X size={15} /></button>
+                </motion.div>
+              ) : (
+                <>
+                  <label htmlFor="cart-coupon" className="text-sm font-bold">Have a coupon?</label>
+                  <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+                    <input id="cart-coupon" className={`${fieldClass} uppercase`} value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void applyCoupon(); } }} placeholder="Enter code" autoComplete="off" />
+                    <button type="button" onClick={applyCoupon} className="rounded-md border border-black/15 px-4 text-sm font-black transition hover:bg-[#f6b73c]">Apply</button>
+                  </div>
+                </>
+              )}
+              {spinProgress && !coupon ? (
+                <div className="mt-4 rounded-lg bg-[#f6b73c]/15 px-3.5 py-3">
+                  <p className="flex items-center gap-2 text-xs font-black text-[#171713]"><Star size={13} className="fill-[#f6b73c] text-[#c65d24]" /> {spinProgress.remaining === 1 ? "1 more review unlocks a spin" : `${spinProgress.remaining} more reviews unlock a spin`}</p>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/8" role="progressbar" aria-valuemin={0} aria-valuemax={spinProgress.required} aria-valuenow={spinProgress.reviewed} aria-label="Reviews towards your next spin">
+                    <motion.span initial={{ width: 0 }} animate={{ width: `${(spinProgress.reviewed / spinProgress.required) * 100}%` }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} className="block h-full rounded-full bg-[#c65d24]" />
+                  </div>
+                  <p className="mt-1.5 text-[11px] leading-4 text-[#716a5f]">Rate your delivered orders from their tracking link to earn a discount spin.</p>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-6 space-y-3 text-sm text-[#625b50]">{campuses.length > 1 ? <div className="flex justify-between"><span>Campus</span><span className="font-bold text-[#171713]">{campus.name}</span></div> : null}<div className="flex justify-between"><span>Items subtotal</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.subtotalPaise)}</span></div><div className="flex justify-between"><span>Platform fee</span><span className="tabular-nums text-[#171713]">{formatPaise(campus.platformFeePaise)}</span></div>{totals.couponDiscountPaise ? <div className="flex justify-between font-bold text-[#34705a]"><span>Coupon discount</span><span>-{formatPaise(totals.couponDiscountPaise)}</span></div> : null}{customer.deliveryType === "HOSTEL" ? <div className="flex justify-between"><span>Hostel delivery</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.hostelFeePaise)}</span></div> : null}<div className="flex justify-between"><span>Payment handling</span><span className="tabular-nums text-[#171713]">{formatPaise(totals.paymentFeePaise)}</span></div></div>
             <div className="mt-6 flex items-end justify-between border-t border-black/10 pt-5"><span className="font-bold">Total payable</span><span className="text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(totals.totalPaise)}</span></div>
-            <button type="button" className="mt-4 text-sm underline" onClick={() => { forgetStoredIdentity(); setRememberContact(false); toast.success("Saved contact details removed from this device."); }}>Forget saved contact details</button>
-            <button type="button" disabled={busy || awaitingCapture || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{awaitingCapture ? "Payment confirmation pending" : busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span><ArrowRight size={18} /></button>
-            {awaitingCapture ? <button type="button" disabled={checkingPayment} onClick={checkPaymentStatus} className="mt-3 w-full rounded-md border border-black/20 px-4 py-3 text-sm font-bold disabled:opacity-50">{checkingPayment ? "Checking payment..." : "Check payment status"}</button> : null}
-            {awaitingCapture && expiredCheckout ? <div className="mt-3 text-sm"><p>If money was deducted, contact support before starting another payment.</p><button type="button" disabled={checkingPayment} onClick={cancelExpiredCheckout} className="mt-2 underline disabled:opacity-50">Cancel expired checkout and start again</button></div> : null}
+            <button type="button" disabled={busy || awaitingCapture || orderingClosed} onClick={reviewEmailBeforePayment} className="cart-dark-link mt-6 flex min-h-14 w-full items-center justify-between rounded-md bg-[#171713] px-5 font-black transition hover:bg-[#c65d24] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"><span>{awaitingCapture ? (expiredCheckout ? "Previous checkout timed out" : "Payment confirmation pending") : busy ? "Starting payment..." : orderingClosed ? "Ordering closed" : "Pay securely"}</span><ArrowRight size={18} /></button>
+            {awaitingCapture && expiredCheckout ? (
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-4 rounded-xl border border-[#c65d24]/25 bg-[#c65d24]/[0.06] p-4">
+                <p className="flex items-center gap-2 text-sm font-black"><AlertTriangle size={16} className="shrink-0 text-[#c65d24]" /> Your last payment window timed out</p>
+                <p className="mt-1.5 text-xs leading-5 text-[#625b50]">If no money left your account, start a fresh payment. If money was deducted, don&apos;t pay again — message us and we&apos;ll sort it out.</p>
+                <button type="button" disabled={checkingPayment} onClick={cancelExpiredCheckout} className="cart-dark-link mt-3 flex min-h-11 w-full items-center justify-center rounded-md bg-[#171713] px-4 text-sm font-black transition hover:bg-[#c65d24] disabled:opacity-50">{checkingPayment ? "Cancelling..." : "No money was deducted — start again"}</button>
+                <a href={`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}`} target="_blank" rel="noreferrer" className="mt-2 block text-center text-xs font-bold text-[#8a342c] underline underline-offset-2">Money was deducted? Message us on WhatsApp</a>
+              </motion.div>
+            ) : awaitingCapture ? (
+              <button type="button" disabled={checkingPayment} onClick={checkPaymentStatus} className="mt-3 w-full rounded-md border border-black/20 px-4 py-3 text-sm font-bold transition hover:border-black/40 disabled:opacity-50">{checkingPayment ? "Checking payment..." : "Check payment status"}</button>
+            ) : null}
             <p className="mt-4 text-xs leading-5 text-[#817a70]">After payment, your tracking link and private 4-digit passcode are sent by WhatsApp and email.</p>
+            {rememberContact ? <button type="button" className="mt-3 text-xs font-bold text-[#817a70] underline underline-offset-2 transition hover:text-[#171713]" onClick={() => { forgetStoredIdentity(); setRememberContact(false); toast.success("Saved contact details removed from this device."); }}>Forget my saved details on this device</button> : null}
           </aside>
         </section>
       )}
@@ -708,7 +810,10 @@ export function CartPageClient({
               transition={{ type: "spring", stiffness: 360, damping: 30 }}
               className="max-h-[92dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-2xl bg-[#fffdf8] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.28)] sm:max-h-[90vh] sm:rounded-2xl sm:p-7"
             >
-              <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#f6b73c] text-[#171713]"><ShoppingBag size={22} /></span>
+              <div className="flex items-start justify-between gap-4">
+                <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#f6b73c] text-[#171713]"><ShoppingBag size={22} /></span>
+                <Link href="/menu" className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold text-[#716a5f] transition hover:bg-black/5 hover:text-[#171713]"><ArrowLeft size={14} /> Back to menu</Link>
+              </div>
               <h2 id="identity-gate-title" className="mt-5 text-3xl font-black tracking-[-0.04em]">Let&apos;s get your details</h2>
               <p className="mt-2 text-sm leading-6 text-[#716a5f]">We use these to send your tracking link — and regulars sometimes unlock a surprise.</p>
               <form
@@ -718,7 +823,7 @@ export function CartPageClient({
                 {campuses.length > 1 ? (
                   <div>
                     <p className="text-sm font-bold">Your campus</p>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className={`mt-2 grid gap-2 ${campuses.length % 3 === 0 ? "grid-cols-3" : "grid-cols-2"}`}>
                       {campuses.map((entry) => {
                         const picked = identityDraft.campusCode === entry.code;
                         return (
@@ -739,8 +844,7 @@ export function CartPageClient({
                 <label className="block text-sm font-bold">Full name<input className={`${fieldClass} mt-2`} autoComplete="name" value={identityDraft.name} onChange={(event) => setIdentityDraft({ ...identityDraft, name: event.target.value })} placeholder="Your name" /></label>
                 <label className="block text-sm font-bold">Phone number<input className={`${fieldClass} mt-2`} inputMode="tel" autoComplete="tel" value={identityDraft.phone} onChange={(event) => setIdentityDraft({ ...identityDraft, phone: event.target.value })} placeholder="10-digit number" /></label>
                 <label className="block text-sm font-bold">Email address<input className={`${fieldClass} mt-2`} type="email" autoComplete="email" value={identityDraft.email} onChange={(event) => setIdentityDraft({ ...identityDraft, email: event.target.value })} placeholder="you@example.com" /></label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rememberContact} onChange={(event) => { setRememberContact(event.target.checked); if (!event.target.checked) forgetStoredIdentity(); }} />Remember my contact details on this device for 30 days</label>
-                <button type="button" className="text-sm underline" onClick={() => { forgetStoredIdentity(); setRememberContact(false); }}>Forget saved contact details</button>
+                <RememberDetails checked={rememberContact} onChange={(checked) => { setRememberContact(checked); if (!checked) forgetStoredIdentity(); }} />
                 <button type="submit" className="cart-dark-link flex min-h-14 w-full items-center justify-center gap-3 rounded-md bg-[#171713] px-4 py-3 font-black transition hover:bg-[#c65d24]">Continue to cart <ArrowRight size={16} /></button>
               </form>
             </motion.div>

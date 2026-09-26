@@ -3,12 +3,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Minus, Plus, Search, ShoppingBag, Sparkles, UtensilsCrossed } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { FeaturedShowcase } from "@/components/customer/FeaturedShowcase";
-import { readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
+import { MAX_LINE_QUANTITY, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
 import type { FeaturedCombo, FeaturedData, FeaturedDish } from "@/lib/featured";
 import { formatPaise } from "@/lib/utils";
 
@@ -63,9 +64,21 @@ function maxDiscountOf(restaurant: Restaurant) {
 }
 
 export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[]; featured: FeaturedData }) {
-  const [activeRestaurantId, setActiveRestaurantId] = useState("");
-  const [activeCourseId, setActiveCourseId] = useState("all");
-  const [query, setQuery] = useState("");
+  // The open kitchen lives in the URL (?kitchen=<id>) rather than in state, so the
+  // phone's Back button returns to the kitchen list instead of leaving /menu, and a
+  // kitchen link can be shared. pushState updates useSearchParams without a reload.
+  const searchParams = useSearchParams();
+  const requestedKitchen = searchParams.get("kitchen") ?? "";
+  const activeRestaurantId = restaurants.some((restaurant) => restaurant.id === requestedKitchen) ? requestedKitchen : "";
+  // Course filter and search belong to one kitchen. Each is stored with the kitchen it
+  // was set in, so switching kitchens (including via Back/Forward) falls back to "all"
+  // and an empty search without a reset effect.
+  const [courseChoice, setCourseChoice] = useState({ kitchen: "", course: "all" });
+  const [queryChoice, setQueryChoice] = useState({ kitchen: "", text: "" });
+  const activeCourseId = courseChoice.kitchen === activeRestaurantId ? courseChoice.course : "all";
+  const query = queryChoice.kitchen === activeRestaurantId ? queryChoice.text : "";
+  const setActiveCourseId = (course: string) => setCourseChoice({ kitchen: activeRestaurantId, course });
+  const setQuery = (text: string) => setQueryChoice({ kitchen: activeRestaurantId, text });
   const [cart, setCart] = useState<StoredCartItem[]>([]);
   // Landing view when no kitchen is open: the stats-driven Featured page, with the
   // plain restaurant grid one tap away.
@@ -105,9 +118,12 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
   }
 
   function openRestaurant(restaurant: Restaurant) {
-    setActiveRestaurantId(restaurant.id);
-    setActiveCourseId("all");
-    setQuery("");
+    window.history.pushState(null, "", `/menu?kitchen=${encodeURIComponent(restaurant.id)}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function closeRestaurant() {
+    window.history.pushState(null, "", "/menu");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -117,10 +133,17 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
   function addLineToCart(line: StoredCartItem) {
     const existingRestaurantId = cart[0]?.restaurantId;
     if (existingRestaurantId && existingRestaurantId !== line.restaurantId) {
-      toast.error("Your cart already has food from another restaurant.");
+      toast.error(`Your cart has food from ${cart[0]?.restaurantName ?? "another restaurant"}.`, {
+        description: "One order can come from one kitchen.",
+        action: { label: "Start new cart", onClick: () => { persistCart([line]); toast.success(`Added ${line.name}`); } }
+      });
       return;
     }
     const existing = cart.find((cartItem) => cartItem.id === line.id);
+    if (existing && existing.quantity >= MAX_LINE_QUANTITY) {
+      toast.error(`You can order up to ${MAX_LINE_QUANTITY} of one item.`, { id: "line-quantity-cap" });
+      return;
+    }
     persistCart(
       existing
         ? cart.map((cartItem) => cartItem.id === line.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem)
@@ -132,6 +155,10 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
     const existing = cart.find((cartItem) => cartItem.id === cartId);
     if (!existing && delta > 0) {
       addWhenMissing();
+      return;
+    }
+    if (existing && delta > 0 && existing.quantity + delta > MAX_LINE_QUANTITY) {
+      toast.error(`You can order up to ${MAX_LINE_QUANTITY} of one item.`, { id: "line-quantity-cap" });
       return;
     }
     persistCart(
@@ -216,7 +243,10 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const cartTotal = cart.reduce((total, item) => total + discountedPrice(item) * item.quantity, 0);
 
-  function QuantityControl({ item }: { item: MenuItem }) {
+  // Render helpers, not components: a component declared inside MenuClient gets a new
+  // identity on every render, so each cart change remounted every card — replaying the
+  // entrance animation and dropping keyboard focus from the +/- buttons.
+  function renderQuantityControl(item: MenuItem) {
     const quantity = cart.find((cartItem) => cartItem.id === item.id)?.quantity ?? 0;
     if (quantity > 0) {
       return (
@@ -240,9 +270,10 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
     );
   }
 
-  function MenuItemCard({ item }: { item: MenuItem }) {
+  function renderMenuItemCard(item: MenuItem) {
     return (
       <motion.article
+        key={item.id}
         layout
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -263,13 +294,13 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
         </div>
         <div className="relative min-h-32 pb-5">
           <img loading="lazy" decoding="async" alt={item.name} className={`h-28 w-full rounded-xl object-cover sm:h-32 ${item.available ? "" : "grayscale opacity-60"}`} src={item.imageUrl ?? ITEM_FALLBACK} />
-          <div className="absolute bottom-0 right-0"><QuantityControl item={item} /></div>
+          <div className="absolute bottom-0 right-0">{renderQuantityControl(item)}</div>
         </div>
       </motion.article>
     );
   }
 
-  function ComboCard({ combo }: { combo: Combo }) {
+  function renderComboCard(combo: Combo) {
     const cartId = `combo:${combo.id}`;
     const quantity = cart.find((cartItem) => cartItem.id === cartId)?.quantity ?? 0;
     const realTotal = activeRestaurant ? comboRealTotal(combo, activeRestaurant.menuItems) : 0;
@@ -279,6 +310,7 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
 
     return (
       <motion.article
+        key={combo.id}
         layout
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -355,7 +387,7 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
           </div>
         ) : (
           <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-28 sm:px-8 lg:px-12 lg:pb-10 lg:pt-32">
-            <button type="button" onClick={() => setActiveRestaurantId("")} className="inline-flex items-center gap-2 text-sm font-bold text-[#6c6458] transition hover:text-[#c65d24]"><ArrowLeft size={16} /> All restaurants</button>
+            <button type="button" onClick={closeRestaurant} className="inline-flex items-center gap-2 text-sm font-bold text-[#6c6458] transition hover:text-[#c65d24]"><ArrowLeft size={16} /> All restaurants</button>
           </div>
         )}
       </section>
@@ -437,13 +469,13 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
                 {showCombos ? (
                   <section className="mb-12">
                     <div className="flex items-end justify-between gap-4 pb-4"><div><h2 className="flex items-center gap-2 text-3xl font-black tracking-[-0.04em]"><Sparkles size={22} className="text-[#c65d24]" /> Combos</h2><p className="mt-1 text-sm text-[#716a5f]">Bundled to save — grab a full meal for less.</p></div><span className="pb-1 font-mono text-xs text-[#8c857a]">{combos.length.toString().padStart(2, "0")}</span></div>
-                    <div className="grid gap-4 sm:grid-cols-2">{combos.map((combo) => <ComboCard key={combo.id} combo={combo} />)}</div>
+                    <div className="grid gap-4 sm:grid-cols-2">{combos.map((combo) => renderComboCard(combo))}</div>
                   </section>
                 ) : null}
                 {activeCourseId !== "combos" ? sections.map((section) => (
                   <section key={section.id} className="mb-12">
                     <div className="flex items-end justify-between gap-4 pb-2"><h2 className="text-3xl font-black tracking-[-0.04em]">{section.name}</h2><span className="pb-1 font-mono text-xs text-[#8c857a]">{section.items.length.toString().padStart(2, "0")}</span></div>
-                    {section.items.map((item) => <MenuItemCard key={item.id} item={item} />)}
+                    {section.items.map((item) => renderMenuItemCard(item))}
                   </section>
                 )) : null}
                 {!sections.length && !showCombos ? <div className="grid min-h-64 place-items-center border-y border-black/10 text-center"><div><Search className="mx-auto text-[#a49d92]" /><h2 className="mt-4 text-xl font-black">No matching dishes</h2><p className="mt-2 text-sm text-[#716a5f]">Try another name or choose a different category.</p></div></div> : null}
@@ -457,8 +489,8 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
         <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:bottom-6">
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 26 }} className="w-full max-w-md">
             <Link href="/cart" className="menu-cart-link pointer-events-auto flex min-h-16 items-center justify-between rounded-xl bg-[#171713] px-3 py-2 shadow-[0_20px_60px_rgba(23,23,19,0.28)] transition hover:-translate-y-0.5">
-              <span className="flex items-center gap-3"><span className="relative grid h-11 w-11 place-items-center rounded-lg bg-white/10"><ShoppingBag size={19} /><span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#f6b73c] px-1 text-[11px] font-black text-[#171713]">{cartCount}</span></span><span><span className="block text-sm font-bold">View your cart</span><span className="block text-xs text-white/50">Ready when you are</span></span></span>
-              <span className="flex items-center gap-3"><span className="font-black tabular-nums">{formatPaise(cartTotal)}</span><ArrowRight size={17} /></span>
+              <span className="flex items-center gap-3"><span className="relative grid h-11 w-11 place-items-center rounded-lg bg-white/10"><ShoppingBag size={19} /><motion.span key={cartCount} initial={{ scale: 1.45 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 520, damping: 16 }} className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#f6b73c] px-1 text-[11px] font-black text-[#171713]">{cartCount}</motion.span></span><span><span className="block text-sm font-bold">View your cart</span><span className="block text-xs text-white/50">Ready when you are</span></span></span>
+              <span className="flex items-center gap-3"><motion.span key={cartTotal} initial={{ opacity: 0.4, y: -3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="font-black tabular-nums">{formatPaise(cartTotal)}</motion.span><ArrowRight size={17} /></span>
             </Link>
           </motion.div>
         </div>

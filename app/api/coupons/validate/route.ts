@@ -4,21 +4,31 @@ import { prisma } from "@/lib/db";
 import { normalizePhone } from "@/lib/spin-wheel";
 
 const schema = z.object({
-  code: z.string().min(3).max(24),
+  code: z.string().trim().min(3).max(24),
   phone: z.string().optional()
 });
 
 export async function POST(request: Request) {
-  const body = schema.parse(await request.json());
+  // A short or malformed code is an ordinary "not valid", not a server error. Parsing
+  // outside a try made every such request throw and return a 500.
+  const parsed = schema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Enter a valid coupon code." }, { status: 400 });
+  }
+  const body = parsed.data;
+
   const coupon = await prisma.coupon.findUnique({
     where: { code: body.code.toUpperCase() }
   });
 
+  // Capacity counts checkouts that already hold the coupon, exactly as
+  // createPendingOnlineOrder does. Previewing a coupon the payment step will then
+  // refuse only moves the disappointment to a worse moment.
   if (
     !coupon ||
     !coupon.active ||
     (coupon.expiresAt && coupon.expiresAt < new Date()) ||
-    (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses)
+    (coupon.maxUses !== null && coupon.usedCount + coupon.heldCount >= coupon.maxUses)
   ) {
     return NextResponse.json({ error: "Invalid coupon" }, { status: 404 });
   }
@@ -38,6 +48,6 @@ export async function POST(request: Request) {
     discountPercent: coupon.discountPercent,
     description: coupon.description,
     expiresAt: coupon.expiresAt,
-    remainingUses: coupon.maxUses === null ? null : Math.max(0, coupon.maxUses - coupon.usedCount)
+    remainingUses: coupon.maxUses === null ? null : Math.max(0, coupon.maxUses - coupon.usedCount - coupon.heldCount)
   });
 }

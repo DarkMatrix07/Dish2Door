@@ -5,16 +5,18 @@ import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
-// Used only if the database is unreachable, so the cart still renders locally.
+// Used only if the database is unreachable, so the cart still renders locally. Kept
+// in step with the live VIT-AP row so the preview total is not misleading; the server
+// always re-prices at checkout.
 const FALLBACK_CAMPUSES: CampusPublic[] = [
   {
     code: "VIT_AP",
     name: "VIT-AP",
-    platformFeePaise: 200,
-    hostelDeliveryFeePaise: 1500,
-    hostelDeliveryEnabled: true,
+    platformFeePaise: 600,
+    hostelDeliveryFeePaise: 1000,
+    hostelDeliveryEnabled: false,
     hostelDeliveryNightOnly: true,
-    paymentChargePercentBps: 250,
+    paymentChargePercentBps: 300,
     paymentChargeFixedPaise: 0
   }
 ];

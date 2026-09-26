@@ -73,10 +73,13 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
   const rest = data.topDishes.slice(1, 7);
   const cheapestBiryani = data.biryani[0];
 
-  function DishCard({ dish, rank }: { dish: FeaturedDish; rank?: number }) {
+  // Render helpers rather than nested components, so a cart change re-renders these
+  // cards in place instead of remounting them (which replayed the reveal animation).
+  function renderDishCard(dish: FeaturedDish, rank?: number) {
     const quantity = quantityOf(dish.id);
     return (
       <motion.article
+        key={dish.id}
         layout
         initial={{ opacity: 0, y: 14 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -109,10 +112,11 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
     );
   }
 
-  function ComboCard({ combo }: { combo: FeaturedCombo }) {
+  function renderComboCard(combo: FeaturedCombo) {
     const quantity = quantityOf(`combo:${combo.id}`);
     return (
       <motion.article
+        key={combo.id}
         layout
         initial={{ opacity: 0, y: 14 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -197,14 +201,14 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
       {/* Most ordered */}
       {rest.length ? (
         <Rail icon={<Flame size={22} className="text-[#c65d24]" />} title="Campus favourites" subtitle="Ranked by how many plates actually went out.">
-          {rest.map((dish, index) => <DishCard key={dish.id} dish={dish} rank={index + 2} />)}
+          {rest.map((dish, index) => renderDishCard(dish, index + 2))}
         </Rail>
       ) : null}
 
       {/* Combos */}
       {data.combos.length ? (
         <Rail icon={<Sparkles size={22} className="text-[#c65d24]" />} title="Combo deals" subtitle="Full meals bundled for less than ordering apart.">
-          {data.combos.map((combo) => <ComboCard key={combo.id} combo={combo} />)}
+          {data.combos.map((combo) => renderComboCard(combo))}
         </Rail>
       ) : null}
 
@@ -215,14 +219,14 @@ export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAd
           title={cheapestBiryani ? `Biryani, from ${formatPaise(cheapestBiryani.finalPricePaise)}` : "Biryani"}
           subtitle="Every biryani on campus, cheapest first — compare before you commit."
         >
-          {data.biryani.map((dish) => <DishCard key={dish.id} dish={dish} />)}
+          {data.biryani.map((dish) => renderDishCard(dish))}
         </Rail>
       ) : null}
 
       {/* Value picks */}
       {data.valuePicks.length ? (
         <Rail icon={<Wallet size={22} className="text-[#c65d24]" />} title="Easy on the wallet" subtitle="Filling picks under ₹150, sorted by what students reorder most.">
-          {data.valuePicks.map((dish) => <DishCard key={dish.id} dish={dish} />)}
+          {data.valuePicks.map((dish) => renderDishCard(dish))}
         </Rail>
       ) : null}
 

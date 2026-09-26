@@ -2,13 +2,14 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Check, CheckCircle2, Gift, LockKeyhole, Mail, MapPin, ReceiptText, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, Gift, LockKeyhole, Mail, MapPin, MessageCircle, ReceiptText, RefreshCw, ShieldCheck, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { readApiJson } from "@/lib/api-client";
 import { formatPaise } from "@/lib/utils";
+import { SUPPORT_WHATSAPP_NUMBER } from "@/lib/whatsapp-order";
 
 type Order = {
   trackingCode: string;
@@ -55,6 +56,8 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
   const [passcode, setPasscode] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [ratingBusy, setRatingBusy] = useState(false);
   const [rating, setRating] = useState({ foodRating: 5, deliveryRating: 5, review: "" });
 
   useEffect(() => {
@@ -66,21 +69,28 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
     }
   }, [trackingCode]);
 
-  async function verify(passcodeOverride?: string) {
-    setBusy(true);
+  async function verify(passcodeOverride?: string, options: { refresh?: boolean } = {}) {
+    if (options.refresh) setRefreshing(true); else setBusy(true);
     try {
       const response = await fetch(`/api/tracking/${trackingCode}/verify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode: passcodeOverride ?? passcode }) });
       const data = await readApiJson<{ error?: string; order: Order }>(response, "Could not verify this order");
+      // The server keeps the 429 body identical to a wrong passcode, but the person
+      // who typed the right one deserves to know they only need to wait.
+      if (response.status === 429) throw new Error("Too many attempts on this order. Please wait a few minutes and try again.");
       if (!response.ok) throw new Error(data.error ?? "Could not verify this order");
       setOrder(data.order);
+      if (options.refresh) toast.success("Status updated");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not verify this order");
     } finally {
       setBusy(false);
+      setRefreshing(false);
     }
   }
 
   async function submitRating() {
+    if (ratingBusy) return;
+    setRatingBusy(true);
     try {
       const response = await fetch(`/api/tracking/${trackingCode}/rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode, ...rating }) });
       const data = await readApiJson<{ error?: string; rating: { id: string } }>(response, "Could not submit rating");
@@ -89,6 +99,8 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
       setOrder((current) => current ? { ...current, rating: data.rating } : current);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not submit rating");
+    } finally {
+      setRatingBusy(false);
     }
   }
 
@@ -179,19 +191,20 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
                   <button
                     type="button"
                     onClick={submitRating}
-                    className="tracking-dark-link mt-7 flex min-h-12 w-full items-center justify-center rounded-md bg-[#171713] px-6 py-3.5 font-black transition hover:bg-[#c65d24] sm:w-auto"
+                    disabled={ratingBusy}
+                    className="tracking-dark-link mt-7 flex min-h-12 w-full items-center justify-center rounded-md bg-[#171713] px-6 py-3.5 font-black transition hover:bg-[#c65d24] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
-                    Submit rating
+                    {ratingBusy ? "Submitting..." : "Submit rating"}
                   </button>
                 </div>
               </section>
             ) : null}
 
             {isCancelled ? (
-              <div className="mt-10 rounded-xl border border-[#8a342c]/20 bg-[#8a342c]/8 p-6"><h2 className="text-xl font-black text-[#6f2923]">This order was cancelled</h2><p className="mt-2 max-w-2xl leading-7 text-[#7c4a45]">If you paid online, the team will process the applicable refund. Contact support if you need help with this order.</p></div>
+              <div className="mt-10 rounded-xl border border-[#8a342c]/20 bg-[#8a342c]/8 p-6"><h2 className="text-xl font-black text-[#6f2923]">This order was cancelled</h2><p className="mt-2 max-w-2xl leading-7 text-[#7c4a45]">Questions about a cancelled order are handled on WhatsApp. Message us with your tracking code <span className="font-mono font-bold">{order.trackingCode}</span> and the phone number you ordered with.</p><a href={`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}`} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-[#25D366] px-4 text-sm font-black text-white transition hover:brightness-105"><MessageCircle size={16} /> Message us on WhatsApp</a></div>
             ) : (
               <section className="mt-12">
-                <div className="flex items-end justify-between"><h2 className="text-3xl font-black tracking-[-0.04em]">Order status</h2><span className="font-mono text-xs text-[#817a70]">STEP {currentIndex + 1} OF 3</span></div>
+                <div className="flex flex-wrap items-end justify-between gap-3"><div className="flex items-center gap-3"><h2 className="text-3xl font-black tracking-[-0.04em]">Order status</h2>{order.status !== "DELIVERED" ? <button type="button" disabled={refreshing} onClick={() => verify(undefined, { refresh: true })} aria-label="Refresh order status" className="grid h-9 w-9 place-items-center rounded-full border border-black/12 text-[#6c6458] transition hover:border-black/30 hover:text-[#171713] disabled:opacity-50"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""} /></button> : null}</div><span className="font-mono text-xs text-[#817a70]">STEP {currentIndex + 1} OF 3</span></div>
                 <div className="mt-7 grid gap-3 md:grid-cols-3">
                   {steps.map((step, index) => {
                     const done = index <= currentIndex;

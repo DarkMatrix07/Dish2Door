@@ -257,9 +257,13 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
       throw new PublicError(`${shop.name} does not deliver to ${campus.name} yet.`);
     }
 
-    const coupon = details.couponCode
+    let coupon = details.couponCode
       ? await tx.coupon.findUnique({ where: { code: details.couponCode.toUpperCase() } })
       : null;
+    if (coupon && coupon.maxUses !== null && coupon.usedCount + coupon.heldCount >= coupon.maxUses) {
+      const released = await supersedeOwnUnpaidHolds(tx, coupon.id, customerPhone);
+      if (released) coupon = await tx.coupon.findUnique({ where: { id: coupon.id } });
+    }
     // Spin-wheel coupons are bound to the phone that won them. If a code has a
     // matching SpinReward, only that phone may redeem it — this blocks a winner from
     // copying the code and using it (or sharing it) on a different account.
@@ -357,6 +361,57 @@ export async function createPendingOnlineOrder(details: CustomerDetails, items: 
 // Payment evidence and discount reservations remain: local expiry cannot make a
 // provider order unpayable, and late capture still needs an exact reconciliation.
 export const PENDING_ORDER_TTL_MS = 5 * 60 * 1000;
+
+// A customer who opens payment, closes it and then changes their cart gets a new
+// checkout, but the old unpaid one still holds a single-use coupon (a wheel reward).
+// Expiry deliberately keeps that hold, so without this the customer lost their own
+// reward until an admin cancelled the stale order by hand. The newer checkout from the
+// SAME phone supersedes it: the stale quote is cancelled and its hold released. This is
+// the same transition as an explicit cancellation, so if the old gateway order were
+// ever paid, capture would land on a cancelled order and go to refund review, never
+// fulfilment. Other customers' holds are never touched.
+export async function supersedeOwnUnpaidHolds(tx: Prisma.TransactionClient, couponId: string, customerPhone: string) {
+  const holds = await tx.couponReservation.findMany({
+    where: {
+      couponId,
+      status: "HELD",
+      order: {
+        customerPhone,
+        source: OrderSource.CUSTOMER_ONLINE,
+        paymentStatus: PaymentStatus.PENDING,
+        status: { not: OrderStatus.CANCELLED }
+      }
+    },
+    select: { orderId: true }
+  });
+
+  let released = 0;
+  for (const { orderId } of holds) {
+    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
+    const [order, payment] = await Promise.all([
+      tx.order.findUnique({ where: { id: orderId } }),
+      tx.payment.findUnique({ where: { orderId } })
+    ]);
+    // Re-checked under the lock: any sign that money moved leaves the hold alone.
+    if (
+      !order ||
+      order.status === OrderStatus.CANCELLED ||
+      order.paymentStatus !== PaymentStatus.PENDING ||
+      payment?.captureState !== "PENDING" ||
+      payment.refundState !== "NONE" ||
+      payment.razorpayPaymentId
+    ) {
+      continue;
+    }
+    await tx.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.CANCELLED, checkoutState: "ABANDONED" }
+    });
+    await releaseCancelledReservation(tx, orderId);
+    released += 1;
+  }
+  return released;
+}
 
 // Only explicit cancellation releases payable capacity: future capture then goes
 // to refund review, so it can never fulfill a quote whose capacity was recycled.

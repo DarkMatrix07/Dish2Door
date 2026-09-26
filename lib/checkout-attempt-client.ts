@@ -64,17 +64,52 @@ export function markCheckoutTerminal() {
   clearPendingCheckout();
 }
 
+// An "opening" claim stops two tabs starting two payments at once. It used to be held
+// for a flat 30 minutes, so closing or reloading the tab while Razorpay was open left
+// the customer locked out ("A checkout is already open") for half an hour. Now it is a
+// short lease the owning page keeps renewing: a live checkout keeps it indefinitely,
+// a dead tab frees it within OPENING_LEASE_MS. Background tabs have their timers
+// throttled to about once a minute, so the lease comfortably outlasts that.
+const OPENING_LEASE_MS = 3 * 60_000;
+const HEARTBEAT_MS = 20_000;
+let heartbeat: ReturnType<typeof setInterval> | null = null;
+let heartbeatOwner: string | null = null;
+
+function stopHeartbeat() {
+  if (heartbeat) clearInterval(heartbeat);
+  heartbeat = null;
+  heartbeatOwner = null;
+}
+
+function startHeartbeat(owner: string) {
+  stopHeartbeat();
+  heartbeatOwner = owner;
+  heartbeat = setInterval(() => {
+    const active = readActive();
+    if (active?.owner === owner && active.state === "opening") {
+      writeActive({ ...active, expiresAt: Date.now() + OPENING_LEASE_MS });
+    } else {
+      stopHeartbeat();
+    }
+  }, HEARTBEAT_MS);
+  // Node (tests) would otherwise stay alive for the timer; browsers return a number.
+  if (typeof heartbeat === "object" && heartbeat && "unref" in heartbeat) heartbeat.unref();
+}
+
 export async function claimCheckout(): Promise<string | null> {
   const claim = () => {
     if (readActive()) return null;
     const owner = crypto.randomUUID();
-    writeActive({ owner, state: "opening", expiresAt: Date.now() + 30 * 60_000 });
+    writeActive({ owner, state: "opening", expiresAt: Date.now() + OPENING_LEASE_MS });
     return owner;
   };
-  return navigator.locks ? navigator.locks.request("dish2door-checkout", claim) : claim();
+  const owner = await (navigator.locks ? navigator.locks.request("dish2door-checkout", claim) : claim());
+  if (owner) startHeartbeat(owner);
+  return owner;
 }
 
 export function releaseCheckout(owner: string) {
+  if (heartbeatOwner === owner) stopHeartbeat();
   const active = readActive();
   if (active?.owner === owner && active.state === "opening") writeActive(null);
 }
@@ -98,6 +133,7 @@ export async function getCheckoutAttempt(payload: string) {
 }
 
 export function markCheckoutPending(attempt: Awaited<ReturnType<typeof getCheckoutAttempt>>, owner?: string) {
+  stopHeartbeat();
   const stored = { key: attempt.key, capability: attempt.capability, pending: true };
   memory.set(attempt.storageKey, stored);
   try { localStorage.setItem(attempt.storageKey, JSON.stringify(stored)); } catch { /* In-memory fallback. */ }
@@ -105,6 +141,7 @@ export function markCheckoutPending(attempt: Awaited<ReturnType<typeof getChecko
 }
 
 export function completeCheckoutAttempt(attempt: Awaited<ReturnType<typeof getCheckoutAttempt>>) {
+  stopHeartbeat();
   memory.delete(attempt.storageKey);
   try { localStorage.removeItem(attempt.storageKey); } catch { /* Storage is optional. */ }
   writeActive(null);

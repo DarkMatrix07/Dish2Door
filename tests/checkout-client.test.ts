@@ -64,3 +64,19 @@ test("signed callback survives reload and refund resolution blocks only the old 
   assert.ok(nextOwner);
   releaseCheckout(nextOwner);
 });
+
+test("an abandoned opening claim frees itself in minutes, not half an hour", async () => {
+  const owner = await claimCheckout();
+  assert.ok(owner);
+  const stored = JSON.parse(values.get("dish2door_checkout_active") ?? "null");
+  assert.equal(stored.state, "opening");
+  // A tab closed mid-payment used to block this browser for 30 minutes.
+  assert.ok(stored.expiresAt - Date.now() <= 3 * 60_000);
+
+  // Simulate the owning tab dying: its lease lapses and a new checkout may start.
+  values.set("dish2door_checkout_active", JSON.stringify({ ...stored, expiresAt: Date.now() - 1 }));
+  const next = await claimCheckout();
+  assert.ok(next);
+  assert.notEqual(next, owner);
+  releaseCheckout(next);
+});

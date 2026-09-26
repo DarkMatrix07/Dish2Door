@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Toaster } from "sonner";
 import { BrandIntro } from "@/components/customer/BrandIntro";
@@ -22,6 +22,11 @@ const spaceMono = localFont({
 export const metadata: Metadata = {
   title: "Dish2Door",
   description: "Campus food ordering built around dependable quality, clear updates, and careful delivery."
+};
+
+// Tints the mobile browser bar to the page's cream background instead of plain white.
+export const viewport: Viewport = {
+  themeColor: "#f7f3eb"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

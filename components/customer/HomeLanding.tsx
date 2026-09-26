@@ -6,11 +6,20 @@ import { ArrowRight, Check, Clock3, MapPin, ShieldCheck, Star } from "lucide-rea
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 
-const promises = [
-  { number: "01", icon: ShieldCheck, title: "Reliable kitchens", copy: "Menus come from restaurants we know around campus, with availability kept clear before you order." },
-  { number: "02", icon: Clock3, title: "Clear order updates", copy: "You hear from us when your order is confirmed, reaches campus, and is delivered." },
-  { number: "03", icon: MapPin, title: "Made for campus", copy: "Collect at the gate or choose hostel delivery. The checkout adapts to how you want your food." }
-];
+function promisesFor(hostelDelivery: boolean) {
+  return [
+    { number: "01", icon: ShieldCheck, title: "Reliable kitchens", copy: "Menus come from restaurants we know around campus, with availability kept clear before you order." },
+    { number: "02", icon: Clock3, title: "Clear order updates", copy: "You hear from us when your order is confirmed, reaches campus, and is delivered." },
+    {
+      number: "03",
+      icon: MapPin,
+      title: "Made for campus",
+      copy: hostelDelivery
+        ? "Collect at the gate or choose hostel delivery. The checkout adapts to how you want your food."
+        : "Collect at your campus gate at a set delivery time, with a message the moment your order arrives."
+    }
+  ];
+}
 
 const reveal = {
   initial: { opacity: 0, y: 24 },
@@ -18,7 +27,8 @@ const reveal = {
   transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] as const }
 };
 
-export function HomeLanding() {
+export function HomeLanding({ hostelDelivery = false }: { hostelDelivery?: boolean }) {
+  const promises = promisesFor(hostelDelivery);
   return (
     <main id="main-content" className="min-h-screen overflow-hidden bg-[#f7f3eb] text-[#171713]">
       <section className="relative min-h-[760px] border-b border-black/10 lg:min-h-[820px]">
@@ -32,7 +42,7 @@ export function HomeLanding() {
               Good food.<br /><span className="font-extrabold text-[#c65d24]">Right to your door.</span>
             </h1>
             <p className="mt-8 max-w-2xl text-lg leading-8 text-[#625b50] sm:text-xl lg:text-[1.35rem] lg:leading-9">
-              Dish2Door brings dependable local food to your campus gate or hostel, with careful handling and clear updates from kitchen to handoff.
+              Dish2Door brings dependable local food to {hostelDelivery ? "your campus gate or hostel" : "your campus gate"}, with careful handling and clear updates from kitchen to handoff.
             </p>
             <div className="mt-10 flex flex-col items-start gap-5 sm:flex-row sm:items-center">
               <Link href="/menu" className="home-primary-cta group inline-flex min-h-14 items-center gap-5 rounded-md bg-[#171713] px-7 text-base font-bold transition duration-300 hover:-translate-y-0.5 hover:bg-[#c65d24] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#c65d24] active:translate-y-0">
@@ -54,7 +64,7 @@ export function HomeLanding() {
               <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-white/65">Today&apos;s promise</p><p className="mt-2 max-w-xs text-xl font-bold leading-snug sm:text-2xl">Fresh choices from restaurants around campus.</p></div>
               <span className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#f6b73c] text-[#171713] sm:flex"><Star size={20} fill="currentColor" /></span>
             </div>
-            <div className="absolute -left-4 top-7 rounded-md bg-[#f6b73c] px-4 py-3 text-sm font-black text-[#171713] shadow-[0_16px_40px_rgba(84,51,14,0.18)] sm:-left-7 sm:top-12">Gate or hostel</div>
+            <div className="absolute -left-4 top-7 rounded-md bg-[#f6b73c] px-4 py-3 text-sm font-black text-[#171713] shadow-[0_16px_40px_rgba(84,51,14,0.18)] sm:-left-7 sm:top-12">{hostelDelivery ? "Gate or hostel" : "Campus gate pickup"}</div>
           </motion.div>
         </div>
       </section>
