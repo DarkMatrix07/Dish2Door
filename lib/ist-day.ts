@@ -15,6 +15,21 @@ export function istDayStartUtc(daysAgo = 0, now = new Date()) {
   );
 }
 
+// Start and end of today in IST as UTC instants for a createdAt filter, plus a
+// human label such as "Tuesday, 29 September 2026".
+export function istTodayRange(now = new Date()) {
+  const start = istDayStartUtc(0, now);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const label = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(start);
+  return { start, end, label };
+}
+
 export function formatIstDateTime(date: Date) {
   return new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",

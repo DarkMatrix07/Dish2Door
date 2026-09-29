@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatPaise } from "@/lib/utils";
+import { FEATURES } from "@/lib/features";
+import { isUnpaidCheckout } from "@/lib/order-filters";
 
 type Restaurant = { id: string; name: string };
 type SessionRef = { id: string; label: string };
@@ -43,6 +45,7 @@ const EMPTY_FILTERS = {
   restaurantId: "all",
   sessionId: "all",
   campusId: "all",
+  payment: "real",
   dateFrom: "",
   dateTo: ""
 };
@@ -84,7 +87,7 @@ export function OrdersTable({
     try {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => {
-        if (value && value !== "all") params.set(key, value);
+        if (value && value !== "all" && !(key === "payment" && value === "real")) params.set(key, value);
       });
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
@@ -178,9 +181,11 @@ export function OrdersTable({
             <Button variant="outline" size="sm" disabled={!!busyId} onClick={() => bulkAction("/api/admin/orders/reached-campus", "orders marked reached campus")}>
               Mark all reached
             </Button>
-            <Button variant="outline" size="sm" disabled={!!busyId} onClick={() => bulkAction("/api/admin/orders/release-deliveries", "hostel orders released")}>
-              Assign delivery
-            </Button>
+            {FEATURES.deliveryPortal ? (
+              <Button variant="outline" size="sm" disabled={!!busyId} onClick={() => bulkAction("/api/admin/orders/release-deliveries", "hostel orders released")}>
+                Assign delivery
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" disabled={loading} onClick={fetchOrders}>
               Refresh
             </Button>
@@ -237,6 +242,11 @@ export function OrdersTable({
               </option>
             ))}
           </Select>
+          <Select value={filters.payment} onChange={(event) => updateFilter({ payment: event.target.value })}>
+            <option value="real">Paid and pay-later orders</option>
+            <option value="unpaid">Unpaid online checkouts only</option>
+            <option value="everything">Everything</option>
+          </Select>
           <label className="text-xs font-medium text-neutral-500">
             From
             <Input className="mt-1" type="date" value={filters.dateFrom} onChange={(event) => updateFilter({ dateFrom: event.target.value })} />
@@ -255,7 +265,11 @@ export function OrdersTable({
         </div>
 
         <div className={`divide-y divide-neutral-100 ${loading ? "opacity-60" : ""}`}>
-          {orders.map((order) => (
+          {orders.map((order) => {
+            // Abandoned checkouts can still be cancelled (that frees any coupon they
+            // hold) but never moved forward: nobody paid for that food.
+            const unpaid = isUnpaidCheckout(order);
+            return (
             <div key={order.id} className="flex flex-col gap-3 p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -279,12 +293,13 @@ export function OrdersTable({
               <div className="flex shrink-0 flex-col gap-2 lg:items-end">
                 <p className="text-lg font-bold">{formatPaise(order.totalPaise)}</p>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
-                  {order.status === "ORDER_CONFIRMED" ? (
+                  {unpaid ? <Badge tone="red">Unpaid checkout</Badge> : null}
+                  {order.status === "ORDER_CONFIRMED" && !unpaid ? (
                     <Button size="sm" variant="secondary" disabled={busyId === order.id} onClick={() => orderAction(order, "reached")}>
                       {busyId === order.id ? "Working..." : "Mark reached"}
                     </Button>
                   ) : null}
-                  {order.status === "REACHED_CAMPUS" ? (
+                  {order.status === "REACHED_CAMPUS" && !unpaid ? (
                     <Button size="sm" variant="secondary" disabled={busyId === order.id} onClick={() => orderAction(order, "delivered")}>
                       {busyId === order.id ? "Working..." : "Mark delivered"}
                     </Button>
@@ -306,7 +321,8 @@ export function OrdersTable({
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
           {!orders.length ? (
             <div className="p-8 text-center text-neutral-500">{loading ? "Loading..." : "No orders match these filters."}</div>
           ) : null}

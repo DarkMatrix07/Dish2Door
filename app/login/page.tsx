@@ -3,10 +3,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, Check } from "lucide-react";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { FEATURES } from "@/lib/features";
 
 export const metadata: Metadata = {
   title: "Staff login | Dish2Door",
-  description: "Secure access for Dish2Door administrators and delivery staff."
+  description: FEATURES.deliveryPortal ? "Secure access for Dish2Door administrators and delivery staff." : "Secure access for Dish2Door administrators."
 };
 
 export default function LoginPage() {
@@ -42,7 +43,7 @@ export default function LoginPage() {
               One secure workspace for campus orders, restaurant coordination, and doorstep handoffs.
             </p>
             <div className="mt-9 flex flex-wrap gap-x-7 gap-y-3 text-sm font-semibold text-white/82">
-              {['Live order control', 'Delivery handoffs', 'Menu operations'].map((item) => (
+              {['Live order control', FEATURES.deliveryPortal ? 'Delivery handoffs' : 'Campus handovers', 'Menu operations'].map((item) => (
                 <span key={item} className="inline-flex items-center gap-2">
                   <span className="grid size-5 place-items-center rounded-full bg-white/12 ring-1 ring-white/15">
                     <Check className="size-3" aria-hidden="true" />

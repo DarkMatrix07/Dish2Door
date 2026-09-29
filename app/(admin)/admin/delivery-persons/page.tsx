@@ -1,12 +1,15 @@
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { DeliveryPersonsManager } from "@/components/admin/DeliveryPersonsManager";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { FEATURES } from "@/lib/features";
 import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDeliveryPersonsPage() {
   await requireRole(["ADMIN"]);
+  if (!FEATURES.deliveryPortal) redirect("/admin");
   const users = await prisma.user.findMany({
     where: { role: "DELIVERY" },
     select: {

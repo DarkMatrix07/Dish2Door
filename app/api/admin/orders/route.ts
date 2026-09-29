@@ -5,19 +5,24 @@ import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { cleanupStalePendingOrders } from "@/lib/orders";
 import { orderInclude } from "@/lib/order-select";
+import { IST_OFFSET_MS } from "@/lib/ist-day";
+import { UNPAID_CHECKOUT_WHERE } from "@/lib/order-filters";
 
 const ORDER_STATUSES = ["ORDER_CONFIRMED", "REACHED_CAMPUS", "DELIVERED", "CANCELLED"];
 const DELIVERY_TYPES = ["GATE", "HOSTEL"];
 const SOURCES = ["CUSTOMER_ONLINE", "ADMIN_MANUAL"];
 
+// The date pickers send calendar days as the admin sees them, in IST. Parsing them in
+// the server's own timezone (UTC on the VPS) shifted every range by five and a half hours.
 function startOfDay(value: string) {
-  const date = new Date(`${value}T00:00:00`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(Date.parse(`${value}T00:00:00Z`) - IST_OFFSET_MS);
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function endOfDay(value: string) {
-  const date = new Date(`${value}T23:59:59.999`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  const start = startOfDay(value);
+  return start ? new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1) : undefined;
 }
 
 export async function GET(request: Request) {
@@ -37,6 +42,8 @@ export async function GET(request: Request) {
   const campusId = searchParams.get("campusId") ?? "all";
   const dateFrom = searchParams.get("dateFrom") ?? "";
   const dateTo = searchParams.get("dateTo") ?? "";
+  // "real" (default) hides online checkouts that were never paid; "unpaid" shows only them.
+  const payment = searchParams.get("payment") ?? "real";
 
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
   const pageSize = Math.min(50, Math.max(5, Number(searchParams.get("pageSize") ?? "20") || 20));
@@ -44,6 +51,8 @@ export async function GET(request: Request) {
   // Unconfirmed WhatsApp orders are excluded unless explicitly asked for, so they
   // stay on their own page until an admin accepts them.
   const where: Prisma.OrderWhereInput = { status: { not: "AWAITING_CONFIRMATION" } };
+  if (payment === "unpaid") where.AND = [UNPAID_CHECKOUT_WHERE];
+  else if (payment !== "everything") where.NOT = UNPAID_CHECKOUT_WHERE;
 
   if (search) {
     where.OR = [

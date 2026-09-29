@@ -1,50 +1,58 @@
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
+import { Pager, readPage } from "@/components/admin/Pager";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
+import { formatIstDateTime } from "@/lib/ist-day";
 import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-function avg(values: number[]) {
-  if (!values.length) return 0;
-  return values.reduce((total, value) => total + value, 0) / values.length;
-}
+const PAGE_SIZE = 20;
 
-function ratingText(value: number) {
+function ratingText(value: number | null | undefined) {
   return value ? value.toFixed(1) : "0.0";
 }
 
-export default async function AdminRatingsPage() {
+export default async function AdminRatingsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   await requireRole(["ADMIN"]);
-  const ratings = await prisma.rating.findMany({
-    include: {
-      order: {
-        include: {
-          restaurant: true,
-          items: true,
-          deliveredBy: { select: { name: true } }
+  const page = readPage((await searchParams).page);
+
+  // Totals and averages are computed over every review in the database. The page used
+  // to average only the latest 80, so its "Total reviews" stopped at 80.
+  const [overall, restaurantRows, ratings] = await Promise.all([
+    prisma.rating.aggregate({ _count: { _all: true }, _avg: { foodRating: true, deliveryRating: true } }),
+    prisma.$queryRaw<Array<{ name: string; count: number; food: number; delivery: number }>>`
+      SELECT res.name, COUNT(r.id)::int AS count,
+             AVG(r."foodRating")::float8 AS food, AVG(r."deliveryRating")::float8 AS delivery
+      FROM "Rating" r
+      JOIN "Order" o ON o.id = r."orderId"
+      JOIN "Restaurant" res ON res.id = o."restaurantId"
+      GROUP BY res.name
+      ORDER BY count DESC, res.name`,
+    prisma.rating.findMany({
+      select: {
+        id: true,
+        foodRating: true,
+        deliveryRating: true,
+        review: true,
+        createdAt: true,
+        order: {
+          select: {
+            customerName: true,
+            trackingCode: true,
+            restaurant: { select: { name: true } },
+            items: { select: { quantity: true, nameSnapshot: true } }
+          }
         }
-      }
-    },
-    orderBy: { createdAt: "desc" },
-    take: 80
-  });
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE
+    })
+  ]);
 
-  const byRestaurant = new Map<string, typeof ratings>();
-  for (const rating of ratings) {
-    const key = rating.order.restaurant.name;
-    byRestaurant.set(key, [...(byRestaurant.get(key) ?? []), rating]);
-  }
-
-  const restaurantRows = Array.from(byRestaurant.entries()).map(([name, rows]) => ({
-    name,
-    count: rows.length,
-    food: avg(rows.map((row) => row.foodRating)),
-    delivery: avg(rows.map((row) => row.deliveryRating))
-  }));
-
-  const foodAverage = avg(ratings.map((rating) => rating.foodRating));
-  const deliveryAverage = avg(ratings.map((rating) => rating.deliveryRating));
+  const totalReviews = overall._count._all;
+  const totalPages = Math.max(1, Math.ceil(totalReviews / PAGE_SIZE));
 
   return (
     <PageContainer>
@@ -54,10 +62,10 @@ export default async function AdminRatingsPage() {
         description="Track customer feedback, restaurant-wise averages, food quality, and delivery experience."
       />
 
-      <div className="grid gap-3 min-[430px]:grid-cols-3 sm:gap-4">
-        <StatCard label="Total reviews" value={ratings.length} />
-        <StatCard label="Food average" value={ratingText(foodAverage)} />
-        <StatCard label="Delivery average" value={ratingText(deliveryAverage)} />
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <StatCard label="Total reviews" value={totalReviews} />
+        <StatCard label="Food average" value={ratingText(overall._avg.foodRating)} />
+        <StatCard label="Delivery average" value={ratingText(overall._avg.deliveryRating)} />
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[380px_1fr]">
@@ -85,7 +93,7 @@ export default async function AdminRatingsPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Latest reviews" description="Customer comments with order context." bodyClassName="p-0">
+        <SectionCard title="Latest reviews" description="Customer comments with order context, newest first." bodyClassName="p-0">
           <div className="divide-y divide-neutral-100">
             {ratings.map((rating) => (
               <div key={rating.id} className="p-4 sm:p-5">
@@ -93,7 +101,7 @@ export default async function AdminRatingsPage() {
                   <div>
                     <p className="font-semibold">{rating.order.customerName}</p>
                     <p className="mt-1 text-sm text-neutral-500">
-                      {rating.order.restaurant.name} · {rating.order.trackingCode}
+                      {rating.order.restaurant.name} · {rating.order.trackingCode} · {formatIstDateTime(rating.createdAt)}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -108,6 +116,9 @@ export default async function AdminRatingsPage() {
               </div>
             ))}
             {!ratings.length ? <div className="p-8 text-center text-neutral-500">No customer reviews yet.</div> : null}
+          </div>
+          <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+            <Pager basePath="/admin/ratings" params={{}} page={page} totalPages={totalPages} total={totalReviews} shown={ratings.length} noun="reviews" />
           </div>
         </SectionCard>
       </div>

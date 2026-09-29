@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/customer/LegalPage";
+import { activeCampusNamesText } from "@/lib/campus";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | Dish2Door"
 };
 
-export default function PrivacyPolicyPage() {
+// Reads the live campus list, so it renders per request.
+export const dynamic = "force-dynamic";
+
+export default async function PrivacyPolicyPage() {
+  const campuses = await activeCampusNamesText();
   return (
     <LegalPage
       eyebrow="Legal"
       title="Privacy Policy"
-      updated="3 August 2026"
+      updated="29 September 2026"
       sections={[
         {
           title: "Who this applies to",
           body: [
-            "Dish2Door is a campus food ordering service operating only at the VIT-AP and SRM-AP campuses in Andhra Pradesh, India. This policy covers the information we handle when you order through this website."
+            `Dish2Door is a campus food ordering service operating only at the ${campuses} campuses in Andhra Pradesh, India. This policy covers the information we handle when you order through this website.`
           ]
         },
         {

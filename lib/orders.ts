@@ -13,6 +13,7 @@ import { calculateTotals, GST_RATE_BPS } from "@/lib/money";
 import { resolveCampus } from "@/lib/campus";
 import { generatePasscode, generateTrackingCode, hashPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
+import { FULFILLABLE_PAYMENT_STATUSES } from "@/lib/order-filters";
 import type { FullOrder } from "@/lib/order-types";
 import { assertOrderingWindowOpen } from "@/lib/order-slots";
 import { isValidIndianMobile, normalizePhone } from "@/lib/spin-wheel";
@@ -802,7 +803,7 @@ export async function markAllReachedCampus() {
   const activeOrders = await prisma.order.findMany({
     where: {
       status: OrderStatus.ORDER_CONFIRMED,
-      paymentStatus: { in: [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY, PaymentStatus.UNPAID] },
+      paymentStatus: { in: FULFILLABLE_PAYMENT_STATUSES },
       restaurant: { orderMode: "ONLINE_PAYMENT" }
     },
     select: { id: true }
@@ -833,7 +834,7 @@ export async function releaseHostelDeliveries() {
     where: {
       deliveryType: DeliveryType.HOSTEL,
       status: { in: [OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] },
-      paymentStatus: { in: [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY, PaymentStatus.UNPAID] },
+      paymentStatus: { in: FULFILLABLE_PAYMENT_STATUSES },
       deliveryReleased: false
     },
     data: {
@@ -911,6 +912,11 @@ export async function markDelivered(
   return order;
 }
 
+// Both per-order steps refuse an online checkout that was never paid. Those rows stay
+// ORDER_CONFIRMED so a late capture can still be matched, and marking one would send
+// the customer a "reached campus" or "delivered" message for food nobody paid for.
+const FULFILLABLE = { in: FULFILLABLE_PAYMENT_STATUSES };
+
 export async function markOrderReachedCampus(orderId: string) {
   const existing = await prisma.order.findFirst({
     where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED }
@@ -918,9 +924,12 @@ export async function markOrderReachedCampus(orderId: string) {
   if (!existing) {
     throw new PublicError("Only confirmed orders can be marked reached campus");
   }
+  if (!FULFILLABLE_PAYMENT_STATUSES.includes(existing.paymentStatus)) {
+    throw new PublicError("This checkout was never paid, so it cannot be marked reached campus");
+  }
 
   const order = await prisma.order.update({
-    where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED },
+    where: { id: orderId, status: OrderStatus.ORDER_CONFIRMED, paymentStatus: FULFILLABLE },
     data: { status: OrderStatus.REACHED_CAMPUS, reachedCampusAt: new Date() },
     include: orderInclude
   });
@@ -936,9 +945,12 @@ export async function adminMarkOrderDelivered(orderId: string, deliveredById: st
   if (!existing) {
     throw new PublicError("Only orders that reached campus can be marked delivered");
   }
+  if (!FULFILLABLE_PAYMENT_STATUSES.includes(existing.paymentStatus)) {
+    throw new PublicError("This checkout was never paid, so it cannot be marked delivered");
+  }
 
   const order = await prisma.order.update({
-    where: { id: orderId, status: OrderStatus.REACHED_CAMPUS },
+    where: { id: orderId, status: OrderStatus.REACHED_CAMPUS, paymentStatus: FULFILLABLE },
     data: {
       status: OrderStatus.DELIVERED,
       deliveredById,

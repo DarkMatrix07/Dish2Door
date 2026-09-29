@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/customer/LegalPage";
+import { activeCampusNamesText } from "@/lib/campus";
 
 export const metadata: Metadata = {
   title: "Cancellation and Refund Policy | Dish2Door"
 };
 
-export default function CancellationRefundPolicyPage() {
+// Reads the live campus list, so it renders per request.
+export const dynamic = "force-dynamic";
+
+export default async function CancellationRefundPolicyPage() {
+  const campuses = await activeCampusNamesText();
   return (
     <LegalPage
       eyebrow="Policy"
       title="Cancellation and Refund Policy"
-      updated="3 August 2026"
+      updated="29 September 2026"
       sections={[
         {
           title: "Service area",
           body: [
-            "Dish2Door delivers only to the VIT-AP and SRM-AP campuses in Andhra Pradesh, India. We do not deliver anywhere else, so orders expecting delivery outside these two campuses cannot be fulfilled or refunded."
+            `Dish2Door serves only the ${campuses} campuses in Andhra Pradesh, India. We do not deliver anywhere else, so orders expecting delivery outside these campuses cannot be fulfilled or refunded.`
           ]
         },
         {

@@ -1,31 +1,12 @@
-import { OrderStatus, PaymentStatus } from "@prisma/client";
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
 import { CampusBadge } from "@/components/admin/CampusBadge";
 import { prisma } from "@/lib/db";
 import { formatPaise } from "@/lib/utils";
 import { requireRole } from "@/lib/auth";
+import { istDayKey, istDayStartUtc } from "@/lib/ist-day";
+import { REVENUE_ORDER_WHERE as PAID_WHERE } from "@/lib/order-filters";
 
 export const dynamic = "force-dynamic";
-
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-
-function istDayKey(date: Date) {
-  return new Date(date.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
-}
-
-function istDayStartUtc(daysAgo: number) {
-  const istNow = new Date(Date.now() + IST_OFFSET_MS);
-  const y = istNow.getUTCFullYear();
-  const m = istNow.getUTCMonth();
-  const d = istNow.getUTCDate() - daysAgo;
-  return new Date(Date.UTC(y, m, d) - IST_OFFSET_MS);
-}
-
-// Paid, non-cancelled orders count as revenue.
-const PAID_WHERE = {
-  paymentStatus: { in: [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY] },
-  status: { not: OrderStatus.CANCELLED }
-};
 
 export default async function AnalyticsPage() {
   await requireRole(["ADMIN"]);

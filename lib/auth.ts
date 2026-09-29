@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { FEATURES } from "@/lib/features";
 
 const SESSION_COOKIE = "campus_food_session";
 const SESSION_DAYS = 7;
@@ -73,6 +74,13 @@ export async function getCurrentUser() {
   });
 
   if (!session || session.expiresAt < new Date() || !session.user.active) {
+    return null;
+  }
+
+  // With the delivery portal switched off, delivery accounts (including sessions that
+  // were already open) are treated as signed out everywhere: /delivery redirects to
+  // login and every delivery API refuses the request.
+  if (session.user.role === "DELIVERY" && !FEATURES.deliveryPortal) {
     return null;
   }
 

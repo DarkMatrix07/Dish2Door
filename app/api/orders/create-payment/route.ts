@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { cancelOrder, createPendingOnlineOrder, PENDING_ORDER_TTL_MS } from "@/lib/orders";
 import { assertOrderSlotAvailable } from "@/lib/order-slots";
-import { createRazorpayClient } from "@/lib/razorpay";
+import { createRazorpayClient, paymentSiteKey } from "@/lib/razorpay";
 import { env } from "@/lib/env";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
 import { createHash } from "node:crypto";
@@ -152,6 +152,7 @@ export async function POST(request: Request) {
       receipt: order.id,
       notes: {
         app: "dish2door",
+        site: paymentSiteKey(),
         orderId: order.id,
         trackingCode: order.trackingCode
       }

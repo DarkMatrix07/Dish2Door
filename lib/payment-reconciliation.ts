@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { createRazorpayClient } from "@/lib/razorpay";
+import { createRazorpayClient, paymentSiteKey } from "@/lib/razorpay";
 import { confirmOnlineOrderByRazorpayOrderId } from "@/lib/orders";
 
 // The inbox survives crashes. Confirmation is transactional/idempotent, so two
@@ -7,10 +7,17 @@ import { confirmOnlineOrderByRazorpayOrderId } from "@/lib/orders";
 const dependencies = {
   db: prisma,
   fetchOrder: (id: string) => createRazorpayClient().orders.fetch(id),
-  confirm: confirmOnlineOrderByRazorpayOrderId
+  confirm: confirmOnlineOrderByRazorpayOrderId,
+  site: paymentSiteKey
 };
+
+// Orders created before site tagging carry app "dish2door" but no site. Order rows are
+// written before their provider order and never deleted, so a tagged capture whose
+// receipt is not in this database belongs to the other site. Retry for a while in case
+// of a transient read problem, then close it out instead of retrying hourly forever.
+export const LEGACY_MISSING_ORDER_MAX_ATTEMPTS = 24;
 export async function reconcilePaymentEvent(id: string, deps = dependencies) {
-  const { db: prisma, fetchOrder, confirm } = deps;
+  const { db: prisma, fetchOrder, confirm, site } = deps;
   const event = await prisma.paymentEvent.findUnique({ where: { id } });
   if (!event || event.processedAt) return;
   try {
@@ -24,7 +31,18 @@ export async function reconcilePaymentEvent(id: string, deps = dependencies) {
       const localId = providerOrder.receipt;
       const order = localId ? await prisma.order.findUnique({ where: { id: localId }, select: { id: true, trackingCode: true, source: true, totalPaise: true, payment: true } }) : null;
       if (!order) {
-        if (providerOrder.notes?.app === "dish2door") throw new Error("LOCAL_ORDER_MISSING");
+        if (providerOrder.notes?.app === "dish2door") {
+          const orderSite = providerOrder.notes?.site;
+          if (orderSite && orderSite !== site()) {
+            await prisma.paymentEvent.update({ where: { id }, data: { processedAt: new Date(), matched: false, lastError: "OTHER_SITE_ORDER" } });
+            return;
+          }
+          if (!orderSite && event.attempts >= LEGACY_MISSING_ORDER_MAX_ATTEMPTS) {
+            await prisma.paymentEvent.update({ where: { id }, data: { processedAt: new Date(), matched: false, lastError: "OTHER_SITE_ORDER_LEGACY" } });
+            return;
+          }
+          throw new Error("LOCAL_ORDER_MISSING");
+        }
         // Shared-account event, positively classified using provider metadata.
         await prisma.paymentEvent.update({ where: { id }, data: { processedAt: new Date(), matched: false, lastError: "UNRELATED_PROVIDER_ORDER" } });
         return;

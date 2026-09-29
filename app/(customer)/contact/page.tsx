@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/customer/LegalPage";
+import { activeCampusNamesText } from "@/lib/campus";
 
 export const metadata: Metadata = {
   title: "Contact | Dish2Door"
 };
 
-export default function ContactPage() {
+// Reads the live campus list, so it renders per request.
+export const dynamic = "force-dynamic";
+
+export default async function ContactPage() {
+  const campuses = await activeCampusNamesText();
   return (
     <LegalPage
       eyebrow="Support"
       title="Contact Dish2Door"
-      updated="3 August 2026"
+      updated="29 September 2026"
       sections={[
         {
           title: "Customer support",
@@ -23,7 +28,7 @@ export default function ContactPage() {
         {
           title: "Where we deliver",
           body: [
-            "We deliver to two campuses only: VIT-AP and SRM-AP, in Andhra Pradesh, India. We do not deliver anywhere else.",
+            `We serve only these campuses: ${campuses}, in Andhra Pradesh, India. We do not deliver anywhere else.`,
             "At each campus you can collect from the campus gate, and hostel delivery is available where that campus offers it. Where hostel delivery shows as coming soon, only gate pickup is running there for now.",
             "Hostel delivery runs on night orders only. Afternoon orders are gate pickup."
           ]
@@ -40,7 +45,7 @@ export default function ContactPage() {
           title: "Business details",
           body: [
             "Business name: Dish2Door.",
-            "Operating location: Andhra Pradesh, India, serving the VIT-AP and SRM-AP campuses.",
+            `Operating location: Andhra Pradesh, India, serving the ${campuses} campuses.`,
             "Dish2Door is a campus food ordering service and does not have a walk-in office. All support is handled through the phone number and WhatsApp above."
           ]
         }

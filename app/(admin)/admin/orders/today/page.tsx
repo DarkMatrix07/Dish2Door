@@ -2,24 +2,10 @@ import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { TodaysOrders } from "@/components/admin/TodaysOrders";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
+import { istTodayRange } from "@/lib/ist-day";
+import { FULFILLABLE_PAYMENT_STATUSES } from "@/lib/order-filters";
 
 export const dynamic = "force-dynamic";
-
-const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-
-// Start/end of "today" in IST, expressed as UTC instants for the createdAt filter.
-function istTodayRange() {
-  const istNow = new Date(Date.now() + IST_OFFSET_MS);
-  const y = istNow.getUTCFullYear();
-  const m = istNow.getUTCMonth();
-  const d = istNow.getUTCDate();
-  const start = new Date(Date.UTC(y, m, d) - IST_OFFSET_MS);
-  const end = new Date(Date.UTC(y, m, d + 1) - IST_OFFSET_MS);
-  const label = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(
-    new Date(Date.UTC(y, m, d))
-  );
-  return { start, end, label };
-}
 
 export default async function TodaysOrdersPage() {
   await requireRole(["ADMIN"]);
@@ -30,7 +16,7 @@ export default async function TodaysOrdersPage() {
       createdAt: { gte: start, lt: end },
       status: { notIn: ["CANCELLED", "AWAITING_CONFIRMATION"] },
       // Exclude abandoned unpaid online checkouts; keep paid + manual orders.
-      paymentStatus: { in: ["PAID_ONLINE", "PAID_MANUALLY", "UNPAID"] }
+      paymentStatus: { in: FULFILLABLE_PAYMENT_STATUSES }
     },
     include: {
       restaurant: { select: { name: true } },

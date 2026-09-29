@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { FEATURES } from "@/lib/features";
 
 export function AdminActions({ ordersOpen }: { ordersOpen: boolean }) {
   const [open, setOpen] = useState(ordersOpen);
@@ -60,9 +61,11 @@ export function AdminActions({ ordersOpen }: { ordersOpen: boolean }) {
       <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={reachedCampus}>
         Mark reached campus
       </Button>
-      <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={releaseDeliveries}>
-        Assign for delivery
-      </Button>
+      {FEATURES.deliveryPortal ? (
+        <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={releaseDeliveries}>
+          Assign for delivery
+        </Button>
+      ) : null}
       <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={() => window.location.reload()}>
         Refresh
       </Button>

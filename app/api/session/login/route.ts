@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAppSession, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { FEATURES } from "@/lib/features";
 import { clientAddress, consumeRateLimit } from "@/lib/rate-limit";
 
 const DUMMY_PASSWORD_HASH = "$2b$12$J4BhNMwYX78srLdhdi6EluJ6GlnQuVKB9ph5WfRFGngYHBdId0lC.";
@@ -48,7 +49,10 @@ export async function POST(request: Request) {
   const hash = user?.passwordHash || DUMMY_PASSWORD_HASH;
   const ok = await verifyPassword(body.password, hash);
 
-  if (user && user.active && (!body.role || user.role === body.role) && ok) {
+  // Delivery logins are refused while the portal is switched off. Same generic error,
+  // so the response never confirms that a delivery account's password was right.
+  const roleAllowed = user?.role !== "DELIVERY" || FEATURES.deliveryPortal;
+  if (user && user.active && roleAllowed && (!body.role || user.role === body.role) && ok) {
     await createAppSession(user.id);
     return NextResponse.json({ user: { id: user.id, name: user.name, role: user.role } });
   }

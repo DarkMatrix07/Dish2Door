@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole, hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { FEATURES } from "@/lib/features";
 import { HOSTEL_BLOCKS } from "@/lib/hostels";
 
 const schema = z.discriminatedUnion("action", [
@@ -36,6 +37,7 @@ const schema = z.discriminatedUnion("action", [
 export async function GET() {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!FEATURES.deliveryPortal) return NextResponse.json({ error: "The delivery portal is switched off." }, { status: 404 });
 
   const users = await prisma.user.findMany({
     where: { role: "DELIVERY" },
@@ -58,6 +60,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!FEATURES.deliveryPortal) return NextResponse.json({ error: "The delivery portal is switched off." }, { status: 404 });
 
   try {
   const body = schema.parse(await request.json());

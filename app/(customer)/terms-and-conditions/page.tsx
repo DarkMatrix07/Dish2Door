@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/customer/LegalPage";
+import { activeCampusNamesText } from "@/lib/campus";
 
 export const metadata: Metadata = {
   title: "Terms and Conditions | Dish2Door"
 };
 
-export default function TermsAndConditionsPage() {
+// Reads the live campus list, so it renders per request.
+export const dynamic = "force-dynamic";
+
+export default async function TermsAndConditionsPage() {
+  const campuses = await activeCampusNamesText();
   return (
     <LegalPage
       eyebrow="Legal"
       title="Terms and Conditions"
-      updated="3 August 2026"
+      updated="29 September 2026"
       sections={[
         {
           title: "Where we deliver",
           body: [
-            "Dish2Door delivers to two campuses only: VIT-AP and SRM-AP, in Andhra Pradesh, India. We do not deliver to any other campus, residential address, or location.",
+            `Dish2Door serves only these campuses: ${campuses}, in Andhra Pradesh, India. We do not deliver to any other campus, residential address, or location.`,
             "You choose your campus before checkout. Please make sure it is correct, because it determines the fees shown and where your order is sent. We cannot redirect an order to a different campus after it is placed."
           ]
         },

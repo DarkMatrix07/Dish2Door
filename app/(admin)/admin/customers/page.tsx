@@ -1,78 +1,109 @@
 import Link from "next/link";
-import { OrderStatus, PaymentStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
+import { Pager, readPage } from "@/components/admin/Pager";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
+import { formatIstDateTime } from "@/lib/ist-day";
 import { SPIN_ORDERS_PER_REWARD } from "@/lib/spin-wheel";
 import { formatPaise } from "@/lib/utils";
 import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const PAID = { in: [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY] };
+const PAGE_SIZE = 50;
+
+const SORTS = {
+  spend: { label: "Top spenders", order: Prisma.sql`spent DESC, orders DESC, phone` },
+  orders: { label: "Most orders", order: Prisma.sql`orders DESC, spent DESC, phone` },
+  recent: { label: "Ordered recently", order: Prisma.sql`"lastOrderAt" DESC NULLS LAST, phone` },
+  new: { label: "Newest customers", order: Prisma.sql`"firstSeenAt" DESC, phone` }
+} as const;
+type SortKey = keyof typeof SORTS;
+
+type CustomerRow = {
+  phone: string;
+  name: string | null;
+  email: string | null;
+  spinBaseline: number;
+  firstSeenAt: Date;
+  orders: number;
+  spent: number;
+  reviewed: number;
+  lastOrderAt: Date | null;
+  rewardsWon: number;
+  rewardsUsed: number;
+};
+
+type Totals = { customers: number; withOrders: number; repeat: number; spent: number; orders: number; reviewed: number };
+
+// Escape LIKE wildcards so a search for "50%" matches that text literally.
+function likePattern(search: string) {
+  return `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
 
 export default async function CustomersPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; sort?: string; page?: string }>;
 }) {
   await requireRole(["ADMIN"]);
-  const { q } = await searchParams;
-  const search = (q ?? "").trim();
+  const params = await searchParams;
+  const search = (params.q ?? "").trim().slice(0, 80);
+  const sort: SortKey = params.sort && params.sort in SORTS ? (params.sort as SortKey) : "spend";
+  const page = readPage(params.page);
 
-  const customers = await prisma.customer.findMany({
-    where: search
-      ? {
-          OR: [
-            { phone: { contains: search } },
-            { name: { contains: search, mode: "insensitive" } },
-            { email: { contains: search, mode: "insensitive" } }
-          ]
-        }
-      : undefined,
-    include: {
-      orders: {
-        where: { paymentStatus: PAID, status: { not: OrderStatus.CANCELLED } },
-        select: { totalPaise: true, createdAt: true, rating: { select: { id: true } } }
-      },
-      rewards: { select: { id: true, redeemedAt: true } }
-    },
-    take: 300
+  // Everything is counted in the database over every customer. This page used to load
+  // 300 customers in no particular order and total them in memory, so with more
+  // customers than that the totals were short and "sorted by spend" missed people.
+  // Only paid, non-cancelled orders count, the same revenue rule as Analytics.
+  const where = search
+    ? Prisma.sql`WHERE c.phone ILIKE ${likePattern(search)} OR c.name ILIKE ${likePattern(search)} OR c.email ILIKE ${likePattern(search)}`
+    : Prisma.empty;
+  const stats = Prisma.sql`
+    SELECT c.phone, c.name, c.email, c."spinBaseline", c."firstSeenAt",
+           COUNT(o.id)::int AS orders,
+           COALESCE(SUM(o."totalPaise"), 0)::int AS spent,
+           COUNT(r.id)::int AS reviewed,
+           MAX(o."createdAt") AS "lastOrderAt"
+    FROM "Customer" c
+    LEFT JOIN "Order" o ON o."customerId" = c.phone
+      AND o."paymentStatus" IN ('PAID_ONLINE', 'PAID_MANUALLY')
+      AND o.status <> 'CANCELLED'
+    LEFT JOIN "Rating" r ON r."orderId" = o.id
+    ${where}
+    GROUP BY c.phone`;
+
+  const [rows, [totals]] = await Promise.all([
+    prisma.$queryRaw<CustomerRow[]>`
+      WITH stats AS (${stats})
+      SELECT stats.*,
+             (SELECT COUNT(*)::int FROM "SpinReward" s WHERE s.phone = stats.phone) AS "rewardsWon",
+             (SELECT COUNT(*)::int FROM "SpinReward" s WHERE s.phone = stats.phone AND s."redeemedAt" IS NOT NULL) AS "rewardsUsed"
+      FROM stats
+      ORDER BY ${SORTS[sort].order}
+      LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`,
+    prisma.$queryRaw<Totals[]>`
+      WITH stats AS (${stats})
+      SELECT COUNT(*)::int AS customers,
+             COUNT(*) FILTER (WHERE orders > 0)::int AS "withOrders",
+             COUNT(*) FILTER (WHERE orders > 1)::int AS repeat,
+             COALESCE(SUM(spent), 0)::float8 AS spent,
+             COALESCE(SUM(orders), 0)::int AS orders,
+             COALESCE(SUM(reviewed), 0)::int AS reviewed
+      FROM stats`
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totals.customers / PAGE_SIZE));
+  const view = rows.map((row) => {
+    // Progress in the current wheel cycle.
+    const cycleReviews = Math.max(0, row.reviewed - row.spinBaseline);
+    return {
+      ...row,
+      cycleReviews: Math.min(cycleReviews, SPIN_ORDERS_PER_REWARD),
+      wheelReady: cycleReviews >= SPIN_ORDERS_PER_REWARD
+    };
   });
-
-  // Counts are derived from orders rather than stored, so they can never go stale.
-  const rows = customers
-    .map((customer) => {
-      const orders = customer.orders.length;
-      const reviewed = customer.orders.filter((order) => order.rating).length;
-      const spent = customer.orders.reduce((sum, order) => sum + order.totalPaise, 0);
-      const lastOrderAt = customer.orders.reduce<Date | null>(
-        (latest, order) => (!latest || order.createdAt > latest ? order.createdAt : latest),
-        null
-      );
-      // Progress in the current wheel cycle.
-      const cycleReviews = Math.max(0, reviewed - customer.spinBaseline);
-      return {
-        phone: customer.phone,
-        name: customer.name,
-        email: customer.email,
-        orders,
-        reviewed,
-        spent,
-        lastOrderAt,
-        cycleReviews: Math.min(cycleReviews, SPIN_ORDERS_PER_REWARD),
-        wheelReady: cycleReviews >= SPIN_ORDERS_PER_REWARD,
-        rewardsWon: customer.rewards.length,
-        rewardsUsed: customer.rewards.filter((reward) => reward.redeemedAt).length
-      };
-    })
-    .sort((a, b) => b.spent - a.spent);
-
-  const withOrders = rows.filter((row) => row.orders > 0);
-  const totalSpent = withOrders.reduce((sum, row) => sum + row.spent, 0);
-  const totalReviews = rows.reduce((sum, row) => sum + row.reviewed, 0);
-  const totalOrders = rows.reduce((sum, row) => sum + row.orders, 0);
-  const repeatCustomers = withOrders.filter((row) => row.orders > 1).length;
 
   return (
     <PageContainer>
@@ -83,28 +114,38 @@ export default async function CustomersPage({
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Customers" value={rows.length} helper={`${withOrders.length} have ordered`} />
-        <StatCard label="Repeat customers" value={repeatCustomers} helper={withOrders.length ? `${((repeatCustomers / withOrders.length) * 100).toFixed(0)}% ordered more than once` : "—"} />
-        <StatCard label="Lifetime revenue" value={formatPaise(totalSpent)} helper={`${totalOrders} paid orders`} />
-        <StatCard label="Reviews given" value={totalReviews} helper={totalOrders ? `${((totalReviews / totalOrders) * 100).toFixed(1)}% of orders rated` : "—"} />
+        <StatCard label={search ? "Matching customers" : "Customers"} value={totals.customers} helper={`${totals.withOrders} have a paid order`} />
+        <StatCard label="Repeat customers" value={totals.repeat} helper={totals.withOrders ? `${((totals.repeat / totals.withOrders) * 100).toFixed(0)}% ordered more than once` : "—"} />
+        <StatCard label="Lifetime revenue" value={formatPaise(totals.spent)} helper={`${totals.orders} paid orders`} />
+        <StatCard label="Reviews given" value={totals.reviewed} helper={totals.orders ? `${((totals.reviewed / totals.orders) * 100).toFixed(1)}% of orders rated` : "—"} />
       </div>
 
       <SectionCard
         title="All customers"
-        description="Sorted by lifetime spend. Wheel progress counts only orders rated since the current cycle began."
+        description={`${SORTS[sort].label}. Wheel progress counts only orders rated since the current cycle began.`}
         actions={
-          <form className="flex gap-2">
+          <form className="flex w-full flex-wrap gap-2 sm:w-auto">
             <input
               name="q"
               defaultValue={search}
               placeholder="Search name, phone, email"
-              className="h-9 w-52 rounded-md border border-neutral-200 px-3 text-sm outline-none focus:border-neutral-400"
+              className="h-9 w-full rounded-md border border-neutral-200 px-3 text-sm outline-none focus:border-neutral-400 sm:w-52"
             />
-            <button type="submit" className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-semibold text-white">Search</button>
+            <select
+              name="sort"
+              defaultValue={sort}
+              aria-label="Sort customers"
+              className="h-9 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400 sm:flex-none"
+            >
+              {(Object.keys(SORTS) as SortKey[]).map((key) => (
+                <option key={key} value={key}>{SORTS[key].label}</option>
+              ))}
+            </select>
+            <button type="submit" className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-semibold text-white">Apply</button>
           </form>
         }
       >
-        {rows.length === 0 ? (
+        {view.length === 0 ? (
           <p className="py-6 text-center text-sm text-neutral-500">No customers match that search.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -115,12 +156,13 @@ export default async function CustomersPage({
                   <th className="py-2 pr-3 text-right">Orders</th>
                   <th className="py-2 pr-3 text-right">Spent</th>
                   <th className="py-2 pr-3 text-right">Reviews</th>
+                  <th className="py-2 pr-3">Last order</th>
                   <th className="py-2 pr-3">Wheel progress</th>
                   <th className="py-2 text-right">Rewards</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {view.map((row) => (
                   <tr key={row.phone} className="border-b border-neutral-100 last:border-0">
                     <td className="py-2.5 pr-3">
                       <Link href={`/admin/customers/${row.phone}`} className="font-semibold text-neutral-900 hover:underline">
@@ -134,6 +176,7 @@ export default async function CustomersPage({
                     <td className="py-2.5 pr-3 text-right tabular-nums">{row.orders}</td>
                     <td className="py-2.5 pr-3 text-right tabular-nums">{formatPaise(row.spent)}</td>
                     <td className="py-2.5 pr-3 text-right tabular-nums">{row.reviewed}</td>
+                    <td className="py-2.5 pr-3 text-xs tabular-nums text-neutral-600">{row.lastOrderAt ? formatIstDateTime(new Date(row.lastOrderAt)) : "—"}</td>
                     <td className="py-2.5 pr-3">
                       {row.wheelReady ? (
                         <Badge tone="green">Spin ready</Badge>
@@ -162,6 +205,15 @@ export default async function CustomersPage({
             </table>
           </div>
         )}
+        <Pager
+          basePath="/admin/customers"
+          params={{ q: search || undefined, sort: sort === "spend" ? undefined : sort }}
+          page={page}
+          totalPages={totalPages}
+          total={totals.customers}
+          shown={view.length}
+          noun="customers"
+        />
       </SectionCard>
     </PageContainer>
   );

@@ -8,6 +8,8 @@ import { orderInclude } from "@/lib/order-select";
 import { getSettings } from "@/lib/settings";
 import { formatPaise } from "@/lib/utils";
 import { requireRole } from "@/lib/auth";
+import { FEATURES } from "@/lib/features";
+import { REAL_ORDER_WHERE, REVENUE_ORDER_WHERE } from "@/lib/order-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -32,36 +34,38 @@ export default async function AdminDashboardPage() {
     campusRevenue
   ] = await Promise.all([
     getSettings(),
-    // WhatsApp orders an admin hasn't accepted yet aren't orders yet — every other
-    // stat on this page filters by status, so this one must too.
-    prisma.order.count({ where: { status: { not: "AWAITING_CONFIRMATION" } } }),
-    prisma.order.count({ where: { status: "ORDER_CONFIRMED" } }),
-    prisma.order.count({ where: { status: "REACHED_CAMPUS" } }),
-    prisma.order.count({ where: { deliveryType: "HOSTEL", deliveryReleased: true, status: "REACHED_CAMPUS" } }),
-    prisma.order.count({ where: { status: "DELIVERED" } }),
-    prisma.order.aggregate({ _sum: { totalPaise: true }, where: { paymentStatus: { in: ["PAID_ONLINE", "PAID_MANUALLY"] } } }),
+    // Every count uses the shared definitions: WhatsApp orders not yet accepted and
+    // online checkouts that were never paid are not orders, and revenue is paid and
+    // not cancelled (the same rule Analytics uses).
+    prisma.order.count({ where: REAL_ORDER_WHERE }),
+    prisma.order.count({ where: { ...REAL_ORDER_WHERE, status: "ORDER_CONFIRMED" } }),
+    prisma.order.count({ where: { ...REAL_ORDER_WHERE, status: "REACHED_CAMPUS" } }),
+    prisma.order.count({ where: { ...REAL_ORDER_WHERE, deliveryType: "HOSTEL", deliveryReleased: true, status: "REACHED_CAMPUS" } }),
+    prisma.order.count({ where: { ...REAL_ORDER_WHERE, status: "DELIVERED" } }),
+    prisma.order.aggregate({ _sum: { totalPaise: true }, where: REVENUE_ORDER_WHERE }),
     prisma.restaurant.count({ where: { active: true } }),
     prisma.menuItem.count({ where: { available: true, restaurant: { active: true } } }),
     prisma.menuItem.count({ where: { available: false } }),
-    prisma.order.findMany({ include: orderInclude, orderBy: { createdAt: "desc" }, take: 6 }),
+    prisma.order.findMany({ where: REAL_ORDER_WHERE, include: orderInclude, orderBy: { createdAt: "desc" }, take: 6 }),
     prisma.campus.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.order.groupBy({
       by: ["campusId"],
+      where: REAL_ORDER_WHERE,
       _count: { id: true }
     }),
     prisma.order.groupBy({
       by: ["campusId"],
-      where: { status: "ORDER_CONFIRMED" },
+      where: { ...REAL_ORDER_WHERE, status: "ORDER_CONFIRMED" },
       _count: { id: true }
     }),
     prisma.order.groupBy({
       by: ["campusId"],
-      where: { status: "REACHED_CAMPUS" },
+      where: { ...REAL_ORDER_WHERE, status: "REACHED_CAMPUS" },
       _count: { id: true }
     }),
     prisma.order.groupBy({
       by: ["campusId"],
-      where: { paymentStatus: { in: ["PAID_ONLINE", "PAID_MANUALLY"] } },
+      where: REVENUE_ORDER_WHERE,
       _sum: { totalPaise: true }
     })
   ]);
@@ -83,23 +87,27 @@ export default async function AdminDashboardPage() {
       <AdminPageHeader
         eyebrow="Operations"
         title="Dashboard"
-        description="Control public ordering, campus arrival, delivery release, revenue, and menu availability from one place."
+        description={FEATURES.deliveryPortal
+          ? "Control public ordering, campus arrival, delivery release, revenue, and menu availability from one place."
+          : "Control public ordering, campus arrival, revenue, and menu availability from one place."}
       >
         <Badge tone={settings.ordersOpen ? "green" : "red"}>{settings.ordersOpen ? "Orders open" : "Orders closed"}</Badge>
       </AdminPageHeader>
 
       <SectionCard
         title="Quick actions"
-        description="Open or close ordering, mark active orders as reached campus, and release hostel deliveries."
+        description={FEATURES.deliveryPortal
+          ? "Open or close ordering, mark active orders as reached campus, and release hostel deliveries."
+          : "Open or close ordering and mark active orders as reached campus."}
       >
         <AdminActions ordersOpen={settings.ordersOpen} />
       </SectionCard>
 
-      <div className="mt-6 grid gap-3 min-[430px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
-        <StatCard label="Total orders" value={totalOrders} helper="All customer and manual orders" />
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard label="Total orders" value={totalOrders} helper="Paid, pay-later and counter orders" />
         <StatCard label="Confirmed" value={confirmed} helper="Waiting for campus arrival" />
-        <StatCard label="Reached campus" value={reachedCampus} helper="Ready for gate or hostel flow" />
-        <StatCard label="Paid revenue" value={formatPaise(revenue._sum.totalPaise ?? 0)} helper="Online + manual paid orders" />
+        <StatCard label="Reached campus" value={reachedCampus} helper={FEATURES.deliveryPortal ? "Ready for gate or hostel flow" : "Ready for gate pickup"} />
+        <StatCard label="Paid revenue" value={formatPaise(revenue._sum.totalPaise ?? 0)} helper="Paid orders, cancellations excluded" />
       </div>
 
       <SectionCard
@@ -158,7 +166,7 @@ export default async function AdminDashboardPage() {
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm text-neutral-500">
-                    {order.restaurant.name} · {order.customerPhone} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Gate"}
+                    {order.restaurant.name} · {order.customerPhone} · {order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock}` : "Gate pickup"}
                   </p>
                   <p className="mt-1 line-clamp-1 text-sm text-neutral-600">
                     {order.items.map((item) => `${item.quantity}x ${item.nameSnapshot}`).join(", ")}
@@ -190,10 +198,12 @@ export default async function AdminDashboardPage() {
           </SectionCard>
           <SectionCard title="Delivery snapshot">
             <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 text-sm">
-                <span className="text-neutral-600">Hostel pending</span>
-                <strong className="text-neutral-900">{hostelPending}</strong>
-              </div>
+              {FEATURES.deliveryPortal ? (
+                <div className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 text-sm">
+                  <span className="text-neutral-600">Hostel pending</span>
+                  <strong className="text-neutral-900">{hostelPending}</strong>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-sm">
                 <span className="text-neutral-600">Delivered total</span>
                 <strong className="text-neutral-900">{delivered}</strong>

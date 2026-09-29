@@ -30,7 +30,8 @@ function fixture() {
       order: { findUnique: async () => unrelated ? null : order }
     },
     fetchOrder: async () => ({ receipt: order.id, amount: 100, currency: "INR", notes: unrelated ? {} : { app: "dish2door", orderId: order.id } }),
-    confirm: async () => { if (failConfirmation) throw Error("temporary"); confirmations++; return order; }
+    confirm: async () => { if (failConfirmation) throw Error("temporary"); confirmations++; return order; },
+    site: () => "dish2door.store"
   };
   return { event, order, deps, confirmations: () => confirmations, fail: (value: boolean) => { failConfirmation = value; }, unrelated: () => { unrelated = true; } };
 }
@@ -86,4 +87,39 @@ test("legacy server-authored tracking metadata recovers an old provider mapping"
   await reconcilePaymentEvent("e1", f.deps);
   assert.equal(f.confirmations(), 1);
   assert.equal(f.event.matched, true);
+});
+
+test("a capture tagged for the other site is closed out, not retried", async () => {
+  const f = fixture();
+  f.deps.db.order.findUnique = async () => null;
+  f.deps.fetchOrder = async () => ({ receipt: "srm-order", amount: 100, currency: "INR", notes: { app: "dish2door", site: "srm.dish2door.store", orderId: "srm-order" } });
+  await reconcilePaymentEvent("e1", f.deps);
+  assert.equal(f.confirmations(), 0);
+  assert.equal(f.event.matched, false);
+  assert.equal(f.event.lastError, "OTHER_SITE_ORDER");
+  assert.ok(f.event.processedAt);
+});
+
+test("a capture tagged for this site whose order is missing keeps retrying", async () => {
+  const f = fixture();
+  f.deps.db.order.findUnique = async () => null;
+  f.deps.fetchOrder = async () => ({ receipt: "gone", amount: 100, currency: "INR", notes: { app: "dish2door", site: "dish2door.store", orderId: "gone" } });
+  f.event.attempts = 500;
+  await reconcilePaymentEvent("e1", f.deps);
+  assert.equal(f.event.processedAt, undefined);
+  assert.equal(f.event.lastError, "LOCAL_ORDER_MISSING");
+});
+
+test("an untagged legacy capture with no local order retries, then is closed out", async () => {
+  const f = fixture();
+  f.deps.db.order.findUnique = async () => null;
+  f.deps.fetchOrder = async () => ({ receipt: "old", amount: 100, currency: "INR", notes: { app: "dish2door", orderId: "old" } });
+  await reconcilePaymentEvent("e1", f.deps);
+  assert.equal(f.event.processedAt, undefined);
+  assert.equal(f.event.lastError, "LOCAL_ORDER_MISSING");
+  f.event.attempts = 24;
+  await reconcilePaymentEvent("e1", f.deps);
+  assert.equal(f.event.lastError, "OTHER_SITE_ORDER_LEGACY");
+  assert.ok(f.event.processedAt);
+  assert.equal(f.confirmations(), 0);
 });

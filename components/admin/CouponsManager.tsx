@@ -17,6 +17,7 @@ type Coupon = {
   active: boolean;
   maxUses: number | null;
   usedCount: number;
+  heldCount: number;
   expiresAt: string | Date | null;
 };
 
@@ -44,13 +45,10 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
     [coupons]
   );
 
-  async function refresh() {
-    const response = await fetch("/api/admin/menu");
-    const data = await response.json();
-    setCoupons(data.coupons ?? []);
-  }
-
-  async function action(body: unknown) {
+  // Apply the saved coupon from the response instead of refetching. The old refetch
+  // read the menu API, which returns only the latest 20 coupons of every kind, so the
+  // list shrank and filled with spin-wheel codes after any edit.
+  async function action(body: { action: string; id?: string } & Record<string, unknown>) {
     const response = await fetch("/api/admin/menu", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -58,7 +56,13 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error ?? "Action failed");
-    await refresh();
+    const saved = data.coupon as Coupon | undefined;
+    if (!saved) return;
+    setCoupons((current) => {
+      if (body.action === "coupon.delete") return current.filter((coupon) => coupon.id !== saved.id);
+      if (body.action === "coupon.create") return [saved, ...current];
+      return current.map((coupon) => (coupon.id === saved.id ? saved : coupon));
+    });
   }
 
   async function createCoupon() {
@@ -80,13 +84,27 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
   }
 
   async function toggleCoupon(id: string, active: boolean) {
-    await action({ action: "coupon.active", id, active });
-    toast.success(active ? "Coupon activated" : "Coupon paused");
+    try {
+      await action({ action: "coupon.active", id, active });
+      toast.success(active ? "Coupon activated" : "Coupon paused");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update coupon");
+    }
   }
 
-  async function updateCoupon(id: string, patch: Partial<{ discountPercent: number; maxUses: number | null; expiresAt: string | null }>) {
-    await action({ action: "coupon.update", id, ...patch });
-    toast.success("Coupon updated");
+  // Fields save on blur, so skip the request when nothing actually changed.
+  async function updateCoupon(coupon: Coupon, patch: Partial<{ discountPercent: number; maxUses: number | null; expiresAt: string | null }>) {
+    const unchanged =
+      (patch.discountPercent === undefined || patch.discountPercent === coupon.discountPercent) &&
+      (patch.maxUses === undefined || patch.maxUses === coupon.maxUses) &&
+      (patch.expiresAt === undefined || (patch.expiresAt ? patch.expiresAt.slice(0, 10) : "") === formatDateInput(coupon.expiresAt));
+    if (unchanged) return;
+    try {
+      await action({ action: "coupon.update", id: coupon.id, ...patch });
+      toast.success("Coupon updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update coupon");
+    }
   }
 
   async function deleteCoupon(coupon: Coupon) {
@@ -101,15 +119,15 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 min-[430px]:grid-cols-3 sm:gap-4">
-        <StatCard label="Total coupons" value={coupons.length} />
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <StatCard label="Your coupons" value={coupons.length} />
         <StatCard label="Active" value={stats.active} />
         <StatCard label="Total uses" value={stats.uses} />
       </div>
 
       <SectionCard
         title="Coupon control"
-        description="Pause, activate, adjust validity, and watch usage."
+        description="Coupons you created. Spin-wheel prize codes are listed on the Discount wheel page."
         actions={
           <Button onClick={() => setShowCreate(true)}>
             <Plus size={16} className="-ml-1 mr-1" />
@@ -134,21 +152,22 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <label className="text-xs font-semibold text-neutral-500">
                       Discount %
-                      <Input className="mt-1" type="number" min={1} max={100} defaultValue={coupon.discountPercent} onBlur={(event) => updateCoupon(coupon.id, { discountPercent: Number(event.target.value) })} />
+                      <Input className="mt-1" type="number" min={1} max={100} defaultValue={coupon.discountPercent} onBlur={(event) => updateCoupon(coupon, { discountPercent: Number(event.target.value) })} />
                     </label>
                     <label className="text-xs font-semibold text-neutral-500">
                       Max uses
-                      <Input className="mt-1" type="number" min={1} placeholder="Unlimited" defaultValue={coupon.maxUses ?? ""} onBlur={(event) => updateCoupon(coupon.id, { maxUses: event.target.value ? Number(event.target.value) : null })} />
+                      <Input className="mt-1" type="number" min={1} placeholder="Unlimited" defaultValue={coupon.maxUses ?? ""} onBlur={(event) => updateCoupon(coupon, { maxUses: event.target.value ? Number(event.target.value) : null })} />
                     </label>
                     <label className="text-xs font-semibold text-neutral-500 sm:col-span-2">
                       Expires
-                      <Input className="mt-1" type="date" defaultValue={formatDateInput(coupon.expiresAt)} onBlur={(event) => updateCoupon(coupon.id, { expiresAt: event.target.value ? new Date(event.target.value).toISOString() : null })} />
+                      <Input className="mt-1" type="date" defaultValue={formatDateInput(coupon.expiresAt)} onBlur={(event) => updateCoupon(coupon, { expiresAt: event.target.value ? new Date(event.target.value).toISOString() : null })} />
                     </label>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <span className="rounded-full bg-neutral-100 px-3 py-1 font-semibold text-neutral-700">
                       Used {coupon.usedCount}
                       {coupon.maxUses !== null ? ` / ${coupon.maxUses}` : ""}
+                      {coupon.heldCount > 0 ? ` · ${coupon.heldCount} in checkout` : ""}
                     </span>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => toggleCoupon(coupon.id, !coupon.active)}>

@@ -24,6 +24,19 @@ export function toPublicCampus(campus: Campus): CampusPublic {
   };
 }
 
+// "VIT-AP, SRM-AP and NID" for the legal and contact pages, so they name exactly the
+// campuses that take orders instead of a hard-coded list that goes stale.
+export async function activeCampusNamesText() {
+  try {
+    const names = (await listActiveCampuses()).map((campus) => campus.name);
+    if (names.length > 1) return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    if (names.length === 1) return names[0];
+  } catch {
+    // Fall through: the page still renders without the database.
+  }
+  return "our partner";
+}
+
 export async function listActiveCampuses() {
   return prisma.campus.findMany({
     where: { active: true },

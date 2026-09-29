@@ -2,8 +2,10 @@ import { Bot, InlineKeyboard } from "grammy";
 import { NotificationEvent } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { env, requireEnv } from "../lib/env";
+import { FEATURES } from "../lib/features";
 import { allowedTelegramAdmins } from "../lib/telegram";
 import { markAllReachedCampus, releaseHostelDeliveries } from "../lib/orders";
+import { REAL_ORDER_WHERE } from "../lib/order-filters";
 import { formatPaise } from "../lib/utils";
 
 const bot = new Bot(requireEnv("TELEGRAM_BOT_TOKEN"));
@@ -14,14 +16,14 @@ function isAllowedAdmin(id?: number) {
 }
 
 function adminKeyboard() {
-  return new InlineKeyboard()
+  const keyboard = new InlineKeyboard()
     .text("Open Orders", "open_orders")
     .text("Close Orders", "close_orders")
     .row()
-    .text("Mark Reached Campus", "reached_campus")
-    .text("Assign For Delivery", "assign_delivery")
-    .row()
-    .text("Show All Orders", "show_orders");
+    .text("Mark Reached Campus", "reached_campus");
+  // Hidden while the delivery portal is switched off (lib/features.ts).
+  if (FEATURES.deliveryPortal) keyboard.text("Assign For Delivery", "assign_delivery");
+  return keyboard.row().text("Show All Orders", "show_orders");
 }
 
 type ReplyContext = {
@@ -104,6 +106,7 @@ bot.callbackQuery("reached_campus", async (ctx) => {
 
 bot.callbackQuery("assign_delivery", async (ctx) => {
   if (!isAllowedAdmin(ctx.from?.id)) return ctx.answerCallbackQuery("Not allowed");
+  if (!FEATURES.deliveryPortal) return ctx.answerCallbackQuery("Delivery is switched off");
   const result = await releaseHostelDeliveries();
   await ctx.answerCallbackQuery("Delivery release complete");
   await ctx.reply(`${result.count} new hostel orders released to delivery persons. Existing released orders were not duplicated.`);
@@ -111,9 +114,12 @@ bot.callbackQuery("assign_delivery", async (ctx) => {
 
 bot.callbackQuery("show_orders", async (ctx) => {
   if (!isAllowedAdmin(ctx.from?.id)) return ctx.answerCallbackQuery("Not allowed");
+  // Only orders still to hand over. This used to list every non-cancelled order ever
+  // placed, delivered ones and abandoned unpaid checkouts included.
   const orders = await prisma.order.findMany({
     where: {
-      status: { not: "CANCELLED" }
+      ...REAL_ORDER_WHERE,
+      status: { in: ["ORDER_CONFIRMED", "REACHED_CAMPUS"] }
     },
     include: {
       restaurant: true,
