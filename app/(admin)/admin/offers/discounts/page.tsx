@@ -1,25 +1,8 @@
-import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
-import { DiscountsManager } from "@/components/admin/DiscountsManager";
-import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 
-export const dynamic = "force-dynamic";
-
+// Item discounts now live on the Items page (tick items, then apply a discount).
 export default async function AdminDiscountsPage() {
   await requireRole(["ADMIN"]);
-  const restaurants = await prisma.restaurant.findMany({
-    include: { menuItems: { orderBy: { name: "asc" } } },
-    orderBy: { name: "asc" }
-  });
-
-  return (
-    <PageContainer>
-      <AdminPageHeader
-        eyebrow="Offers"
-        title="Item discounts"
-        description="Control per-item discounts restaurant-wise with quick presets."
-      />
-      <DiscountsManager initialRestaurants={restaurants} />
-    </PageContainer>
-  );
+  redirect("/admin/menu/items");
 }

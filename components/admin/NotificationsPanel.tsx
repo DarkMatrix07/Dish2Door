@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowUpRight, Check, CheckCircle2, ChevronDown, Clock3, Mail, MessageCircle, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/admin/EmptyState";
 
 type Log = {
   id: string;
@@ -158,7 +159,7 @@ export function NotificationsPanel({ failedLogs, recentLogs }: { failedLogs: Log
               const Icon = channelIcon(log.channel);
               return <article key={log.id} className="p-4"><div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#f3f4f6] text-[#555860]"><Icon size={16} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><StatusMark log={log} /><time className="text-[11px] font-medium text-[#999ba1]">{dateTime(log.resolvedAt ?? log.sentAt)}</time></div><p className="mt-2 text-sm font-bold text-[#35373d]">{log.event.replaceAll("_", " ")}</p><p className="mt-1 font-mono text-xs text-[#85878e]">{log.order?.trackingCode ?? "SYSTEM"} / {log.channel}</p>{log.retryCount > 0 ? <p className="mt-2 text-xs font-bold text-[#34705a]">Recovered after {log.retryCount} retr{log.retryCount === 1 ? "y" : "ies"}</p> : null}</div></div></article>;
             })}
-            {!recentLogs.length ? <div className="p-8 text-center text-sm text-[#777981]">No notification activity yet.</div> : null}
+            {!recentLogs.length ? <EmptyState title="No messages yet" description="Order emails and WhatsApp messages will show up here as they are sent." /> : null}
           </div>
         </section>
       </div>

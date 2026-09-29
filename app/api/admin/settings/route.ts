@@ -30,8 +30,16 @@ export async function POST(request: Request) {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = schema.parse(await request.json());
+  const parsed = schema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Some settings are missing or invalid." }, { status: 400 });
+  const body = parsed.data;
   const current = await getSettings();
+
+  // The ordering window can't wrap past midnight, so opening must come before closing.
+  const openMinute = body.orderingOpenMinute ?? current.orderingOpenMinute;
+  if (openMinute >= (body.orderingCloseMinute ?? current.orderingCloseMinute)) {
+    return NextResponse.json({ error: "Opening time must be before closing time." }, { status: 400 });
+  }
 
   // Switching the everyone-mode promo on stamps the day its ordering window close
   // should end it; switching it off clears the stamp. Saving other settings while the

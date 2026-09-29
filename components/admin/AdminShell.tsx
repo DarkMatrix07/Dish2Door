@@ -3,85 +3,57 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgePercent, BarChart3, BellRing, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Pizza, Settings, Star, UserRoundCheck, Users, UtensilsCrossed, X } from "lucide-react";
+import { BarChart3, BadgePercent, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Pizza, ScrollText, Settings, UserRoundCheck, Users, UtensilsCrossed, X } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { FEATURES } from "@/lib/features";
+import { NAV, currentTitle, isGroupActive, isLinkActive, type NavEntry, type NavIcon } from "@/lib/admin-nav";
 import { cn } from "@/lib/utils";
 
-type NavLink = { href: string; label: string };
-type NavEntry =
-  | { type: "link"; href: string; label: string; icon: typeof LayoutDashboard }
-  | { type: "group"; label: string; icon: typeof LayoutDashboard; children: NavLink[] };
+const ICONS: Record<NavIcon, typeof LayoutDashboard> = {
+  dashboard: LayoutDashboard,
+  orders: ClipboardList,
+  menu: UtensilsCrossed,
+  offers: BadgePercent,
+  customers: Users,
+  delivery: UserRoundCheck,
+  analytics: BarChart3,
+  log: ScrollText,
+  pizza: Pizza,
+  settings: Settings
+};
 
-const NAV: NavEntry[] = [
-  { type: "link", href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { type: "link", href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { type: "group", label: "Orders", icon: ClipboardList, children: [{ href: "/admin/orders", label: "Today" }, { href: "/admin/orders/all", label: "All orders" }] },
-  { type: "group", label: "Catalogue", icon: UtensilsCrossed, children: [{ href: "/admin/menu/restaurants", label: "Restaurants" }, { href: "/admin/menu/items", label: "Menu items" }, { href: "/admin/menu/combos", label: "Combos" }] },
-  { type: "group", label: "Offers", icon: BadgePercent, children: [{ href: "/admin/offers/discounts", label: "Item discounts" }, { href: "/admin/offers/coupons", label: "Coupons" }, { href: "/admin/rewards", label: "Discount wheel" }] },
-  { type: "link", href: "/admin/customers", label: "Customers", icon: Users },
-  // Hidden while the delivery portal is switched off (lib/features.ts).
-  ...(FEATURES.deliveryPortal ? [{ type: "link" as const, href: "/admin/delivery-persons", label: "Delivery", icon: UserRoundCheck }] : []),
-  { type: "link", href: "/admin/ratings", label: "Ratings", icon: Star },
-  { type: "link", href: "/admin/notifications", label: "Notifications", icon: BellRing },
-  {
-    type: "group",
-    label: "Domino's Pizza",
-    icon: Pizza,
-    children: [
-      { href: "/admin/pizza", label: "Store" },
-      { href: "/admin/pizza/courses", label: "Courses" },
-      { href: "/admin/pizza/items", label: "Items" },
-      { href: "/admin/pizza/combos", label: "Combos" },
-      { href: "/admin/pizza/orders", label: "Orders" },
-      { href: "/admin/pizza/today", label: "Today" }
-    ]
-  },
-  { type: "group", label: "Settings", icon: Settings, children: [{ href: "/admin/settings", label: "Store & ordering" }, { href: "/admin/settings/campuses", label: "Campuses" }] }
-];
-
-// /admin/orders/<TRACKINGCODE>: an order's own page. Tracking codes are 4-12 letters and
-// digits, so the fixed sub-pages ("all", "new", "today") are excluded by name.
-function isOrderDetailPath(pathname: string) {
-  const match = /^\/admin\/orders\/([^/]+)$/.exec(pathname);
-  return match !== null && !["all", "new", "today"].includes(match[1]);
-}
-
-function isLinkActive(pathname: string, href: string) {
-  // Today is the board itself and the "New order" form it links to; an order's own page
-  // belongs to "All orders", which is where a search for it starts.
-  if (href === "/admin/orders") return pathname === href || pathname === "/admin/orders/new";
-  if (href === "/admin/orders/all") return pathname === href || pathname.startsWith(`${href}/`) || isOrderDetailPath(pathname);
-  // Any of these have sibling routes nested one level deeper ("/x/y"), so a prefix
-  // match would wrongly light up both the parent link and its sibling at once.
-  if (href === "/admin" || href === "/admin/pizza") return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function isGroupActive(pathname: string, group: Extract<NavEntry, { type: "group" }>) {
-  return group.children.some((child) => isLinkActive(pathname, child.href));
+// What sits above a nav entry that starts a new block (the Domino's shop, Settings).
+function Divider() {
+  return <div className="mx-3 my-3 border-t border-white/10" aria-hidden />;
 }
 
 function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [seenPath, setSeenPath] = useState(pathname);
 
-  useEffect(() => {
-    setOpen((current) => {
-      const next = { ...current };
-      NAV.forEach((entry) => { if (entry.type === "group" && isGroupActive(pathname, entry)) next[entry.label] = true; });
-      return next;
-    });
-  }, [pathname]);
+  // Moving to a page opens the group it lives in. Done while rendering (React's pattern for
+  // state that follows a changing value) instead of in an effect, which would paint one
+  // frame with the group still shut.
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    const active = NAV.find((entry): entry is Extract<NavEntry, { type: "group" }> => entry.type === "group" && isGroupActive(pathname, entry));
+    if (active) setOpen((current) => ({ ...current, [active.label]: true }));
+  }
 
   return (
-    <nav className="admin-scrollbar flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
+    // min-h-0 lets this box shrink below its content inside the full-height column, and
+    // overflow-y-auto then gives the link list its own scrollbar on short screens.
+    <nav className="admin-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Admin navigation">
       {NAV.map((entry) => {
+        const Icon = ICONS[entry.icon];
         if (entry.type === "link") {
           const active = isLinkActive(pathname, entry.href);
           return (
-            <Link key={entry.href} href={entry.href} onClick={onNavigate} className={cn("flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition duration-200", active ? "bg-[#f6b73c] text-[#171713]" : "text-white/65 hover:bg-white/[0.07] hover:text-white")}>
-              <entry.icon size={18} strokeWidth={1.8} className={active ? "text-[#171713]" : "text-white/40"} />{entry.label}
-            </Link>
+            <div key={entry.href}>
+              {entry.dividerBefore ? <Divider /> : null}
+              <Link href={entry.href} onClick={onNavigate} className={cn("flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition duration-200", active ? "bg-[#f6b73c] text-[#171713]" : "text-white/65 hover:bg-white/[0.07] hover:text-white")}>
+                <Icon size={18} strokeWidth={1.8} className={active ? "text-[#171713]" : "text-white/40"} />{entry.label}
+              </Link>
+            </div>
           );
         }
 
@@ -89,8 +61,9 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
         const expanded = open[entry.label] ?? groupActive;
         return (
           <div key={entry.label}>
-            <button type="button" onClick={() => setOpen((current) => ({ ...current, [entry.label]: !expanded }))} className={cn("flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition duration-200", groupActive ? "text-white" : "text-white/65 hover:bg-white/[0.07] hover:text-white")}>
-              <entry.icon size={18} strokeWidth={1.8} className={groupActive ? "text-[#f6b73c]" : "text-white/40"} /><span className="flex-1 text-left">{entry.label}</span><ChevronDown size={15} className={cn("text-white/35 transition-transform", expanded && "rotate-180")} />
+            {entry.dividerBefore ? <Divider /> : null}
+            <button type="button" aria-expanded={expanded} onClick={() => setOpen((current) => ({ ...current, [entry.label]: !expanded }))} className={cn("flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition duration-200", groupActive ? "text-white" : "text-white/65 hover:bg-white/[0.07] hover:text-white")}>
+              <Icon size={18} strokeWidth={1.8} className={groupActive ? "text-[#f6b73c]" : "text-white/40"} /><span className="flex-1 text-left">{entry.label}</span><ChevronDown size={15} className={cn("text-white/35 transition-transform", expanded && "rotate-180")} />
             </button>
             {expanded ? <div className="mb-2 mt-1 space-y-1 pl-5">{entry.children.map((child) => {
               const active = isLinkActive(pathname, child.href);
@@ -105,7 +78,7 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 
 function SidebarFooter({ userName }: { userName: string }) {
   return (
-    <div className="border-t border-white/10 p-3">
+    <div className="shrink-0 border-t border-white/10 p-3">
       <Link href="/" className="mb-2 flex min-h-10 items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-white/55 transition hover:bg-white/[0.07] hover:text-white">Customer site <ExternalLink size={14} /></Link>
       <div className="flex items-center gap-3 rounded-lg bg-white/[0.07] p-3">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#f6b73c] text-sm font-black text-[#171713]">{userName.slice(0, 1).toUpperCase()}</div>
@@ -116,26 +89,18 @@ function SidebarFooter({ userName }: { userName: string }) {
   );
 }
 
-function currentTitle(pathname: string) {
-  // These two pages are not sidebar links of their own, so they get a name here rather than
-  // borrowing the link that highlights for them.
-  if (pathname === "/admin/orders/new") return "Orders / New order";
-  if (isOrderDetailPath(pathname)) return "Orders / Order details";
-  for (const entry of NAV) {
-    if (entry.type === "link" && isLinkActive(pathname, entry.href)) return entry.label;
-    if (entry.type === "group") {
-      const child = entry.children.find((candidate) => isLinkActive(pathname, candidate.href));
-      if (child) return `${entry.label} / ${child.label}`;
-    }
-  }
-  return "Admin";
-}
-
 export function AdminShell({ children, userName }: { children: React.ReactNode; userName: string }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => setMobileOpen(false), [pathname]);
+  const [seenPath, setSeenPath] = useState(pathname);
+
+  // Following a link closes the phone menu. Done while rendering rather than in an effect.
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    setMobileOpen(false);
+  }
+
   useEffect(() => {
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
@@ -147,8 +112,9 @@ export function AdminShell({ children, userName }: { children: React.ReactNode; 
 
   return (
     <div className="admin-app min-h-screen bg-[#f3f4f6] text-[#202126]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-[#171713] text-white lg:flex">
-        <div className="border-b border-white/10 px-5 py-5"><Link href="/admin" className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#f6b73c] text-sm font-black text-[#171713]">D2</span><span><span className="block text-lg font-black tracking-[-0.035em]">Dish2Door</span><span className="block text-xs font-medium text-white/40">Admin workspace</span></span></Link></div>
+      {/* A full-height column pinned to the window: header and footer keep their size and only the link list in between scrolls, so the dark bar never ends partway down a long page. */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden h-dvh w-72 flex-col bg-[#171713] text-white lg:flex">
+        <div className="shrink-0 border-b border-white/10 px-5 py-5"><Link href="/admin" className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#f6b73c] text-sm font-black text-[#171713]">D2</span><span><span className="block text-lg font-black tracking-[-0.035em]">Dish2Door</span><span className="block text-xs font-medium text-white/40">Admin workspace</span></span></Link></div>
         <SidebarNav pathname={pathname} />
         <SidebarFooter userName={userName} />
       </aside>
@@ -159,7 +125,7 @@ export function AdminShell({ children, userName }: { children: React.ReactNode; 
         <Link href="/admin" className="grid h-9 w-9 place-items-center rounded-lg bg-[#f6b73c] text-xs font-black text-[#171713]">D2</Link>
       </header>
 
-      {mobileOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button type="button" aria-label="Close menu overlay" className="absolute inset-0 h-full w-full bg-black/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><aside className="absolute inset-y-0 left-0 flex w-[20rem] max-w-[88vw] flex-col bg-[#171713] text-white shadow-2xl"><div className="flex min-h-16 items-center justify-between border-b border-white/10 px-5 py-4"><Link href="/admin" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#f6b73c] text-xs font-black text-[#171713]">D2</span><span><span className="block font-black">Dish2Door</span><span className="block text-xs text-white/40">Admin workspace</span></span></Link><button type="button" onClick={() => setMobileOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/15 text-white/70" aria-label="Close menu"><X size={17} /></button></div><SidebarNav pathname={pathname} onNavigate={() => setMobileOpen(false)} /><SidebarFooter userName={userName} /></aside></div> : null}
+      {mobileOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button type="button" aria-label="Close menu overlay" className="absolute inset-0 h-full w-full bg-black/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><aside className="absolute inset-y-0 left-0 flex h-dvh w-[20rem] max-w-[88vw] flex-col bg-[#171713] text-white shadow-2xl"><div className="flex min-h-16 shrink-0 items-center justify-between border-b border-white/10 px-5 py-4"><Link href="/admin" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#f6b73c] text-xs font-black text-[#171713]">D2</span><span><span className="block font-black">Dish2Door</span><span className="block text-xs text-white/40">Admin workspace</span></span></Link><button type="button" onClick={() => setMobileOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/15 text-white/70" aria-label="Close menu"><X size={17} /></button></div><SidebarNav pathname={pathname} onNavigate={() => setMobileOpen(false)} /><SidebarFooter userName={userName} /></aside></div> : null}
 
       <div className="lg:pl-72">
         <div className="sticky top-0 z-20 hidden min-h-16 items-center justify-between border-b border-black/8 bg-white/80 px-8 backdrop-blur-xl lg:flex"><div><p className="text-xs font-semibold text-[#8a8c93]">Admin workspace</p><p className="text-sm font-black">{currentTitle(pathname)}</p></div><Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-bold text-[#4e5057] transition hover:border-black/20">View customer site <ExternalLink size={14} /></Link></div>
@@ -184,6 +150,6 @@ export function StatCard({ label, value, helper }: { label: string; value: React
   return <div className="min-w-0 rounded-xl bg-white p-4 shadow-[0_10px_35px_rgba(30,32,38,0.05)] sm:p-5"><p className="truncate text-xs font-bold text-[#85878e] sm:text-sm">{label}</p><p className="mt-2 truncate text-2xl font-black tracking-[-0.04em] tabular-nums sm:text-3xl" title={typeof value === "string" ? value : undefined}>{value}</p>{helper ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#96989e]">{helper}</p> : null}</div>;
 }
 
-export function SectionCard({ title, description, actions, children, className, bodyClassName }: { title?: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; className?: string; bodyClassName?: string }) {
-  return <section className={cn("min-w-0 overflow-hidden rounded-xl bg-white shadow-[0_10px_35px_rgba(30,32,38,0.05)]", className)}>{title || actions ? <header className="flex flex-col gap-3 border-b border-black/8 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"><div>{title ? <h2 className="text-base font-black tracking-[-0.02em] sm:text-lg">{title}</h2> : null}{description ? <p className="mt-1 text-sm leading-5 text-[#777981]">{description}</p> : null}</div>{actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}</header> : null}<div className={cn("p-4 sm:p-5", bodyClassName)}>{children}</div></section>;
+export function SectionCard({ id, title, description, actions, children, className, bodyClassName }: { id?: string; title?: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; className?: string; bodyClassName?: string }) {
+  return <section id={id} className={cn("min-w-0 overflow-hidden rounded-xl bg-white shadow-[0_10px_35px_rgba(30,32,38,0.05)]", id && "scroll-mt-20 lg:scroll-mt-24", className)}>{title || actions ? <header className="flex flex-col gap-3 border-b border-black/8 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"><div>{title ? <h2 className="text-base font-black tracking-[-0.02em] sm:text-lg">{title}</h2> : null}{description ? <p className="mt-1 text-sm leading-5 text-[#777981]">{description}</p> : null}</div>{actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}</header> : null}<div className={cn("p-4 sm:p-5", bodyClassName)}>{children}</div></section>;
 }

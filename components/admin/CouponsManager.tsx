@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { SectionCard, StatCard } from "@/components/admin/AdminShell";
+import { useConfirm } from "@/components/admin/ConfirmDialog";
+import { EmptyState } from "@/components/admin/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +37,7 @@ function formatDateInput(value: Coupon["expiresAt"]) {
 export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] }) {
   const [coupons, setCoupons] = useState(initialCoupons);
   const [showCreate, setShowCreate] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
   const [draft, setDraft] = useState({ code: "", description: "", discountPercent: "10", maxUses: "", expiresAt: "" });
 
   const stats = useMemo(
@@ -108,7 +111,13 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
   }
 
   async function deleteCoupon(coupon: Coupon) {
-    if (!window.confirm(`Delete coupon ${coupon.code}? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete coupon ${coupon.code}?`,
+      description: "It stops working straight away and cannot be brought back. To keep it, pause it instead.",
+      confirmLabel: "Delete coupon",
+      destructive: true
+    });
+    if (!ok) return;
     try {
       await action({ action: "coupon.delete", id: coupon.id });
       toast.success("Coupon deleted");
@@ -181,7 +190,7 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
                 </div>
               );
             })}
-          {!coupons.length ? <div className="rounded-xl bg-neutral-50 p-8 text-center text-neutral-500 md:col-span-2 xl:col-span-3">No coupons created yet.</div> : null}
+          {!coupons.length ? <div className="rounded-xl bg-neutral-50 md:col-span-2 xl:col-span-3"><EmptyState title="No coupons yet" description="Add a coupon to give customers a percentage off their order." action={<Button onClick={() => setShowCreate(true)}><Plus size={16} className="-ml-1 mr-1" />Add coupon</Button>} /></div> : null}
         </div>
       </SectionCard>
 
@@ -223,6 +232,7 @@ export function CouponsManager({ initialCoupons }: { initialCoupons: Coupon[] })
           </label>
         </div>
       </Modal>
+      {confirmDialog}
     </div>
   );
 }

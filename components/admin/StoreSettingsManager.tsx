@@ -1,108 +1,189 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { SectionCard } from "@/components/admin/AdminShell";
-import { type Settings, minutesToTimeInput, saveSettings, timeInputToMinutes } from "@/components/admin/settings-shared";
+import { CampusesManager, type Campus } from "@/components/admin/CampusesManager";
+import { useConfirm } from "@/components/admin/ConfirmDialog";
+import { NotificationToggles } from "@/components/admin/NotificationToggles";
+import { SettingsSection, SwitchRow } from "@/components/admin/SettingsSection";
+import { type Settings, saveSettings } from "@/components/admin/settings-shared";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  ORDERING_FIELDS,
+  WHEEL_FIELDS,
+  buildSettingsPayload,
+  isSectionDirty,
+  mergeSavedSection,
+  minutesToTimeInput,
+  timeInputToMinutes,
+  validateOrdering
+} from "@/lib/admin-settings";
 
-export function StoreSettingsManager({ initialSettings }: { initialSettings: Settings }) {
-  const [settings, setSettings] = useState(initialSettings);
-  const [saving, setSaving] = useState(false);
+const SECTIONS = [
+  { id: "ordering", label: "Ordering" },
+  { id: "campuses", label: "Campuses and fees" },
+  { id: "notifications", label: "Notification channels" },
+  { id: "wheel", label: "Discount wheel promo" }
+];
 
-  async function save() {
-    setSaving(true);
+type SectionKey = "ordering" | "wheel";
+
+// The whole Settings page below its header. The sections share one saved copy of the
+// store settings, so saving one never overwrites another section's saved values.
+export function StoreSettingsManager({
+  initialSettings,
+  campuses,
+  notifyEmail,
+  notifyWhatsapp
+}: {
+  initialSettings: Settings;
+  campuses: Campus[];
+  notifyEmail: boolean;
+  notifyWhatsapp: boolean;
+}) {
+  const [saved, setSaved] = useState(initialSettings);
+  const [draft, setDraft] = useState(initialSettings);
+  const [saving, setSaving] = useState<SectionKey | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
+
+  const orderingDirty = isSectionDirty(saved, draft, ORDERING_FIELDS);
+  const wheelDirty = isSectionDirty(saved, draft, WHEEL_FIELDS);
+  const orderingProblem = orderingDirty ? validateOrdering(draft) : null;
+
+  async function saveSection(key: SectionKey, keys: typeof ORDERING_FIELDS | typeof WHEEL_FIELDS, done: string) {
+    setSaving(key);
     try {
-      setSettings(await saveSettings(settings));
-      toast.success("Settings saved");
+      const next = await saveSettings(buildSettingsPayload(saved, draft, keys));
+      setSaved(next);
+      setDraft((current) => mergeSavedSection(current, next, keys));
+      toast.success(done);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save settings");
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   }
 
+  async function saveOrdering() {
+    if (saved.ordersOpen && !draft.ordersOpen) {
+      const ok = await confirm({
+        title: "Stop taking orders?",
+        description: "Customers will not be able to place new orders until you switch ordering back on.",
+        confirmLabel: "Stop orders",
+        destructive: true
+      });
+      if (!ok) return;
+    }
+    await saveSection("ordering", ORDERING_FIELDS, "Ordering settings saved");
+  }
+
+  function undo(keys: typeof ORDERING_FIELDS | typeof WHEEL_FIELDS) {
+    setDraft((current) => mergeSavedSection(current, saved, keys));
+  }
+
+  function setTime(field: "orderingOpenMinute" | "orderingCloseMinute", value: string) {
+    const minutes = timeInputToMinutes(value);
+    if (minutes !== null) setDraft({ ...draft, [field]: minutes });
+  }
+
   return (
-    <SectionCard
-      title="Public ordering"
-      description="Controls what customers see before placing an order."
-      actions={<Badge tone={settings.ordersOpen ? "green" : "red"}>{settings.ordersOpen ? "Open" : "Closed"}</Badge>}
-    >
-      <div className="max-w-xl space-y-5">
-        <div>
-          <p className="mb-2 text-sm font-semibold text-neutral-600">Ordering state</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant={settings.ordersOpen ? "default" : "outline"} onClick={() => setSettings({ ...settings, ordersOpen: true })}>
-              Open
-            </Button>
-            <Button variant={!settings.ordersOpen ? "destructive" : "outline"} onClick={() => setSettings({ ...settings, ordersOpen: false })}>
-              Close
-            </Button>
+    <div className="space-y-4 sm:space-y-6">
+      <nav aria-label="Sections on this page" className="flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs font-bold text-neutral-500">Jump to</span>
+        {SECTIONS.map((section) => (
+          <a key={section.id} href={`#${section.id}`} className="inline-flex min-h-9 items-center rounded-full border border-black/10 bg-white px-3.5 text-sm font-bold text-[#3f4046] transition hover:border-black/25">
+            {section.label}
+          </a>
+        ))}
+      </nav>
+
+      <SettingsSection
+        id="ordering"
+        title="Ordering"
+        description="Whether customers can order right now, and the hours they can order in."
+        dirty={orderingDirty}
+        saving={saving === "ordering"}
+        problem={orderingProblem}
+        onSave={saveOrdering}
+        onDiscard={() => undo(ORDERING_FIELDS)}
+        saveLabel="Save ordering settings"
+      >
+        <div className="max-w-xl space-y-5">
+          <div className="space-y-2">
+            <SwitchRow
+              title="Taking orders"
+              description={draft.ordersOpen ? "Ordering is open. Customers can order during the hours below." : "Ordering is closed. Customers see the closed message instead."}
+              on={draft.ordersOpen}
+              onChange={(ordersOpen) => setDraft({ ...draft, ordersOpen })}
+              disabled={saving === "ordering"}
+            />
+            <div className="flex items-center gap-2 px-1 text-xs text-neutral-500">
+              Right now, customers see: <Badge tone={saved.ordersOpen ? "green" : "red"}>{saved.ordersOpen ? "Open" : "Closed"}</Badge>
+            </div>
           </div>
-        </div>
 
-        <label className="block text-sm font-semibold text-neutral-600">
-          Closed message
-          <Textarea className="mt-2" value={settings.closedMessage} onChange={(event) => setSettings({ ...settings, closedMessage: event.target.value })} />
-        </label>
-
-        <label className="block text-sm font-semibold text-neutral-600">
-          Contact number shown when closed
-          <Input className="mt-2" value={settings.contactNumber} onChange={(event) => setSettings({ ...settings, contactNumber: event.target.value })} />
-        </label>
-
-        <div>
-          <p className="mb-2 text-sm font-semibold text-neutral-600">Daily ordering hours (IST)</p>
-          <p className="mb-2 text-xs text-neutral-500">Customers can only place online orders within this window. Outside it (e.g. overnight), ordering is closed.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs font-semibold text-neutral-500">
-              Opens at
-              <Input className="mt-1" type="time" value={minutesToTimeInput(settings.orderingOpenMinute)} onChange={(event) => setSettings({ ...settings, orderingOpenMinute: timeInputToMinutes(event.target.value) })} />
-            </label>
-            <label className="text-xs font-semibold text-neutral-500">
-              Closes at
-              <Input className="mt-1" type="time" value={minutesToTimeInput(settings.orderingCloseMinute)} onChange={(event) => setSettings({ ...settings, orderingCloseMinute: timeInputToMinutes(event.target.value) })} />
-            </label>
+          <div>
+            <p className="mb-1 text-sm font-semibold text-neutral-600">Daily ordering hours (India time)</p>
+            <p className="mb-3 text-xs text-neutral-500">Customers can only place orders between these times. Outside them, for example overnight, ordering is closed.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-semibold text-neutral-500">
+                Opens at
+                <Input className="mt-1" type="time" value={minutesToTimeInput(draft.orderingOpenMinute)} onChange={(event) => setTime("orderingOpenMinute", event.target.value)} />
+              </label>
+              <label className="text-xs font-semibold text-neutral-500">
+                Closes at
+                <Input className="mt-1" type="time" value={minutesToTimeInput(draft.orderingCloseMinute)} onChange={(event) => setTime("orderingCloseMinute", event.target.value)} />
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <p className="mb-2 text-sm font-semibold text-neutral-600">Discount wheel</p>
-          <p className="mb-2 text-xs text-neutral-500">
-            By default the spin wheel is only offered to regulars (3–6 reviewed orders). Turn this on to offer a
-            spin to every customer at checkout, regardless of how many orders they&apos;ve placed.
+          <label className="block text-sm font-semibold text-neutral-600">
+            Closed message
+            <Textarea className="mt-2" maxLength={240} value={draft.closedMessage} onChange={(event) => setDraft({ ...draft, closedMessage: event.target.value })} />
+            <span className="mt-1 block text-right text-xs font-normal text-neutral-400">{draft.closedMessage.length} / 240</span>
+          </label>
+
+          <label className="block text-sm font-semibold text-neutral-600">
+            Contact number shown when closed
+            <Input className="mt-2" maxLength={40} value={draft.contactNumber} onChange={(event) => setDraft({ ...draft, contactNumber: event.target.value })} />
+          </label>
+        </div>
+      </SettingsSection>
+
+      <CampusesManager initialCampuses={campuses} />
+
+      <NotificationToggles initialEmail={notifyEmail} initialWhatsapp={notifyWhatsapp} />
+
+      <SettingsSection
+        id="wheel"
+        title="Discount wheel promo"
+        description="Who gets offered a spin of the discount wheel at checkout."
+        dirty={wheelDirty}
+        saving={saving === "wheel"}
+        onSave={() => saveSection("wheel", WHEEL_FIELDS, "Discount wheel promo saved")}
+        onDiscard={() => undo(WHEEL_FIELDS)}
+        saveLabel="Save wheel promo"
+      >
+        <div className="max-w-xl space-y-3">
+          <SwitchRow
+            title="Offer a spin to every customer"
+            description={draft.spinWheelForEveryone ? "On. Everyone gets a spin at checkout, however many orders they have placed." : "Off. Only regulars (3 to 6 reviewed orders) are offered a spin."}
+            on={draft.spinWheelForEveryone}
+            onChange={(spinWheelForEveryone) => setDraft({ ...draft, spinWheelForEveryone })}
+            disabled={saving === "wheel"}
+          />
+          <p className="text-xs leading-5 text-neutral-500">
+            Once switched on, this turns itself off again when ordering closes for the day, so it cannot be left on by accident.
+            Set up the prizes on the{" "}
+            <Link href="/admin/rewards" className="font-bold text-[#b65a20] underline-offset-2 hover:underline">Discount wheel</Link> page.
           </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={settings.spinWheelForEveryone ? "default" : "outline"}
-              onClick={() => setSettings({ ...settings, spinWheelForEveryone: true })}
-            >
-              Everyone
-            </Button>
-            <Button
-              variant={!settings.spinWheelForEveryone ? "default" : "outline"}
-              onClick={() => setSettings({ ...settings, spinWheelForEveryone: false })}
-            >
-              Regulars only
-            </Button>
-          </div>
         </div>
+      </SettingsSection>
 
-        <div className="rounded-lg border border-black/10 bg-[#f3f4f6] p-3">
-          <p className="text-sm font-semibold text-neutral-600">Fees &amp; hostel delivery are per campus</p>
-          <p className="mt-1 text-xs text-neutral-500">
-            Each campus sets its own platform fee, payment handling and whether hostel delivery runs there.
-            Manage those under <span className="font-semibold">Settings &rarr; Campuses</span>.
-          </p>
-        </div>
-
-        <Button disabled={saving} onClick={save}>
-          {saving ? "Saving..." : "Save settings"}
-        </Button>
-      </div>
-    </SectionCard>
+      {confirmDialog}
+    </div>
   );
 }

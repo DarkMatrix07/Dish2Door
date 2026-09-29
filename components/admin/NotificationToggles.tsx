@@ -1,46 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Check, Mail, MessageCircle, Send } from "lucide-react";
 import { toast } from "sonner";
-import { SectionCard } from "@/components/admin/AdminShell";
-import { cn } from "@/lib/utils";
+import { SettingsSection, SwitchRow } from "@/components/admin/SettingsSection";
 
-function Toggle({ on, disabled, onChange }: { on: boolean; disabled?: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      disabled={disabled}
-      onClick={onChange}
-      className={cn(
-        "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-50",
-        on ? "bg-[#171713]" : "bg-[#d7d9de]"
-      )}
-    >
-      <span className={cn("inline-block h-5 w-5 transform rounded-full shadow transition", on ? "translate-x-6 bg-[#f6b73c]" : "translate-x-1 bg-white")} />
-    </button>
-  );
-}
+type Channels = { notifyEmail: boolean; notifyWhatsapp: boolean };
 
 export function NotificationToggles({ initialEmail, initialWhatsapp }: { initialEmail: boolean; initialWhatsapp: boolean }) {
-  const [email, setEmail] = useState(initialEmail);
-  const [whatsapp, setWhatsapp] = useState(initialWhatsapp);
+  const [saved, setSaved] = useState<Channels>({ notifyEmail: initialEmail, notifyWhatsapp: initialWhatsapp });
+  const [draft, setDraft] = useState(saved);
   const [saving, setSaving] = useState(false);
+  const dirty = draft.notifyEmail !== saved.notifyEmail || draft.notifyWhatsapp !== saved.notifyWhatsapp;
 
-  async function save(next: { notifyEmail: boolean; notifyWhatsapp: boolean }) {
+  async function save() {
     setSaving(true);
     try {
       const response = await fetch("/api/admin/settings/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(next)
+        body: JSON.stringify(draft)
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not update notifications");
-      setEmail(data.notifyEmail);
-      setWhatsapp(data.notifyWhatsapp);
+      const next = { notifyEmail: Boolean(data.notifyEmail), notifyWhatsapp: Boolean(data.notifyWhatsapp) };
+      setSaved(next);
+      setDraft(next);
       toast.success("Notification settings saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update notifications");
@@ -50,38 +36,45 @@ export function NotificationToggles({ initialEmail, initialWhatsapp }: { initial
   }
 
   return (
-    <SectionCard title="Delivery channels" description="Control customer notifications. Telegram admin alerts remain permanently enabled.">
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="flex min-h-24 items-center justify-between gap-4 rounded-lg bg-[#f3f4f6] p-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-[#555860] shadow-sm">
-              <Mail size={18} />
-            </span>
-            <div>
-              <p className="font-black">Email</p>
-              <p className="mt-1 text-xs text-[#777981]">{email ? "Active for order events" : "Channel disabled"}</p>
-            </div>
+    <SettingsSection
+      id="notifications"
+      title="Notification channels"
+      description="Choose how customers hear about their orders. Telegram alerts to you stay on all the time."
+      dirty={dirty}
+      saving={saving}
+      onSave={save}
+      onDiscard={() => setDraft(saved)}
+      saveLabel="Save channels"
+    >
+      <div className="space-y-3">
+        <SwitchRow
+          icon={<Mail size={18} />}
+          title="Email"
+          description={draft.notifyEmail ? "Customers get order updates by email." : "Email is off. No order emails are sent."}
+          on={draft.notifyEmail}
+          onChange={(notifyEmail) => setDraft({ ...draft, notifyEmail })}
+          disabled={saving}
+        />
+        <SwitchRow
+          icon={<MessageCircle size={18} />}
+          title="WhatsApp"
+          description={draft.notifyWhatsapp ? "Customers get order updates on WhatsApp." : "WhatsApp is off. No order messages are sent."}
+          on={draft.notifyWhatsapp}
+          onChange={(notifyWhatsapp) => setDraft({ ...draft, notifyWhatsapp })}
+          disabled={saving}
+        />
+        <div className="flex items-center justify-between gap-4 rounded-lg bg-[#171713] p-4 text-white">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10 text-[#f6b73c]"><Send size={18} /></span>
+            <div className="min-w-0"><p className="font-black">Telegram</p><p className="mt-1 text-xs text-white/45">Admin alerts are always on</p></div>
           </div>
-          <Toggle on={email} disabled={saving} onChange={() => save({ notifyEmail: !email, notifyWhatsapp: whatsapp })} />
-        </div>
-
-        <div className="flex min-h-24 items-center justify-between gap-4 rounded-lg bg-[#f3f4f6] p-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-white text-[#555860] shadow-sm">
-              <MessageCircle size={18} />
-            </span>
-            <div>
-              <p className="font-black">WhatsApp</p>
-              <p className="mt-1 text-xs text-[#777981]">{whatsapp ? "Active for order events" : "Channel disabled"}</p>
-            </div>
-          </div>
-          <Toggle on={whatsapp} disabled={saving} onChange={() => save({ notifyEmail: email, notifyWhatsapp: !whatsapp })} />
-        </div>
-        <div className="flex min-h-24 items-center justify-between gap-4 rounded-lg bg-[#171713] p-4 text-white">
-          <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-white/10 text-[#f6b73c]"><Send size={18} /></span><div><p className="font-black">Telegram</p><p className="mt-1 text-xs text-white/45">Admin alerts always active</p></div></div>
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-[#f6b73c] text-[#171713]"><Check size={14} strokeWidth={3} /></span>
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#f6b73c] text-[#171713]"><Check size={14} strokeWidth={3} /></span>
         </div>
       </div>
-    </SectionCard>
+      <p className="text-sm text-neutral-500">
+        To see what was sent and retry anything that failed, open the{" "}
+        <Link href="/admin/notifications" className="font-bold text-[#b65a20] underline-offset-2 hover:underline">notification log</Link>.
+      </p>
+    </SettingsSection>
   );
 }

@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  DOMINOS_MANAGED_MESSAGE,
+  DOMINOS_MODE,
+  MAIN_STORE_MODE,
+  MAX_BULK_ITEMS,
+  MAX_DISCOUNT_PERCENT,
+  isPlausibleId,
+  menuTargetOf,
+  restaurantDeleteBlock
+} from "@/lib/menu-admin";
 
 const imageUrlSchema = z
   .string()
@@ -57,7 +67,7 @@ const schema = z.discriminatedUnion("action", [
     name: z.string().min(2),
     description: z.string().optional(),
     pricePaise: z.number().int().min(100),
-    discountPercent: z.number().int().min(0).max(90).default(0),
+    discountPercent: z.number().int().min(0).max(MAX_DISCOUNT_PERCENT).default(0),
     imageUrl: imageUrlSchema.optional(),
     sizeLabel: z.string().trim().max(24).nullable().optional(),
     sizeOrder: z.number().int().default(0),
@@ -70,11 +80,17 @@ const schema = z.discriminatedUnion("action", [
     name: z.string().min(2).optional(),
     description: z.string().optional(),
     pricePaise: z.number().int().min(100).optional(),
-    discountPercent: z.number().int().min(0).max(90).optional(),
+    discountPercent: z.number().int().min(0).max(MAX_DISCOUNT_PERCENT).optional(),
     imageUrl: imageUrlSchema.nullable().optional(),
     sizeLabel: z.string().trim().max(24).nullable().optional(),
     sizeOrder: z.number().int().optional(),
     isVeg: z.boolean().nullable().optional()
+  }),
+  // One discount for many items at once (0 removes it). Main-store items only.
+  z.object({
+    action: z.literal("item.discount"),
+    ids: z.array(z.string().min(1)).min(1).max(MAX_BULK_ITEMS),
+    discountPercent: z.number().int().min(0).max(MAX_DISCOUNT_PERCENT)
   }),
   z.object({
     action: z.literal("coupon.create"),
@@ -161,10 +177,59 @@ async function assertItemsBelongToRestaurant(restaurantId: string, menuItemIds: 
   }
 }
 
-export async function GET() {
+// The Domino's menu is edited from /admin/pizza. Callers that only ever deal with the
+// main store (the Restaurants, Items and Combos screens) send ?scope=main, and then every
+// mutation that targets a WhatsApp-mode restaurant, or one of its courses, items or
+// combos, is refused. It is opt-in because the Domino's admin screens also post here.
+const itemInclude = { course: true } as const;
+
+async function orderModeOfTarget(target: NonNullable<ReturnType<typeof menuTargetOf>>): Promise<string | null> {
+  if (target.kind === "restaurant") {
+    return (await prisma.restaurant.findUnique({ where: { id: target.id }, select: { orderMode: true } }))?.orderMode ?? null;
+  }
+  const select = { restaurant: { select: { orderMode: true } } } as const;
+  if (target.kind === "course") return (await prisma.course.findUnique({ where: { id: target.id }, select }))?.restaurant.orderMode ?? null;
+  if (target.kind === "item") return (await prisma.menuItem.findUnique({ where: { id: target.id }, select }))?.restaurant.orderMode ?? null;
+  return (await prisma.combo.findUnique({ where: { id: target.id }, select }))?.restaurant.orderMode ?? null;
+}
+
+async function assertMainStoreTarget(body: { action: string } & Record<string, unknown>) {
+  const target = menuTargetOf(body);
+  if (!target) return;
+  const orderMode = await orderModeOfTarget(target);
+  if (orderMode === null) throw new Error("That record was already removed. Refresh and try again.");
+  if (orderMode !== MAIN_STORE_MODE) throw new Error(DOMINOS_MANAGED_MESSAGE);
+}
+
+// A course from another restaurant would file the item under the wrong menu.
+async function assertCourseBelongsToRestaurant(courseId: string, restaurantId: string) {
+  const count = await prisma.course.count({ where: { id: courseId, restaurantId } });
+  if (count !== 1) throw new Error("That course belongs to a different restaurant.");
+}
+
+export async function GET(request: Request) {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // ?restaurantId=<id>: one main-store restaurant with its courses and items, so a screen
+  // never has to download the whole catalogue.
+  const restaurantId = new URL(request.url).searchParams.get("restaurantId");
+  if (restaurantId !== null) {
+    if (!isPlausibleId(restaurantId)) return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      include: {
+        courses: { orderBy: { sortOrder: "asc" } },
+        menuItems: { include: { course: true }, orderBy: { name: "asc" } }
+      }
+    });
+    if (!restaurant) return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
+    if (restaurant.orderMode !== MAIN_STORE_MODE) return NextResponse.json({ error: DOMINOS_MANAGED_MESSAGE }, { status: 403 });
+    return NextResponse.json({ restaurant });
+  }
+
+  // No parameter: the full catalogue plus coupons, exactly as before, for the Domino's
+  // screens that still read it.
   const [restaurants, coupons] = await Promise.all([
     prisma.restaurant.findMany({
       include: {
@@ -185,6 +250,7 @@ export async function POST(request: Request) {
 
   try {
   const body = schema.parse(await request.json());
+  if (new URL(request.url).searchParams.get("scope") === "main") await assertMainStoreTarget(body);
 
   if (body.action === "restaurant.create") {
     const restaurant = await prisma.restaurant.create({
@@ -211,13 +277,13 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "restaurant.delete") {
-    // Order.restaurantId is Restrict, so a restaurant with past orders can't be
-    // deleted directly. Remove its orders first (OrderItem/Payment/Rating/logs all
-    // cascade from Order), then the restaurant (courses + menu items cascade).
-    const restaurant = await prisma.$transaction(async (tx) => {
-      await tx.order.deleteMany({ where: { restaurantId: body.id } });
-      return tx.restaurant.delete({ where: { id: body.id } });
-    });
+    // Order.restaurantId is Restrict, and deleting a restaurant's orders would destroy
+    // its history (and the revenue numbers built on it), so only a restaurant that has
+    // never taken an order can be deleted. Its courses, items and combos cascade.
+    const orderCount = await prisma.order.count({ where: { restaurantId: body.id } });
+    const block = restaurantDeleteBlock(orderCount);
+    if (block) throw new Error(block);
+    const restaurant = await prisma.restaurant.delete({ where: { id: body.id } });
     return NextResponse.json({ restaurant });
   }
 
@@ -257,7 +323,9 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "item.create") {
+    await assertCourseBelongsToRestaurant(body.courseId, body.restaurantId);
     const item = await prisma.menuItem.create({
+      include: itemInclude,
       data: {
         restaurantId: body.restaurantId,
         courseId: body.courseId,
@@ -275,8 +343,14 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "item.update") {
+    if (body.courseId) {
+      const existing = await prisma.menuItem.findUnique({ where: { id: body.id }, select: { restaurantId: true } });
+      if (!existing) throw new Error("That item was already removed. Refresh and try again.");
+      await assertCourseBelongsToRestaurant(body.courseId, existing.restaurantId);
+    }
     const item = await prisma.menuItem.update({
       where: { id: body.id },
+      include: itemInclude,
       data: {
         courseId: body.courseId,
         name: body.name,
@@ -343,9 +417,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  if (body.action === "item.discount") {
+    const ids = [...new Set(body.ids)];
+    // Refuse rather than quietly skip: the owner should learn a Domino's dish was in the pick.
+    const dominosCount = await prisma.menuItem.count({ where: { id: { in: ids }, restaurant: { orderMode: DOMINOS_MODE } } });
+    if (dominosCount > 0) throw new Error(DOMINOS_MANAGED_MESSAGE);
+    const where = { id: { in: ids }, restaurant: { orderMode: MAIN_STORE_MODE } } as const;
+    const [, items] = await prisma.$transaction([
+      prisma.menuItem.updateMany({ where, data: { discountPercent: body.discountPercent } }),
+      prisma.menuItem.findMany({ where, include: itemInclude })
+    ]);
+    if (!items.length) throw new Error("Those items were already removed. Refresh and try again.");
+    return NextResponse.json({ items });
+  }
+
   if (body.action === "item.stock") {
     const item = await prisma.menuItem.update({
       where: { id: body.id },
+      include: itemInclude,
       data: { available: body.available }
     });
     return NextResponse.json({ item });

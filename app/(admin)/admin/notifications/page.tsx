@@ -1,16 +1,15 @@
+import Link from "next/link";
 import { NotificationChannel, NotificationStatus } from "@prisma/client";
 import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { NotificationsPanel } from "@/components/admin/NotificationsPanel";
-import { NotificationToggles } from "@/components/admin/NotificationToggles";
+import { linkButtonClasses } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
-import { getSettings } from "@/lib/settings";
 import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminNotificationsPage() {
   await requireRole(["ADMIN"]);
-  const settings = await getSettings();
   const [failedLogs, recentLogs] = await Promise.all([
     prisma.notificationLog.findMany({
       where: {
@@ -49,12 +48,13 @@ export default async function AdminNotificationsPage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Notifications"
-        title="Notification logs"
-        description="Monitor every delivery channel, see exactly when failures happened, and confirm whether automatic or manual retries recovered them."
-      />
+        eyebrow="Messages"
+        title="Notification log"
+        description="Every message sent to customers, when a delivery failed, and whether an automatic or manual retry recovered it."
+      >
+        <Link href="/admin/settings#notifications" className={linkButtonClasses("outline")}>Turn email or WhatsApp on or off</Link>
+      </AdminPageHeader>
       <div className="space-y-5">
-        <NotificationToggles initialEmail={settings.notifyEmail} initialWhatsapp={settings.notifyWhatsapp} />
         <NotificationsPanel failedLogs={failedLogs} recentLogs={recentLogs} />
       </div>
     </PageContainer>

@@ -1,246 +1,280 @@
+import Link from "next/link";
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
 import { CampusBadge } from "@/components/admin/CampusBadge";
-import { prisma } from "@/lib/db";
-import { formatPaise } from "@/lib/utils";
+import { EmptyState } from "@/components/admin/EmptyState";
 import { requireRole } from "@/lib/auth";
-import { istDayKey, istDayStartUtc } from "@/lib/ist-day";
-import { REVENUE_ORDER_WHERE as PAID_WHERE } from "@/lib/order-filters";
+import {
+  PERIOD_KEYS,
+  PERIOD_LABELS,
+  RANGE_CHOICES,
+  averageOrderPaise,
+  barPercent,
+  parseRange,
+  totalDiscountPaise
+} from "@/lib/analytics";
+import { loadAnalytics } from "@/lib/analytics-data";
+import { cn, formatPaise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnalyticsPage() {
+const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-1";
+
+function orderCount(count: number) {
+  return `${count} ${count === 1 ? "order" : "orders"}`;
+}
+
+export default async function AnalyticsPage({
+  searchParams
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireRole(["ADMIN"]);
-  const todayStart = istDayStartUtc(0);
-  const last7Start = istDayStartUtc(6);
-  const last30Start = istDayStartUtc(29);
+  const range = parseRange((await searchParams).range);
+  const data = await loadAnalytics(range);
+  const { main, dominos } = data;
 
-  const [allTime, orders, campuses, campusTodayRevenue, campusLast7Revenue, campusAllTimeRevenue] = await Promise.all([
-    prisma.order.aggregate({ where: PAID_WHERE, _sum: { totalPaise: true }, _count: true }),
-    prisma.order.findMany({
-      where: { ...PAID_WHERE, createdAt: { gte: last30Start } },
-      select: {
-        totalPaise: true,
-        createdAt: true,
-        orderSlot: true,
-        restaurant: { select: { name: true } },
-        items: { select: { nameSnapshot: true, quantity: true, linePaise: true } }
-      }
-    }),
-    prisma.campus.findMany({ orderBy: { sortOrder: "asc" } }),
-    prisma.order.groupBy({
-      by: ["campusId"],
-      where: { ...PAID_WHERE, createdAt: { gte: todayStart } },
-      _sum: { totalPaise: true },
-      _count: { id: true }
-    }),
-    prisma.order.groupBy({
-      by: ["campusId"],
-      where: { ...PAID_WHERE, createdAt: { gte: last7Start } },
-      _sum: { totalPaise: true },
-      _count: { id: true }
-    }),
-    prisma.order.groupBy({
-      by: ["campusId"],
-      where: PAID_WHERE,
-      _sum: { totalPaise: true },
-      _count: { id: true }
-    })
-  ]);
-
-  const campusMap = new Map(campuses.map((c) => [c.id, c]));
-  const todayPerCampus = new Map(campusTodayRevenue.map((c) => [c.campusId, { revenue: c._sum.totalPaise ?? 0, orders: c._count.id }]));
-  const last7PerCampus = new Map(campusLast7Revenue.map((c) => [c.campusId, { revenue: c._sum.totalPaise ?? 0, orders: c._count.id }]));
-  const allTimePerCampus = new Map(campusAllTimeRevenue.map((c) => [c.campusId, { revenue: c._sum.totalPaise ?? 0, orders: c._count.id }]));
-
-  const allCampusIds = new Set<string | null>();
-  campusTodayRevenue.forEach((c) => allCampusIds.add(c.campusId));
-  campusLast7Revenue.forEach((c) => allCampusIds.add(c.campusId));
-  campusAllTimeRevenue.forEach((c) => allCampusIds.add(c.campusId));
-
-  const allTimeRevenue = allTime._sum.totalPaise ?? 0;
-  const allTimeOrders = allTime._count;
-  const avgOrder = allTimeOrders ? Math.round(allTimeRevenue / allTimeOrders) : 0;
-
-  let revenueToday = 0;
-  let ordersToday = 0;
-  let revenue7 = 0;
-  let orders7 = 0;
-  const dayMap = new Map<string, { revenue: number; orders: number }>();
-  const restaurantMap = new Map<string, { revenue: number; orders: number }>();
-  const slotMap = { AFTERNOON: { revenue: 0, orders: 0 }, NIGHT: { revenue: 0, orders: 0 } };
-  const itemMap = new Map<string, { qty: number; revenue: number }>();
-
-  for (const order of orders) {
-    if (order.createdAt >= todayStart) {
-      revenueToday += order.totalPaise;
-      ordersToday += 1;
-    }
-    if (order.createdAt >= last7Start) {
-      revenue7 += order.totalPaise;
-      orders7 += 1;
-    }
-
-    const dayKey = istDayKey(order.createdAt);
-    const day = dayMap.get(dayKey) ?? { revenue: 0, orders: 0 };
-    day.revenue += order.totalPaise;
-    day.orders += 1;
-    dayMap.set(dayKey, day);
-
-    const rName = order.restaurant.name;
-    const r = restaurantMap.get(rName) ?? { revenue: 0, orders: 0 };
-    r.revenue += order.totalPaise;
-    r.orders += 1;
-    restaurantMap.set(rName, r);
-
-    if (order.orderSlot === "AFTERNOON" || order.orderSlot === "NIGHT") {
-      slotMap[order.orderSlot].revenue += order.totalPaise;
-      slotMap[order.orderSlot].orders += 1;
-    }
-
-    for (const item of order.items) {
-      const it = itemMap.get(item.nameSnapshot) ?? { qty: 0, revenue: 0 };
-      it.qty += item.quantity;
-      it.revenue += item.linePaise;
-      itemMap.set(item.nameSnapshot, it);
-    }
-  }
-
-  // Last 14 days trend (oldest -> newest).
-  const days: { key: string; label: string; revenue: number; orders: number }[] = [];
-  for (let i = 13; i >= 0; i--) {
-    const start = istDayStartUtc(i);
-    const key = istDayKey(start);
-    const entry = dayMap.get(key) ?? { revenue: 0, orders: 0 };
-    days.push({ key, label: key.slice(5), revenue: entry.revenue, orders: entry.orders });
-  }
-  const maxDayRevenue = Math.max(1, ...days.map((d) => d.revenue));
-
-  const byRestaurant = [...restaurantMap.entries()]
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.revenue - a.revenue);
-  const maxRestaurantRevenue = Math.max(1, ...byRestaurant.map((r) => r.revenue));
-
-  const topItems = [...itemMap.entries()]
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.qty - a.qty)
-    .slice(0, 10);
+  const maxDayRevenue = Math.max(0, ...data.days.map((day) => day.revenuePaise));
+  const maxRestaurantRevenue = Math.max(0, ...data.restaurants.main.map((row) => row.revenuePaise));
+  const hasDominos = dominos.all.orders > 0;
 
   return (
     <PageContainer>
-      <AdminPageHeader eyebrow="Insights" title="Analytics" description="Revenue and order trends. Paid orders only; last 30 days for the breakdowns." />
+      <AdminPageHeader
+        eyebrow="Insights"
+        title="Analytics"
+        description="Every money figure lives here. Paid orders that were not cancelled, for the main store, so the numbers match the dashboard and the Today board. Domino's is shown separately at the bottom."
+      >
+        <nav aria-label="Time range" className="flex flex-wrap gap-2">
+          {RANGE_CHOICES.map((choice) => {
+            const active = choice === range;
+            return (
+              <Link
+                key={choice}
+                href={choice === 30 ? "/admin/analytics" : `/admin/analytics?range=${choice}`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-10 items-center rounded-full border px-4 text-sm font-semibold transition",
+                  active ? "border-neutral-950 bg-neutral-950 text-white!" : "border-neutral-300 bg-white text-neutral-700! hover:bg-neutral-50",
+                  FOCUS
+                )}
+              >
+                {choice} days
+              </Link>
+            );
+          })}
+        </nav>
+      </AdminPageHeader>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatCard label="Revenue (all time)" value={formatPaise(allTimeRevenue)} helper={`${allTimeOrders} orders`} />
-        <StatCard label="Avg order value" value={formatPaise(avgOrder)} />
-        <StatCard label="Revenue today" value={formatPaise(revenueToday)} helper={`${ordersToday} orders`} />
-        <StatCard label="Revenue last 7 days" value={formatPaise(revenue7)} helper={`${orders7} orders`} />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" role="group" aria-label="Revenue totals">
+        {PERIOD_KEYS.map((key) => (
+          <StatCard
+            key={key}
+            label={key === "today" ? "Revenue today" : key === "all" ? "Revenue, all time" : `Revenue, ${PERIOD_LABELS[key].toLowerCase()}`}
+            value={formatPaise(main[key].revenuePaise)}
+            helper={`${orderCount(main[key].orders)} · average ${main[key].orders > 0 ? formatPaise(averageOrderPaise(main[key].revenuePaise, main[key].orders)) : "none yet"}`}
+          />
+        ))}
       </div>
 
       <SectionCard
-        title="Revenue by campus"
-        description="All time, today, and last 7 days."
+        title={`Day by day, last ${range} days`}
+        description="Revenue and orders for each day, newest first. Quiet days show as zero."
+        bodyClassName="p-0"
       >
-        <div className="space-y-4">
-          {Array.from(allCampusIds).map((campusId) => {
-            const campus = campusId ? campusMap.get(campusId) : null;
-            const allTime = allTimePerCampus.get(campusId) ?? { revenue: 0, orders: 0 };
-            const today = todayPerCampus.get(campusId) ?? { revenue: 0, orders: 0 };
-            const last7 = last7PerCampus.get(campusId) ?? { revenue: 0, orders: 0 };
-
-            return (
-              <div key={campusId || "unassigned"} className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <CampusBadge campus={campus} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-semibold text-neutral-500">All time</p>
-                    <p className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">{formatPaise(allTime.revenue)}</p>
-                    <p className="text-xs text-neutral-500">{allTime.orders} orders</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-neutral-500">Today</p>
-                    <p className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">{formatPaise(today.revenue)}</p>
-                    <p className="text-xs text-neutral-500">{today.orders} orders</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-neutral-500">Last 7 days</p>
-                    <p className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">{formatPaise(last7.revenue)}</p>
-                    <p className="text-xs text-neutral-500">{last7.orders} orders</p>
-                  </div>
-                </div>
+        <ul className={cn("divide-y divide-neutral-100", range > 30 && "max-h-[32rem] overflow-y-auto")}>
+          {data.days.map((day) => (
+            <li key={day.key} className="px-4 py-2.5 sm:px-5">
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="font-semibold text-neutral-800">{day.label}</span>
+                <span className="text-right tabular-nums text-neutral-600">
+                  <span className="font-bold text-neutral-950">{formatPaise(day.revenuePaise)}</span>
+                  <span className="text-neutral-500"> · {orderCount(day.orders)}</span>
+                </span>
               </div>
-            );
-          })}
-          {allCampusIds.size === 0 ? <p className="text-sm text-neutral-500">No paid orders yet.</p> : null}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Revenue — last 14 days" description="Paid orders per day (IST)." bodyClassName="p-4 sm:p-6">
-        <div className="flex h-48 items-end gap-1.5 sm:gap-2">
-          {days.map((day) => (
-            <div key={day.key} className="flex flex-1 flex-col items-center gap-2">
-              <div className="flex w-full flex-1 items-end">
-                <div
-                  className="w-full rounded-t bg-amber-400 transition-all"
-                  style={{ height: `${Math.max(2, Math.round((day.revenue / maxDayRevenue) * 100))}%` }}
-                  title={`${day.label}: ${formatPaise(day.revenue)} · ${day.orders} orders`}
-                />
+              <div className="mt-1.5 h-2 rounded-full bg-neutral-100">
+                <div className="h-2 rounded-full bg-amber-400" style={{ width: `${barPercent(day.revenuePaise, maxDayRevenue)}%` }} />
               </div>
-              <span className="text-[10px] tabular-nums text-neutral-400">{day.label}</span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </SectionCard>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <SectionCard title="Revenue by restaurant" description="Last 30 days.">
+      <SectionCard title="By campus" description="Revenue and orders at each campus, for every period.">
+        {data.campuses.length > 0 ? (
           <div className="space-y-3">
-            {byRestaurant.map((r) => (
-              <div key={r.name}>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-neutral-800">{r.name}</span>
-                  <span className="tabular-nums text-neutral-600">{formatPaise(r.revenue)} · {r.orders}</span>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-neutral-100">
-                  <div className="h-2 rounded-full bg-amber-400" style={{ width: `${Math.round((r.revenue / maxRestaurantRevenue) * 100)}%` }} />
-                </div>
+            {data.campuses.map((campus) => (
+              <div key={campus.key} className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                <CampusBadge campus={campus.code ? { code: campus.code, name: campus.name } : null} />
+                <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {PERIOD_KEYS.map((key) => (
+                    <div key={key} className="min-w-0">
+                      <dt className="text-xs font-semibold text-neutral-500">{PERIOD_LABELS[key]}</dt>
+                      <dd className="mt-1 truncate text-lg font-bold tabular-nums text-neutral-900">{formatPaise(campus.totals[key].revenuePaise)}</dd>
+                      <dd className="text-xs text-neutral-500">{orderCount(campus.totals[key].orders)}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             ))}
-            {!byRestaurant.length ? <p className="text-sm text-neutral-500">No paid orders in the last 30 days.</p> : null}
           </div>
+        ) : (
+          <EmptyState title="No paid orders yet" />
+        )}
+      </SectionCard>
+
+      <div className="grid gap-4 sm:gap-6 xl:grid-cols-2">
+        <SectionCard title="By restaurant" description={`Last ${range} days.`}>
+          {data.restaurants.main.length > 0 ? (
+            <ul className="space-y-3">
+              {data.restaurants.main.map((row) => (
+                <li key={row.id}>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate font-semibold text-neutral-800">{row.name}</span>
+                    <span className="shrink-0 tabular-nums text-neutral-600">
+                      {formatPaise(row.revenuePaise)} · {orderCount(row.orders)}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-neutral-100">
+                    <div className="h-2 rounded-full bg-amber-400" style={{ width: `${barPercent(row.revenuePaise, maxRestaurantRevenue)}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState title={`No paid orders in the last ${range} days`} />
+          )}
         </SectionCard>
 
-        <SectionCard title="By delivery slot" description="Last 30 days.">
-          <div className="grid grid-cols-2 gap-4">
-            {(["AFTERNOON", "NIGHT"] as const).map((slot) => (
-              <div key={slot} className="rounded-xl border border-neutral-200 bg-white p-4">
-                <p className="text-sm font-semibold text-neutral-500">{slot === "AFTERNOON" ? "Afternoon" : "Night"}</p>
-                <p className="mt-2 text-2xl font-black text-neutral-950">{formatPaise(slotMap[slot].revenue)}</p>
-                <p className="mt-1 text-xs text-neutral-500">{slotMap[slot].orders} orders</p>
+        <SectionCard title="By delivery slot" description={`Last ${range} days.`}>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {data.slots.map((slot) => (
+              <div key={slot.slot} className="min-w-0 rounded-xl border border-neutral-200 bg-white p-4">
+                <p className="text-sm font-semibold text-neutral-500">
+                  {slot.slot === "AFTERNOON" ? "Afternoon" : slot.slot === "NIGHT" ? "Night" : "No slot"}
+                </p>
+                <p className="mt-2 truncate text-2xl font-black tabular-nums text-neutral-950">{formatPaise(slot.revenuePaise)}</p>
+                <p className="mt-1 text-xs text-neutral-500">{orderCount(slot.orders)}</p>
               </div>
             ))}
           </div>
+          {data.slots.some((slot) => slot.slot === "NONE") ? (
+            <p className="mt-3 text-xs text-neutral-500">&ldquo;No slot&rdquo; is counter orders and older orders placed before slots existed.</p>
+          ) : null}
         </SectionCard>
       </div>
 
-      <SectionCard title="Top items" description="Most-ordered dishes in the last 30 days." bodyClassName="p-0">
-        <div className="divide-y divide-neutral-100">
-          {topItems.map((item, index) => (
-            <div key={item.name} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="w-5 shrink-0 text-sm font-black text-neutral-400">{index + 1}</span>
-                <span className="truncate font-semibold text-neutral-800">{item.name}</span>
-              </div>
-              <div className="shrink-0 text-right text-sm">
-                <span className="font-black text-neutral-950">{item.qty} sold</span>
-                <span className="ml-3 tabular-nums text-neutral-500">{formatPaise(item.revenue)}</span>
-              </div>
-            </div>
-          ))}
-          {!topItems.length ? <p className="p-6 text-center text-sm text-neutral-500">No items sold in the last 30 days.</p> : null}
+      <div className="grid gap-4 sm:gap-6 xl:grid-cols-2">
+        <SectionCard title="Most ordered dishes" description={`By number sold, last ${range} days.`} bodyClassName="p-0">
+          <DishList
+            rows={data.topByQuantity}
+            emptyTitle={`No dishes sold in the last ${range} days`}
+            figure={(dish) => `${dish.quantity} sold`}
+            secondary={(dish) => formatPaise(dish.revenuePaise)}
+          />
+        </SectionCard>
+
+        <SectionCard title="Top earning dishes" description={`By food sales, last ${range} days. Before fees and coupons.`} bodyClassName="p-0">
+          <DishList
+            rows={data.topByRevenue}
+            emptyTitle={`No dishes sold in the last ${range} days`}
+            figure={(dish) => formatPaise(dish.revenuePaise)}
+            secondary={(dish) => `${dish.quantity} sold`}
+          />
+        </SectionCard>
+      </div>
+
+      <SectionCard
+        title="Discounts given"
+        description="Money taken off orders by coupons. The revenue figures above are already after these discounts."
+        bodyClassName="p-0"
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[20rem] text-sm">
+            <thead>
+              <tr className="border-b border-neutral-100 text-left text-xs font-semibold text-neutral-500">
+                <th scope="col" className="px-4 py-3 sm:px-5">Period</th>
+                <th scope="col" className="px-2 py-3 text-right">Wheel prizes</th>
+                <th scope="col" className="px-2 py-3 text-right">Other coupons</th>
+                <th scope="col" className="px-4 py-3 text-right sm:px-5">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100 tabular-nums">
+              {PERIOD_KEYS.map((key) => (
+                <tr key={key}>
+                  <th scope="row" className="px-4 py-3 text-left font-semibold text-neutral-800 sm:px-5">{PERIOD_LABELS[key]}</th>
+                  <td className="px-2 py-3 text-right text-neutral-600">{formatPaise(main[key].wheelDiscountPaise)}</td>
+                  <td className="px-2 py-3 text-right text-neutral-600">{formatPaise(main[key].otherDiscountPaise)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-neutral-950 sm:px-5">{formatPaise(totalDiscountPaise(main[key]))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </SectionCard>
+
+      <SectionCard
+        title="Domino's, counted separately"
+        description="Domino's takes orders on WhatsApp. It is not in any number above."
+      >
+        {hasDominos ? (
+          <>
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {PERIOD_KEYS.map((key) => (
+                <div key={key} className="min-w-0 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                  <dt className="text-xs font-semibold text-neutral-500">{PERIOD_LABELS[key]}</dt>
+                  <dd className="mt-1 truncate text-lg font-bold tabular-nums text-neutral-900">{formatPaise(dominos[key].revenuePaise)}</dd>
+                  <dd className="text-xs text-neutral-500">{orderCount(dominos[key].orders)}</dd>
+                </div>
+              ))}
+            </dl>
+            {data.restaurants.whatsapp.length > 0 ? (
+              <ul className="mt-4 divide-y divide-neutral-100 text-sm">
+                {data.restaurants.whatsapp.map((row) => (
+                  <li key={row.id} className="flex items-baseline justify-between gap-3 py-2">
+                    <span className="min-w-0 truncate font-semibold text-neutral-800">{row.name}</span>
+                    <span className="shrink-0 tabular-nums text-neutral-600">
+                      {formatPaise(row.revenuePaise)} · {orderCount(row.orders)}
+                      <span className="text-neutral-400"> (last {range} days)</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-sm text-neutral-500">No paid Domino&apos;s orders yet.</p>
+        )}
+      </SectionCard>
     </PageContainer>
+  );
+}
+
+function DishList({
+  rows,
+  emptyTitle,
+  figure,
+  secondary
+}: {
+  rows: { name: string; quantity: number; revenuePaise: number }[];
+  emptyTitle: string;
+  figure: (dish: { name: string; quantity: number; revenuePaise: number }) => string;
+  secondary: (dish: { name: string; quantity: number; revenuePaise: number }) => string;
+}) {
+  if (rows.length === 0) return <EmptyState title={emptyTitle} />;
+  return (
+    <ol className="divide-y divide-neutral-100">
+      {rows.map((dish, index) => (
+        <li key={dish.name} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="w-5 shrink-0 text-sm font-black text-neutral-400">{index + 1}</span>
+            <span className="min-w-0 truncate font-semibold text-neutral-800">{dish.name}</span>
+          </div>
+          <div className="shrink-0 text-right text-sm tabular-nums">
+            <span className="font-black text-neutral-950">{figure(dish)}</span>
+            <span className="ml-2 text-neutral-500 sm:ml-3">{secondary(dish)}</span>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }

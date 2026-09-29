@@ -1,10 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Minus, Package, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Minus, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
 import { SectionCard } from "@/components/admin/AdminShell";
+import { useConfirm } from "@/components/admin/ConfirmDialog";
+import { EmptyState } from "@/components/admin/EmptyState";
+import { linkButtonClasses } from "@/components/ui/button";
 import { formatPaise } from "@/lib/utils";
 
 type MenuItemLite = {
@@ -15,6 +19,7 @@ type MenuItemLite = {
   discountPercent: number;
   imageUrl: string | null;
   available: boolean;
+  sizeLabel?: string | null;
 };
 
 type ComboLine = { id: string; quantity: number; menuItem: MenuItemLite };
@@ -39,12 +44,17 @@ type Restaurant = {
   combos: Combo[];
 };
 
+// Sized dishes share a name, so the size has to be shown or their rows look identical.
+function itemLabel(item: Pick<MenuItemLite, "name" | "sizeLabel">) {
+  return item.sizeLabel ? `${item.name} (${item.sizeLabel})` : item.name;
+}
+
 function discountedUnit(item: Pick<MenuItemLite, "pricePaise" | "discountPercent">) {
   return Math.round(item.pricePaise * (1 - (item.discountPercent ?? 0) / 100));
 }
 
 async function postAction(payload: Record<string, unknown>) {
-  const response = await fetch("/api/admin/menu", {
+  const response = await fetch("/api/admin/menu?scope=main", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -58,6 +68,7 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
   const [restaurants, setRestaurants] = useState(initialRestaurants);
   const [activeRestaurantId, setActiveRestaurantId] = useState(initialRestaurants[0]?.id ?? "");
   const restaurant = restaurants.find((entry) => entry.id === activeRestaurantId);
+  const [confirm, confirmDialog] = useConfirm();
 
   // Builder state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,13 +80,13 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
   const [itemQuery, setItemQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const menuItems = restaurant?.menuItems ?? [];
+  const menuItems = useMemo(() => restaurant?.menuItems ?? [], [restaurant]);
   const menuMap = useMemo(() => new Map(menuItems.map((item) => [item.id, item])), [menuItems]);
 
   const filteredItems = useMemo(() => {
     const search = itemQuery.trim().toLowerCase();
     if (!search) return menuItems;
-    return menuItems.filter((item) => item.name.toLowerCase().includes(search));
+    return menuItems.filter((item) => itemLabel(item).toLowerCase().includes(search));
   }, [menuItems, itemQuery]);
 
   const selectedLines = useMemo(
@@ -181,7 +192,13 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
   }
 
   async function removeCombo(combo: Combo) {
-    if (!window.confirm(`Delete the combo "${combo.name}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete the combo "${combo.name}"?`,
+      description: "Customers will no longer see it. The dishes in it are not affected.",
+      confirmLabel: "Delete combo",
+      destructive: true
+    });
+    if (!ok) return;
     try {
       await postAction({ action: "combo.delete", id: combo.id });
       setRestaurants((current) =>
@@ -197,11 +214,11 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
   if (!restaurants.length) {
     return (
       <SectionCard>
-        <div className="grid place-items-center py-16 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-[#f3f4f6]"><Package size={22} /></span>
-          <h2 className="mt-4 text-lg font-black">No restaurants yet</h2>
-          <p className="mt-1 text-sm text-[#777981]">Add a restaurant and some menu items first, then build combos here.</p>
-        </div>
+        <EmptyState
+          title="No restaurants yet"
+          description="Add a restaurant and some menu items first, then build combos here."
+          action={<Link href="/admin/menu/restaurants" className={linkButtonClasses("default", "md")}>Go to Restaurants</Link>}
+        />
       </SectionCard>
     );
   }
@@ -262,16 +279,16 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
                 const chosen = quantity > 0;
                 return (
                   <div key={item.id} className={`flex items-center gap-3 rounded-lg border p-2.5 transition ${chosen ? "border-[#f6b73c] bg-[#f6b73c]/[0.08]" : "border-black/8 bg-white hover:border-black/15"}`}>
-                    <img loading="lazy" decoding="async" alt={item.name} src={item.imageUrl ?? "/dish-placeholder.webp"} className="h-11 w-11 shrink-0 rounded-md object-cover" />
+                    <img loading="lazy" decoding="async" alt={itemLabel(item)} src={item.imageUrl ?? "/dish-placeholder.webp"} className="h-11 w-11 shrink-0 rounded-md object-cover" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-[#202126]">{item.name}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>
+                      <p className="truncate text-sm font-bold text-[#202126]">{itemLabel(item)}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>
                       <p className="mt-0.5 text-xs font-semibold tabular-nums text-[#70727a]">{formatPaise(discountedUnit(item))}{item.discountPercent ? <span className="ml-1.5 text-[#a0a2a8] line-through">{formatPaise(item.pricePaise)}</span> : null}</p>
                     </div>
                     {chosen ? (
                       <div className="flex h-9 items-center rounded-lg bg-[#171713] text-white">
-                        <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => stepItem(item.id, -1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Minus size={13} /></button>
+                        <button type="button" aria-label={`Remove one ${itemLabel(item)}`} onClick={() => stepItem(item.id, -1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Minus size={13} /></button>
                         <span className="w-6 text-center text-sm font-black tabular-nums">{quantity}</span>
-                        <button type="button" aria-label={`Add one ${item.name}`} onClick={() => stepItem(item.id, 1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Plus size={13} /></button>
+                        <button type="button" aria-label={`Add one ${itemLabel(item)}`} onClick={() => stepItem(item.id, 1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Plus size={13} /></button>
                       </div>
                     ) : (
                       <button type="button" onClick={() => addItem(item.id)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-black/12 bg-white px-3 text-sm font-black text-[#202126] transition hover:border-[#f6b73c] hover:bg-[#f6b73c]">Add</button>
@@ -279,7 +296,13 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
                   </div>
                 );
               }) : (
-                <p className="rounded-lg border border-dashed border-black/12 px-3 py-6 text-center text-sm text-[#85878e]">No menu items match.</p>
+                <div className="rounded-lg border border-dashed border-black/12">
+                  <EmptyState
+                    title={menuItems.length ? "No menu items match" : "This restaurant has no menu items yet"}
+                    description={menuItems.length ? "Try a different search." : "Add dishes to it on the Items page, then build a combo."}
+                    action={menuItems.length ? undefined : <Link href="/admin/menu/items" className={linkButtonClasses("outline", "sm")}>Go to Items</Link>}
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -292,7 +315,7 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
               <AnimatePresence initial={false}>
                 {selectedLines.map((line) => (
                   <motion.div key={line.item.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="min-w-0 truncate text-[#4e5057]"><span className="font-black tabular-nums">{line.quantity}×</span> {line.item.name}</span>
+                    <span className="min-w-0 truncate text-[#4e5057]"><span className="font-black tabular-nums">{line.quantity}×</span> {itemLabel(line.item)}</span>
                     <span className="shrink-0 font-semibold tabular-nums text-[#202126]">{formatPaise(discountedUnit(line.item) * line.quantity)}</span>
                   </motion.div>
                 ))}
@@ -359,7 +382,7 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
 
                   <ul className="mt-3 space-y-1 text-sm text-[#625b50]">
                     {combo.items.map((line) => (
-                      <li key={line.id} className="flex items-center gap-1.5"><span className="font-black tabular-nums text-[#171713]">{line.quantity}×</span> <span className="truncate">{line.menuItem.name}</span></li>
+                      <li key={line.id} className="flex items-center gap-1.5"><span className="font-black tabular-nums text-[#171713]">{line.quantity}×</span> <span className="truncate">{itemLabel(line.menuItem)}</span></li>
                     ))}
                   </ul>
 
@@ -377,13 +400,10 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
             })}
           </div>
         ) : (
-          <div className="grid place-items-center py-12 text-center">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-[#f3f4f6]"><Package size={22} /></span>
-            <h3 className="mt-4 text-base font-black">No combos yet</h3>
-            <p className="mt-1 text-sm text-[#85878e]">Build one above — it&apos;ll show up first for customers.</p>
-          </div>
+          <EmptyState title="No combos yet" description="Build one above. It will show up first for customers." />
         )}
       </SectionCard>
+      {confirmDialog}
     </div>
   );
 }

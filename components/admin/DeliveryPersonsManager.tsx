@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/AdminShell";
+import { useConfirm } from "@/components/admin/ConfirmDialog";
+import { EmptyState } from "@/components/admin/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +55,7 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
   const [editDraft, setEditDraft] = useState({ name: "", email: "", phone: "", assignedHostelBlocks: [] as string[] });
   const [passwordDraft, setPasswordDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
 
   async function refresh() {
     const response = await fetch("/api/admin/delivery-users");
@@ -185,10 +188,14 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
                     size="sm"
                     variant="destructive"
                     disabled={busy}
-                    onClick={() => {
-                      if (window.confirm(`Delete ${user.name}? Only unused delivery accounts can be deleted.`)) {
-                        action({ action: "delete", id: user.id }, "Delivery person deleted");
-                      }
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Delete ${user.name}?`,
+                        description: "Only delivery accounts that have never delivered an order can be deleted.",
+                        confirmLabel: "Delete account",
+                        destructive: true
+                      });
+                      if (ok) action({ action: "delete", id: user.id }, "Delivery person deleted");
                     }}
                   >
                     Delete
@@ -197,9 +204,10 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
               </div>
             </div>
           ))}
-          {!users.length ? <div className="p-8 text-center text-neutral-500">No delivery persons created yet.</div> : null}
+          {!users.length ? <EmptyState title="No delivery persons yet" description="Create a delivery login using the form and they will show up here." /> : null}
         </div>
       </SectionCard>
+      {confirmDialog}
     </div>
   );
 }
