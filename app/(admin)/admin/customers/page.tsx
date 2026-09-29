@@ -31,7 +31,7 @@ type CustomerRow = {
   spent: number;
   reviewed: number;
   lastOrderAt: Date | null;
-  rewardsWon: number;
+  rewardsActive: number;
   rewardsUsed: number;
 };
 
@@ -78,7 +78,7 @@ export default async function CustomersPage({
     prisma.$queryRaw<CustomerRow[]>`
       WITH stats AS (${stats})
       SELECT stats.*,
-             (SELECT COUNT(*)::int FROM "SpinReward" s WHERE s.phone = stats.phone) AS "rewardsWon",
+             (SELECT COUNT(*)::int FROM "SpinReward" s WHERE s.phone = stats.phone AND s."redeemedAt" IS NULL AND s."expiredAt" IS NULL) AS "rewardsActive",
              (SELECT COUNT(*)::int FROM "SpinReward" s WHERE s.phone = stats.phone AND s."redeemedAt" IS NOT NULL) AS "rewardsUsed"
       FROM stats
       ORDER BY ${SORTS[sort].order}
@@ -197,7 +197,7 @@ export default async function CustomersPage({
                       )}
                     </td>
                     <td className="py-2.5 text-right text-xs tabular-nums text-neutral-600">
-                      {row.rewardsWon ? `${row.rewardsWon} won · ${row.rewardsUsed} used` : "—"}
+                      {row.rewardsUsed || row.rewardsActive ? [row.rewardsUsed ? `${row.rewardsUsed} used` : null, row.rewardsActive ? `${row.rewardsActive} active` : null].filter(Boolean).join(" · ") : "—"}
                     </td>
                   </tr>
                 ))}

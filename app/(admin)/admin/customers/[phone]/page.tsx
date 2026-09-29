@@ -28,7 +28,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         },
         orderBy: { createdAt: "desc" }
       },
+      // Expired prizes are left out: only ones still usable or already spent matter here.
       rewards: {
+        where: { expiredAt: null },
         include: { order: { select: { trackingCode: true, couponDiscountPaise: true } } },
         orderBy: { createdAt: "desc" }
       },
@@ -73,7 +75,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <StatCard label="Paid orders" value={paidOrders.length} helper={`${customer.orders.length} total incl. cancelled`} />
         <StatCard label="Lifetime spend" value={formatPaise(spent)} helper={paidOrders.length ? `Avg ${formatPaise(Math.round(spent / paidOrders.length))}` : "—"} />
         <StatCard label="Reviews given" value={reviewed} helper={paidOrders.length ? `${((reviewed / paidOrders.length) * 100).toFixed(0)}% of orders rated` : "—"} />
-        <StatCard label="Discount received" value={formatPaise(discountReceived)} helper={`${customer.rewards.length} wheel rewards won`} />
+        <StatCard label="Discount received" value={formatPaise(discountReceived)} helper={`${customer.rewards.filter((reward) => reward.redeemedAt).length} wheel rewards used`} />
       </div>
 
       <SectionCard title="Wheel status" description="Progress towards the next spin in the current cycle.">
@@ -93,9 +95,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         </div>
       </SectionCard>
 
-      <SectionCard title="Wheel rewards" description="Every spin this number has won and whether it was spent.">
+      <SectionCard title="Wheel rewards" description="Prizes this number can still use or has already spent. Expired prizes are not shown.">
         {customer.rewards.length === 0 ? (
-          <p className="py-6 text-center text-sm text-neutral-500">No rewards won yet.</p>
+          <p className="py-6 text-center text-sm text-neutral-500">No active or used rewards.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[620px] text-sm">
@@ -115,8 +117,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     <td className="py-2.5 pr-3 font-black tabular-nums">{reward.discountPercent}%</td>
                     <td className="py-2.5 pr-3 font-mono text-xs">{reward.couponCode}</td>
                     <td className="py-2.5 pr-3">
-                      <Badge tone={reward.redeemedAt ? "green" : reward.expiredAt ? "neutral" : "amber"}>
-                        {reward.redeemedAt ? "Redeemed" : reward.expiredAt ? "Expired" : "Live"}
+                      <Badge tone={reward.redeemedAt ? "green" : "amber"}>
+                        {reward.redeemedAt ? "Used" : "Active"}
                       </Badge>
                     </td>
                     <td className="py-2.5 pr-3 text-xs text-neutral-600">{reward.order?.trackingCode ?? "—"}</td>
