@@ -38,7 +38,7 @@ export function AdminActions({ ordersOpen }: { ordersOpen: boolean }) {
   async function reachedCampus() {
     try {
       const result = await post("/api/admin/orders/reached-campus");
-      toast.success(`${result.count} orders marked reached campus`);
+      toast.success(`${result.count} of today's orders marked reached campus`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not mark reached campus");
     }
@@ -59,7 +59,7 @@ export function AdminActions({ ordersOpen }: { ordersOpen: boolean }) {
         {open ? "Close public orders" : "Open public orders"}
       </Button>
       <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={reachedCampus}>
-        Mark reached campus
+        Mark today&apos;s orders reached
       </Button>
       {FEATURES.deliveryPortal ? (
         <Button className="min-h-12 whitespace-normal text-left sm:text-center" variant="outline" disabled={!!busy} onClick={releaseDeliveries}>

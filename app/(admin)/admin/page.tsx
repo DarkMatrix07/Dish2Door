@@ -97,8 +97,8 @@ export default async function AdminDashboardPage() {
       <SectionCard
         title="Quick actions"
         description={FEATURES.deliveryPortal
-          ? "Open or close ordering, mark active orders as reached campus, and release hostel deliveries."
-          : "Open or close ordering and mark active orders as reached campus."}
+          ? "Open or close ordering, mark today's orders as reached campus, and release hostel deliveries."
+          : "Open or close ordering and mark today's orders as reached campus."}
       >
         <AdminActions ordersOpen={settings.ordersOpen} />
       </SectionCard>
@@ -156,7 +156,12 @@ export default async function AdminDashboardPage() {
         <SectionCard title="Latest orders" description="Recent customer and counter orders." bodyClassName="p-0">
           <div className="divide-y divide-neutral-100">
             {recentOrders.map((order) => (
-              <div key={order.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <Link
+                key={order.id}
+                href={`/admin/orders/${order.trackingCode}`}
+                prefetch={false}
+                className="flex flex-col gap-2 p-4 outline-none transition hover:bg-neutral-50 focus-visible:bg-amber-50/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-950 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+              >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{order.customerName}</p>
@@ -173,7 +178,7 @@ export default async function AdminDashboardPage() {
                   </p>
                 </div>
                 <p className="shrink-0 text-lg font-bold">{formatPaise(order.totalPaise)}</p>
-              </div>
+              </Link>
             ))}
             {!recentOrders.length ? <div className="p-8 text-center text-neutral-500">No orders yet.</div> : null}
           </div>

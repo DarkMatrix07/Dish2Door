@@ -1,7 +1,9 @@
 import { PublicError } from "@/lib/public-error";
 import {
   DeliveryType,
+  NotificationChannel,
   NotificationEvent,
+  NotificationStatus,
   OrderSlot,
   OrderSource,
   OrderStatus,
@@ -14,6 +16,10 @@ import { resolveCampus } from "@/lib/campus";
 import { generatePasscode, generateTrackingCode, hashPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
 import { FULFILLABLE_PAYMENT_STATUSES } from "@/lib/order-filters";
+import { istTodayRange } from "@/lib/ist-day";
+import { reachedCampusWhere, type ReachedCampusScope } from "@/lib/today-board";
+import { quietCloseDecision, quietCloseTimes } from "@/lib/quiet-close";
+import { REVIEW_REMINDER_OFFSETS_MS } from "@/lib/review-schedule";
 import type { FullOrder } from "@/lib/order-types";
 import { assertOrderingWindowOpen } from "@/lib/order-slots";
 import { isValidIndianMobile, normalizePhone } from "@/lib/spin-wheel";
@@ -795,35 +801,45 @@ export async function confirmWhatsAppOrder(orderId: string) {
   return order;
 }
 
-// Sweeps the day's confirmed orders to REACHED_CAMPUS in one click. WhatsApp-mode
-// shops are excluded: they run their own handover flow, so a sweep from the main
-// dashboard must not advance them (or fire their notifications). Those orders are
-// moved individually from the per-order controls on the Orders page.
-export async function markAllReachedCampus() {
-  const activeOrders = await prisma.order.findMany({
-    where: {
-      status: OrderStatus.ORDER_CONFIRMED,
-      paymentStatus: { in: FULFILLABLE_PAYMENT_STATUSES },
-      restaurant: { orderMode: "ONLINE_PAYMENT" }
-    },
+// Moves today's (IST) confirmed orders in one scope to REACHED_CAMPUS and tells each
+// customer. `campusId` / `slot` narrow it; leave one out to not filter on it, pass null for
+// the orders with no campus / no slot (see reachedCampusWhere). WhatsApp-mode shops are
+// excluded: they run their own handover flow from /admin/pizza, so a sweep here must not
+// advance them (or fire their notifications).
+export async function markReachedCampusFor(scope: ReachedCampusScope = {}) {
+  const candidates = await prisma.order.findMany({
+    where: reachedCampusWhere(scope, istTodayRange()),
     select: { id: true }
   });
-
-  if (activeOrders.length === 0) {
+  if (candidates.length === 0) {
     return { count: 0 };
   }
 
+  // One shared stamp, and the update repeats the status guard: an order moved by someone
+  // else between the select and here is left alone. Re-selecting by the stamp then gives
+  // exactly the rows this call moved, so only their customers get a message.
+  const stamp = new Date();
+  const ids = candidates.map((order) => order.id);
   await prisma.order.updateMany({
-    where: { id: { in: activeOrders.map((order) => order.id) } },
-    data: {
-      status: OrderStatus.REACHED_CAMPUS,
-      reachedCampusAt: new Date()
-    }
+    where: { id: { in: ids }, status: OrderStatus.ORDER_CONFIRMED, paymentStatus: { in: FULFILLABLE_PAYMENT_STATUSES } },
+    data: { status: OrderStatus.REACHED_CAMPUS, reachedCampusAt: stamp }
+  });
+  const moved = await prisma.order.findMany({
+    where: { id: { in: ids }, status: OrderStatus.REACHED_CAMPUS, reachedCampusAt: stamp },
+    select: { id: true }
   });
 
-  activeOrders.forEach((order) => dispatchNotifications(order.id, NotificationEvent.REACHED_CAMPUS));
+  moved.forEach((order) => dispatchNotifications(order.id, NotificationEvent.REACHED_CAMPUS));
 
-  return { count: activeOrders.length };
+  return { count: moved.length };
+}
+
+// The dashboard, Telegram and API sweep: every one of today's confirmed orders. Orders
+// from earlier days are deliberately left out. A "reached campus" message hours or days
+// late is worse than none, so those are moved one at a time from the Today board's
+// "still open from earlier days" strip.
+export async function markAllReachedCampus() {
+  return markReachedCampusFor({});
 }
 
 // Assign hostel orders to the delivery board. Releases every pending hostel
@@ -963,6 +979,66 @@ export async function adminMarkOrderDelivered(orderId: string, deliveredById: st
 
   dispatchNotifications(order.id, NotificationEvent.DELIVERED);
   return order;
+}
+
+// Closes a paid order that was forgotten on an earlier day, WITHOUT messaging the customer.
+// Marking it reached or delivered now would send "reached campus" and "delivered" days
+// late, so this records the delivery on the order's own day instead (see quietCloseTimes)
+// and dispatches nothing.
+//
+// The review-reminder job emails anyone whose order was delivered in the last 48 hours and
+// has fewer than three REVIEW_REMINDER log rows. A quietly closed order from yesterday is
+// inside that window, so three SKIPPED rows are written to use up its quota. That needs no
+// schema change and no new marker for the job to learn; the job already counts every
+// REVIEW_REMINDER row whatever its status, and the rows show up in the order's
+// notification log with the reason.
+export async function closeEarlierOrderAsDelivered(orderId: string, adminUserId: string) {
+  const todayStart = istTodayRange().start;
+  return prisma.$transaction(async (tx) => {
+    // Same row lock as cancelOrder: a cancel and a quiet close racing each other cannot
+    // both win.
+    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
+    const existing = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { createdAt: true, status: true, paymentStatus: true, reachedCampusAt: true, releasedAt: true }
+    });
+    if (!existing) throw new PublicError("Order not found");
+    const decision = quietCloseDecision(existing, todayStart);
+    if (!decision.ok) throw new PublicError(decision.reason);
+
+    const times = quietCloseTimes(existing);
+    // Guarded by status (and payment and day) again, so a stale read can never move an
+    // order that is no longer open.
+    const moved = await tx.order.updateMany({
+      where: {
+        id: orderId,
+        status: { in: [OrderStatus.ORDER_CONFIRMED, OrderStatus.REACHED_CAMPUS] },
+        paymentStatus: FULFILLABLE,
+        createdAt: { lt: todayStart }
+      },
+      data: {
+        status: OrderStatus.DELIVERED,
+        reachedCampusAt: times.reachedCampusAt,
+        deliveredAt: times.deliveredAt,
+        deliveredById: adminUserId,
+        deliveryReleased: true,
+        releasedAt: times.releasedAt
+      }
+    });
+    if (moved.count !== 1) throw new PublicError("Only open orders can be closed");
+
+    await tx.notificationLog.createMany({
+      data: REVIEW_REMINDER_OFFSETS_MS.map(() => ({
+        orderId,
+        channel: NotificationChannel.EMAIL,
+        event: NotificationEvent.REVIEW_REMINDER,
+        status: NotificationStatus.SKIPPED,
+        errorMessage: "Closed without messages by admin"
+      }))
+    });
+
+    return { id: orderId, status: OrderStatus.DELIVERED, paymentStatus: existing.paymentStatus };
+  });
 }
 
 export async function cancelOrder(orderId: string, refund: boolean, pendingOnly = false) {

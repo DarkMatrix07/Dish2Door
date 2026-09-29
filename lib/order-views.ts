@@ -1,4 +1,5 @@
 import type { OrderStatus, DeliveryType } from "@prisma/client";
+import { isUnpaidCheckout } from "@/lib/order-filters";
 
 export type TrackingView = {
   trackingCode: string;
@@ -94,4 +95,50 @@ export function containsForbiddenField(value: unknown): boolean {
   return Object.entries(value as Record<string, unknown>).some(
     ([key, nested]) => FORBIDDEN.includes(key) || containsForbiddenField(nested)
   );
+}
+
+// The few fields the admin action buttons need to decide what to offer and to word the
+// cancel confirmation. Shared by the order page and the Today board.
+export type OrderActionView = {
+  id: string;
+  trackingCode: string;
+  customerName: string;
+  status: string;
+  paymentStatus: string;
+  source: string;
+  totalPaise: number;
+  // Only the Today board's "still open from earlier days" rows send this (as an ISO
+  // string); it lets the quiet-close confirmation name the day the order is recorded on.
+  createdAt?: string | Date;
+};
+
+export function toOrderActionView(order: OrderActionView): OrderActionView {
+  return {
+    id: order.id,
+    trackingCode: order.trackingCode,
+    customerName: order.customerName,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    source: order.source,
+    totalPaise: order.totalPaise
+  };
+}
+
+// Which buttons an order gets. One place so the order page and the Today board can never
+// disagree, and so the rule "an unpaid online checkout is not an order" is testable.
+// The server refuses the same invalid moves again; this only decides what to offer.
+export function availableOrderActions(order: { status: string; paymentStatus: string; source: string }) {
+  const active = order.status === "ORDER_CONFIRMED" || order.status === "REACHED_CAMPUS";
+  const unpaidCheckout = isUnpaidCheckout(order);
+  return {
+    unpaidCheckout: active && unpaidCheckout,
+    // Nobody paid for an unpaid checkout, so it is never moved along; cancelling stays
+    // available because that frees any coupon it holds.
+    reached: order.status === "ORDER_CONFIRMED" && !unpaidCheckout,
+    delivered: order.status === "REACHED_CAMPUS" && !unpaidCheckout,
+    // Closing a forgotten order without messages: same paid-order rule as the moves above.
+    // The server additionally insists the order is from an earlier day.
+    closeQuietly: active && !unpaidCheckout,
+    cancel: active
+  };
 }

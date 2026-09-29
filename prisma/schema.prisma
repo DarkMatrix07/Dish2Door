@@ -356,6 +356,9 @@ model Order {
   @@index([customerId])
   @@index([campusId])
   @@index([deliveryType, deliveryReleased])
+  // Every orders screen filters or sorts by when the order was placed (the Today board,
+  // All orders date ranges, exports), so this keeps those fast as orders pile up.
+  @@index([createdAt])
 }
 
 model OrderItem {

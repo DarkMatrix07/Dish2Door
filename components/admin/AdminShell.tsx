@@ -16,7 +16,7 @@ type NavEntry =
 const NAV: NavEntry[] = [
   { type: "link", href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { type: "link", href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { type: "group", label: "Orders", icon: ClipboardList, children: [{ href: "/admin/orders", label: "Live orders" }, { href: "/admin/orders/today", label: "Today's orders" }, { href: "/admin/orders/new", label: "New manual order" }] },
+  { type: "group", label: "Orders", icon: ClipboardList, children: [{ href: "/admin/orders", label: "Today" }, { href: "/admin/orders/all", label: "All orders" }] },
   { type: "group", label: "Catalogue", icon: UtensilsCrossed, children: [{ href: "/admin/menu/restaurants", label: "Restaurants" }, { href: "/admin/menu/items", label: "Menu items" }, { href: "/admin/menu/combos", label: "Combos" }] },
   { type: "group", label: "Offers", icon: BadgePercent, children: [{ href: "/admin/offers/discounts", label: "Item discounts" }, { href: "/admin/offers/coupons", label: "Coupons" }, { href: "/admin/rewards", label: "Discount wheel" }] },
   { type: "link", href: "/admin/customers", label: "Customers", icon: Users },
@@ -40,10 +40,21 @@ const NAV: NavEntry[] = [
   { type: "group", label: "Settings", icon: Settings, children: [{ href: "/admin/settings", label: "Store & ordering" }, { href: "/admin/settings/campuses", label: "Campuses" }] }
 ];
 
+// /admin/orders/<TRACKINGCODE>: an order's own page. Tracking codes are 4-12 letters and
+// digits, so the fixed sub-pages ("all", "new", "today") are excluded by name.
+function isOrderDetailPath(pathname: string) {
+  const match = /^\/admin\/orders\/([^/]+)$/.exec(pathname);
+  return match !== null && !["all", "new", "today"].includes(match[1]);
+}
+
 function isLinkActive(pathname: string, href: string) {
+  // Today is the board itself and the "New order" form it links to; an order's own page
+  // belongs to "All orders", which is where a search for it starts.
+  if (href === "/admin/orders") return pathname === href || pathname === "/admin/orders/new";
+  if (href === "/admin/orders/all") return pathname === href || pathname.startsWith(`${href}/`) || isOrderDetailPath(pathname);
   // Any of these have sibling routes nested one level deeper ("/x/y"), so a prefix
   // match would wrongly light up both the parent link and its sibling at once.
-  if (href === "/admin" || href === "/admin/orders" || href === "/admin/pizza") return pathname === href;
+  if (href === "/admin" || href === "/admin/pizza") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -106,6 +117,10 @@ function SidebarFooter({ userName }: { userName: string }) {
 }
 
 function currentTitle(pathname: string) {
+  // These two pages are not sidebar links of their own, so they get a name here rather than
+  // borrowing the link that highlights for them.
+  if (pathname === "/admin/orders/new") return "Orders / New order";
+  if (isOrderDetailPath(pathname)) return "Orders / Order details";
   for (const entry of NAV) {
     if (entry.type === "link" && isLinkActive(pathname, entry.href)) return entry.label;
     if (entry.type === "group") {

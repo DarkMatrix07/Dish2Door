@@ -101,7 +101,7 @@ bot.callbackQuery("reached_campus", async (ctx) => {
   if (!isAllowedAdmin(ctx.from?.id)) return ctx.answerCallbackQuery("Not allowed");
   await ctx.answerCallbackQuery("Marking orders...");
   const result = await markAllReachedCampus();
-  await ctx.reply(`${result.count} active orders marked as reached campus. Email and WhatsApp notifications were triggered.`);
+  await ctx.reply(`${result.count} of today's orders marked as reached campus. Email and WhatsApp notifications were triggered. Orders from earlier days were not touched; handle those one by one on the Today board in admin.`);
 });
 
 bot.callbackQuery("assign_delivery", async (ctx) => {

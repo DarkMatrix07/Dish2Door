@@ -20,3 +20,14 @@ export function todayLabel(date = new Date()) {
     year: "numeric"
   }).format(date);
 }
+
+// Like formatPaise but keeps the paise when there are any (₹7.45, not ₹7), for screens
+// where the lines of a bill must visibly add up to the total.
+export function formatPaiseExact(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: value % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2
+  }).format(value / 100);
+}
