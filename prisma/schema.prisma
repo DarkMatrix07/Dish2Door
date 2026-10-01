@@ -125,6 +125,7 @@ model User {
   deliveries    Order[]       @relation("DeliveredBy")
   deliveryAssignments DeliveryAssignment[]
   auditEvents   AuditEvent[]
+  issuedSpinRewards SpinReward[] @relation("IssuedSpinRewards")
 }
 
 model Session {
@@ -512,8 +513,15 @@ model SpinReward {
   // moves the baseline to an absolute count, so this is the only way to restore the
   // exact previous cycle if the order is later cancelled.
   baselineBefore  Int?
+  // Set when an admin gave this prize by hand instead of the customer spinning for it.
+  // Such gifts are a bonus: redeeming one does not restart the customer's loyalty cycle,
+  // and they are left out of the wheel's win statistics. Restrict, so deleting an admin
+  // can never turn their gifts into apparent wheel wins.
+  issuedById      String?
+  issuedNote      String?
 
   customer        Customer  @relation(fields: [phone], references: [phone], onDelete: Cascade)
+  issuedBy        User?     @relation("IssuedSpinRewards", fields: [issuedById], references: [id], onDelete: Restrict)
   order           Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@index([phone])

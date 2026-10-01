@@ -1,64 +1,183 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { OrderStatus, PaymentStatus, SpinOutcome } from "@prisma/client";
+import { Mail, MessageCircle, Phone } from "lucide-react";
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
+import { CampusBadge } from "@/components/admin/CampusBadge";
+import { CancelPrizeButton } from "@/components/admin/CancelPrizeButton";
+import { CopyButton } from "@/components/admin/CopyButton";
+import { CustomerTimeline } from "@/components/admin/CustomerTimeline";
+import { GiveWheelCoupon } from "@/components/admin/GiveWheelCoupon";
 import { Badge } from "@/components/ui/badge";
-import { prisma } from "@/lib/db";
-import { formatIstDateTime } from "@/lib/ist-day";
-import { SPIN_ORDERS_PER_REWARD } from "@/lib/spin-wheel";
-import { formatPaise } from "@/lib/utils";
 import { requireRole } from "@/lib/auth";
+import {
+  buildCustomerTimeline,
+  loyaltyProgress,
+  parseTimelineFilter,
+  parseTimelineLimit,
+  timelineSources
+} from "@/lib/customer-timeline";
+import { prisma } from "@/lib/db";
+import { formatAgo, formatIstFull } from "@/lib/ist-day";
+import { REAL_ORDER_WHERE, REVENUE_ORDER_WHERE } from "@/lib/order-filters";
+import { getActiveSpinReward } from "@/lib/spin-rewards";
+import { SPIN_ORDERS_PER_REWARD } from "@/lib/spin-wheel";
+import { cn, formatPaise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const PAID_STATUSES: PaymentStatus[] = [PaymentStatus.PAID_ONLINE, PaymentStatus.PAID_MANUALLY];
+// Customer keys are normalized phone numbers; anything else cannot exist, so it skips the
+// database.
+const PHONE_KEY = /^\d{6,15}$/;
 
-export default async function CustomerDetailPage({ params }: { params: Promise<{ phone: string }> }) {
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("min-w-0", className)}>
+      <dt className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</dt>
+      <dd className="mt-0.5 text-sm [overflow-wrap:anywhere]">{children}</dd>
+    </div>
+  );
+}
+
+export default async function CustomerDetailPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ phone: string }>;
+  searchParams: Promise<{ show?: string; limit?: string }>;
+}) {
   await requireRole(["ADMIN"]);
   const { phone } = await params;
+  if (!PHONE_KEY.test(phone)) notFound();
+  const query = await searchParams;
+  const filter = parseTimelineFilter(query.show);
+  const limit = parseTimelineLimit(query.limit);
+  const sources = timelineSources(filter);
 
-  const customer = await prisma.customer.findUnique({
-    where: { phone },
-    include: {
-      orders: {
-        include: {
-          restaurant: { select: { name: true } },
-          items: { select: { nameSnapshot: true, quantity: true, linePaise: true } },
-          rating: { select: { foodRating: true, deliveryRating: true, review: true, createdAt: true } }
-        },
-        orderBy: { createdAt: "desc" }
-      },
-      // Expired prizes are left out: only ones still usable or already spent matter here.
-      rewards: {
-        where: { expiredAt: null },
-        include: { order: { select: { trackingCode: true, couponDiscountPaise: true } } },
-        orderBy: { createdAt: "desc" }
-      },
-      spins: { orderBy: { createdAt: "desc" } }
-    }
-  });
-
+  const customer = await prisma.customer.findUnique({ where: { phone } });
   if (!customer) notFound();
 
-  const paidOrders = customer.orders.filter(
-    (order) => PAID_STATUSES.includes(order.paymentStatus) && order.status !== OrderStatus.CANCELLED
-  );
-  const spent = paidOrders.reduce((sum, order) => sum + order.totalPaise, 0);
-  const reviewed = paidOrders.filter((order) => order.rating).length;
-  const discountReceived = paidOrders.reduce((sum, order) => sum + order.couponDiscountPaise, 0);
-  const cycleReviews = Math.max(0, reviewed - customer.spinBaseline);
+  // Before anything lists prizes: this closes a prize whose code has run out, so a dead
+  // one is neither shown as waiting nor blocks the next gift.
+  const waitingReward = await getActiveSpinReward(phone);
 
-  // What they order most, across all paid orders.
-  const itemCounts = new Map<string, { qty: number; spend: number }>();
-  for (const order of paidOrders) {
-    for (const item of order.items) {
-      const entry = itemCounts.get(item.nameSnapshot) ?? { qty: 0, spend: 0 };
-      entry.qty += item.quantity;
-      entry.spend += item.linePaise;
-      itemCounts.set(item.nameSnapshot, entry);
-    }
-  }
-  const favourites = [...itemCounts.entries()].sort((a, b) => b[1].qty - a[1].qty).slice(0, 8);
+  const ownOrders = { customerId: phone };
+  const take = limit + 1;
+  const [revenue, reviewCount, campusGroups, waitingExtras, orders, reviews, prizes, spins] = await Promise.all([
+    prisma.order.aggregate({
+      where: { ...ownOrders, ...REVENUE_ORDER_WHERE },
+      _count: { _all: true },
+      _sum: { totalPaise: true },
+      _max: { createdAt: true }
+    }),
+    prisma.rating.count({ where: { order: ownOrders } }),
+    prisma.order.groupBy({
+      by: ["campusId"],
+      where: { ...ownOrders, ...REVENUE_ORDER_WHERE, campusId: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { campusId: "desc" } },
+      take: 1
+    }),
+    waitingReward
+      ? Promise.all([
+          prisma.coupon.findUnique({ where: { code: waitingReward.couponCode }, select: { expiresAt: true, heldCount: true } }),
+          waitingReward.issuedById
+            ? prisma.user.findUnique({ where: { id: waitingReward.issuedById }, select: { name: true } })
+            : null
+        ])
+      : null,
+    sources.orders
+      ? prisma.order.findMany({
+          where: { ...ownOrders, ...REAL_ORDER_WHERE },
+          select: {
+            id: true,
+            createdAt: true,
+            trackingCode: true,
+            status: true,
+            paymentStatus: true,
+            source: true,
+            totalPaise: true,
+            couponCode: true,
+            couponDiscountPaise: true,
+            restaurant: { select: { name: true } },
+            items: { select: { nameSnapshot: true, quantity: true } }
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take
+        })
+      : [],
+    sources.reviews
+      ? prisma.rating.findMany({
+          where: { order: ownOrders },
+          select: {
+            id: true,
+            createdAt: true,
+            foodRating: true,
+            deliveryRating: true,
+            review: true,
+            order: { select: { trackingCode: true, restaurant: { select: { name: true } } } }
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take
+        })
+      : [],
+    // Only prizes still waiting or already used. Closed and expired ones are never listed.
+    sources.prizes
+      ? prisma.spinReward.findMany({
+          where: { phone, expiredAt: null },
+          select: {
+            id: true,
+            createdAt: true,
+            discountPercent: true,
+            couponCode: true,
+            redeemedAt: true,
+            issuedNote: true,
+            issuedById: true,
+            issuedBy: { select: { name: true } },
+            order: { select: { trackingCode: true, couponDiscountPaise: true } }
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take
+        })
+      : [],
+    sources.prizes
+      ? prisma.spinUsage.findMany({
+          where: { phone },
+          select: { id: true, createdAt: true, spinDay: true, outcome: true, mode: true },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take
+        })
+      : []
+  ]);
+
+  const campus = campusGroups[0]?.campusId
+    ? await prisma.campus.findUnique({ where: { id: campusGroups[0].campusId }, select: { code: true, name: true } })
+    : null;
+
+  // Prizes still waiting need their coupon's expiry and hold state; the rest do not.
+  const waitingCodes = prizes.filter((prize) => !prize.redeemedAt).map((prize) => prize.couponCode);
+  const coupons = waitingCodes.length
+    ? await prisma.coupon.findMany({ where: { code: { in: waitingCodes } }, select: { code: true, expiresAt: true, heldCount: true } })
+    : [];
+  const couponByCode = new Map(coupons.map((coupon) => [coupon.code, coupon]));
+
+  const { events, hasMore } = buildCustomerTimeline(
+    {
+      orders,
+      reviews,
+      prizes: prizes.map((prize) => ({ ...prize, coupon: prize.redeemedAt ? null : couponByCode.get(prize.couponCode) ?? null })),
+      spins
+    },
+    limit
+  );
+
+  const orderCount = revenue._count._all;
+  const spent = revenue._sum.totalPaise ?? 0;
+  const lastOrderAt = revenue._max.createdAt;
+  const loyalty = loyaltyProgress(reviewCount, customer.spinBaseline, SPIN_ORDERS_PER_REWARD);
+  const [waitingCoupon, waitingAdmin] = waitingExtras ?? [null, null];
+
+  const digits = customer.phone.replace(/\D/g, "");
+  const whatsappHref = digits.length >= 10 ? `https://wa.me/91${digits.slice(-10)}` : null;
 
   return (
     <PageContainer>
@@ -68,162 +187,119 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       <AdminPageHeader
         eyebrow="Customer"
         title={customer.name ?? customer.phone}
-        description={`${customer.phone}${customer.email ? ` · ${customer.email}` : ""} · first seen ${formatIstDateTime(customer.firstSeenAt)}`}
-      />
+        description={`First seen ${formatIstFull(customer.firstSeenAt)} IST. Everything this number has ordered, reviewed and won, newest first.`}
+      >
+        <GiveWheelCoupon
+          phone={customer.phone}
+          name={customer.name}
+          waiting={
+            waitingReward
+              ? {
+                  percent: waitingReward.discountPercent,
+                  code: waitingReward.couponCode,
+                  expiresAt: waitingCoupon?.expiresAt?.toISOString() ?? null,
+                  held: (waitingCoupon?.heldCount ?? 0) > 0
+                }
+              : null
+          }
+        />
+      </AdminPageHeader>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Paid orders" value={paidOrders.length} helper={`${customer.orders.length} total incl. cancelled`} />
-        <StatCard label="Lifetime spend" value={formatPaise(spent)} helper={paidOrders.length ? `Avg ${formatPaise(Math.round(spent / paidOrders.length))}` : "—"} />
-        <StatCard label="Reviews given" value={reviewed} helper={paidOrders.length ? `${((reviewed / paidOrders.length) * 100).toFixed(0)}% of orders rated` : "—"} />
-        <StatCard label="Discount received" value={formatPaise(discountReceived)} helper={`${customer.rewards.filter((reward) => reward.redeemedAt).length} wheel rewards used`} />
+        <StatCard label="Total spent" value={formatPaise(spent)} helper={orderCount ? `Across ${orderCount} paid ${orderCount === 1 ? "order" : "orders"}` : "No paid orders yet"} />
+        <StatCard label="Orders" value={orderCount} helper={lastOrderAt ? `Last ${formatAgo(new Date().getTime() - lastOrderAt.getTime())}` : "—"} />
+        <StatCard label="Average order" value={orderCount ? formatPaise(Math.round(spent / orderCount)) : "—"} helper="Paid orders only" />
+        <StatCard label="Reviews left" value={reviewCount} helper={orderCount ? `${Math.min(100, Math.round((reviewCount / orderCount) * 100))}% of orders rated` : "—"} />
       </div>
 
-      <SectionCard title="Wheel status" description="Progress towards the next spin in the current cycle.">
-        <div className="flex flex-wrap items-center gap-4">
-          <span className="flex gap-1.5">
-            {Array.from({ length: SPIN_ORDERS_PER_REWARD }).map((_, step) => (
-              <span key={step} className={`h-2.5 w-14 rounded-full ${step < cycleReviews ? "bg-amber-400" : "bg-neutral-200"}`} />
-            ))}
-          </span>
-          <span className="text-sm font-semibold tabular-nums">
-            {Math.min(cycleReviews, SPIN_ORDERS_PER_REWARD)} of {SPIN_ORDERS_PER_REWARD} reviews this cycle
-          </span>
-          {cycleReviews >= SPIN_ORDERS_PER_REWARD ? <Badge tone="green">Spin ready</Badge> : null}
-          <span className="text-xs text-neutral-500">
-            {reviewed} reviews all time · counter rebased at {customer.spinBaseline}
-          </span>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+        {/* The side cards come first on a phone: contact details and the waiting prize are
+            what an admin opens this page for. */}
+        <div className="min-w-0 space-y-4 lg:order-2 lg:space-y-6">
+          <SectionCard title="Contact">
+            <dl className="space-y-3">
+              <Field label="Phone">
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <a href={`tel:${digits}`} className="inline-flex items-center gap-1.5 font-semibold tabular-nums hover:underline">
+                    <Phone size={14} aria-hidden="true" />
+                    {customer.phone}
+                  </a>
+                  {whatsappHref ? (
+                    <a href={whatsappHref} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1.5 text-emerald-700 hover:underline">
+                      <MessageCircle size={14} aria-hidden="true" />
+                      WhatsApp
+                    </a>
+                  ) : null}
+                </span>
+              </Field>
+              <Field label="Email">
+                {customer.email ? (
+                  <a href={`mailto:${encodeURIComponent(customer.email).replace("%40", "@")}`} className="inline-flex items-center gap-1.5 hover:underline">
+                    <Mail size={14} className="shrink-0" aria-hidden="true" />
+                    {customer.email}
+                  </a>
+                ) : (
+                  <span className="text-neutral-400">Not given</span>
+                )}
+              </Field>
+              <Field label="First seen">{formatIstFull(customer.firstSeenAt)} IST</Field>
+              <Field label="Last paid order">{lastOrderAt ? `${formatIstFull(lastOrderAt)} IST` : "No paid orders yet"}</Field>
+              <Field label="Orders most from">{campus ? <CampusBadge campus={campus} /> : <span className="text-neutral-400">Not known yet</span>}</Field>
+            </dl>
+          </SectionCard>
+
+          <SectionCard title="Wheel" description="Progress towards the next spin, and any prize waiting.">
+            <div>
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: SPIN_ORDERS_PER_REWARD }).map((_, step) => (
+                  <span key={step} className={cn("h-2.5 flex-1 rounded-full", step < loyalty.done ? "bg-amber-400" : "bg-neutral-200")} />
+                ))}
+              </div>
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold tabular-nums">
+                {loyalty.done} of {loyalty.perReward} reviewed orders towards the next spin
+                {loyalty.ready ? <Badge tone="green">Spin ready</Badge> : null}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-neutral-500">Prizes you give by hand do not restart this count.</p>
+            </div>
+
+            <div className="mt-4 border-t border-neutral-100 pt-4">
+              {waitingReward ? (
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-black">{waitingReward.discountPercent}% prize waiting</p>
+                    <Badge tone="amber">{waitingReward.issuedById ? "Given by an admin" : "Won on the wheel"}</Badge>
+                  </div>
+                  <p className="mt-1 flex items-center gap-1">
+                    <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs">{waitingReward.couponCode}</code>
+                    <CopyButton value={waitingReward.couponCode} label="coupon code" />
+                  </p>
+                  {waitingReward.issuedById ? (
+                    <p className="mt-1 text-xs text-neutral-500">
+                      Given by {waitingAdmin?.name ?? "an admin"}
+                      {waitingReward.issuedNote ? ` · ${waitingReward.issuedNote}` : ""}
+                    </p>
+                  ) : null}
+                  {waitingCoupon?.expiresAt ? <p className="mt-1 text-xs text-neutral-500">Works until {formatIstFull(waitingCoupon.expiresAt)} IST</p> : null}
+                  {(waitingCoupon?.heldCount ?? 0) > 0 ? (
+                    <p className="mt-1 text-xs font-semibold text-amber-800">
+                      In a checkout that is not paid yet, so it cannot be cancelled until that order is paid or cancelled.
+                    </p>
+                  ) : null}
+                  <div className="mt-3">
+                    <CancelPrizeButton phone={customer.phone} rewardId={waitingReward.id} percent={waitingReward.discountPercent} code={waitingReward.couponCode} />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-500">No prize waiting.</p>
+              )}
+            </div>
+          </SectionCard>
         </div>
-      </SectionCard>
 
-      <SectionCard title="Wheel rewards" description="Prizes this number can still use or has already spent. Expired prizes are not shown.">
-        {customer.rewards.length === 0 ? (
-          <p className="py-6 text-center text-sm text-neutral-500">No active or used rewards.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wide text-neutral-500">
-                  <th className="py-2 pr-3">Won</th>
-                  <th className="py-2 pr-3">Coupon</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Used on</th>
-                  <th className="py-2 pr-3 text-right">Discount</th>
-                  <th className="py-2 text-right">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customer.rewards.map((reward) => (
-                  <tr key={reward.id} className="border-b border-neutral-100 last:border-0">
-                    <td className="py-2.5 pr-3 font-black tabular-nums">{reward.discountPercent}%</td>
-                    <td className="py-2.5 pr-3 font-mono text-xs">{reward.couponCode}</td>
-                    <td className="py-2.5 pr-3">
-                      <Badge tone={reward.redeemedAt ? "green" : "amber"}>
-                        {reward.redeemedAt ? "Used" : "Active"}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 pr-3 text-xs text-neutral-600">{reward.order?.trackingCode ?? "—"}</td>
-                    <td className="py-2.5 pr-3 text-right tabular-nums">
-                      {reward.order?.couponDiscountPaise ? formatPaise(reward.order.couponDiscountPaise) : "—"}
-                    </td>
-                    <td className="py-2.5 text-right text-xs text-neutral-500">{formatIstDateTime(reward.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Favourite items" description="Most ordered, by quantity.">
-          {favourites.length === 0 ? (
-            <p className="py-6 text-center text-sm text-neutral-500">No paid orders yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {favourites.map(([name, value]) => (
-                <div key={name} className="flex items-center justify-between border-b border-neutral-100 pb-2 text-sm last:border-0">
-                  <span className="truncate pr-3">{name}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-neutral-600">×{value.qty} · {formatPaise(value.spend)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard title="Spin history" description="Daily wheel decisions, including days they gave it up.">
-          {customer.spins.length === 0 ? (
-            <p className="py-6 text-center text-sm text-neutral-500">No spins recorded.</p>
-          ) : (
-            <div className="space-y-2">
-              {customer.spins.map((spin) => (
-                <div key={spin.id} className="flex items-center justify-between border-b border-neutral-100 pb-2 text-sm last:border-0">
-                  <span className="tabular-nums">{spin.spinDay}</span>
-                  <span className="flex items-center gap-2">
-                    <Badge tone={spin.outcome === SpinOutcome.SPUN ? "green" : "neutral"}>
-                      {spin.outcome === SpinOutcome.SPUN ? "Spun" : "Gave up"}
-                    </Badge>
-                    <span className="text-xs text-neutral-500">{spin.mode === "EVERYONE" ? "Promo" : "Loyalty"}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+        <SectionCard id="timeline" title="Timeline" description="Orders, reviews and wheel prizes, newest first. Times are in IST." className="lg:order-1 lg:col-span-2">
+          <CustomerTimeline phone={customer.phone} events={events} filter={filter} limit={limit} hasMore={hasMore} />
         </SectionCard>
       </div>
-
-      <SectionCard title="Order history" description="Every order placed by this number.">
-        {customer.orders.length === 0 ? (
-          <p className="py-6 text-center text-sm text-neutral-500">No orders yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wide text-neutral-500">
-                  <th className="py-2 pr-3">Order</th>
-                  <th className="py-2 pr-3">Items</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Rating</th>
-                  <th className="py-2 pr-3 text-right">Discount</th>
-                  <th className="py-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customer.orders.map((order) => (
-                  <tr key={order.id} className="border-b border-neutral-100 last:border-0 align-top">
-                    <td className="py-2.5 pr-3">
-                      <span className="font-mono text-xs font-bold">{order.trackingCode}</span>
-                      <span className="block text-xs text-neutral-500">{order.restaurant.name}</span>
-                      <span className="block text-xs text-neutral-400">{formatIstDateTime(order.createdAt)}</span>
-                    </td>
-                    <td className="py-2.5 pr-3 text-xs text-neutral-600">
-                      {order.items.map((item) => `${item.nameSnapshot} ×${item.quantity}`).join(", ")}
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      <Badge tone={order.status === OrderStatus.CANCELLED ? "red" : order.status === OrderStatus.DELIVERED ? "green" : "amber"}>
-                        {order.status.replace(/_/g, " ").toLowerCase()}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 pr-3 text-xs">
-                      {order.rating ? (
-                        <>
-                          <span className="font-semibold">food {order.rating.foodRating}★ · delivery {order.rating.deliveryRating}★</span>
-                          {order.rating.review ? <span className="block text-neutral-500">“{order.rating.review}”</span> : null}
-                        </>
-                      ) : (
-                        <span className="text-neutral-400">Not rated</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right tabular-nums text-emerald-700">
-                      {order.couponDiscountPaise ? `-${formatPaise(order.couponDiscountPaise)}` : "—"}
-                    </td>
-                    <td className="py-2.5 text-right font-semibold tabular-nums">{formatPaise(order.totalPaise)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
     </PageContainer>
   );
 }

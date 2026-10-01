@@ -74,11 +74,16 @@ export default async function CustomersPage({
     ${where}
     GROUP BY c.phone`;
 
+  // "Active" rewards only count prizes whose code can still be used, so a leftover one that has
+  // run out does not show as a prize waiting.
   const [rows, [totals]] = await Promise.all([
     prisma.$queryRaw<CustomerRow[]>`
       WITH stats AS (${stats})
       SELECT stats.*,
-             (SELECT COUNT(*)::int FROM "SpinReward" s WHERE s.phone = stats.phone AND s."redeemedAt" IS NULL AND s."expiredAt" IS NULL) AS "rewardsActive",
+             (SELECT COUNT(*)::int FROM "SpinReward" s JOIN "Coupon" cp ON cp.code = s."couponCode"
+                WHERE s.phone = stats.phone AND s."redeemedAt" IS NULL AND s."expiredAt" IS NULL
+                  AND cp.active AND (cp."expiresAt" IS NULL OR cp."expiresAt" > NOW())
+                  AND (cp."maxUses" IS NULL OR cp."usedCount" < cp."maxUses")) AS "rewardsActive",
              (SELECT COUNT(*)::int FROM "SpinReward" s WHERE s.phone = stats.phone AND s."redeemedAt" IS NOT NULL) AS "rewardsUsed"
       FROM stats
       ORDER BY ${SORTS[sort].order}
@@ -168,6 +173,7 @@ export default async function CustomersPage({
                       <Link href={`/admin/customers/${row.phone}`} className="font-semibold text-neutral-900 hover:underline">
                         {row.name ?? "Unknown"}
                       </Link>
+                      {row.rewardsActive > 0 ? <Badge tone="amber" className="ml-2 px-2 py-0.5 align-middle text-[11px]">Prize waiting</Badge> : null}
                       <span className="block text-xs tabular-nums text-neutral-500">
                         {row.phone}
                         {row.email ? ` · ${row.email}` : ""}

@@ -93,32 +93,6 @@ const schema = z.discriminatedUnion("action", [
     discountPercent: z.number().int().min(0).max(MAX_DISCOUNT_PERCENT)
   }),
   z.object({
-    action: z.literal("coupon.create"),
-    code: z.string().min(3).max(24),
-    description: z.string().optional(),
-    discountPercent: z.number().int().min(1).max(100),
-    maxUses: z.number().int().min(1).nullable().optional(),
-    expiresAt: z.string().datetime().nullable().optional()
-  }),
-  z.object({
-    action: z.literal("coupon.update"),
-    id: z.string(),
-    code: z.string().min(3).max(24).optional(),
-    description: z.string().nullable().optional(),
-    discountPercent: z.number().int().min(1).max(100).optional(),
-    maxUses: z.number().int().min(1).nullable().optional(),
-    expiresAt: z.string().datetime().nullable().optional()
-  }),
-  z.object({
-    action: z.literal("coupon.active"),
-    id: z.string(),
-    active: z.boolean()
-  }),
-  z.object({
-    action: z.literal("coupon.delete"),
-    id: z.string()
-  }),
-  z.object({
     action: z.literal("course.reorder"),
     restaurantId: z.string(),
     orderedIds: z.array(z.string()).min(1)
@@ -363,46 +337,6 @@ export async function POST(request: Request) {
       }
     });
     return NextResponse.json({ item });
-  }
-
-  if (body.action === "coupon.create") {
-    const coupon = await prisma.coupon.create({
-      data: {
-        code: body.code.toUpperCase(),
-        description: body.description,
-        discountPercent: body.discountPercent,
-        maxUses: body.maxUses,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null
-      }
-    });
-    return NextResponse.json({ coupon });
-  }
-
-  if (body.action === "coupon.update") {
-    const coupon = await prisma.coupon.update({
-      where: { id: body.id },
-      data: {
-        code: body.code?.toUpperCase(),
-        description: body.description,
-        discountPercent: body.discountPercent,
-        maxUses: body.maxUses,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : body.expiresAt
-      }
-    });
-    return NextResponse.json({ coupon });
-  }
-
-  if (body.action === "coupon.active") {
-    const coupon = await prisma.coupon.update({
-      where: { id: body.id },
-      data: { active: body.active }
-    });
-    return NextResponse.json({ coupon });
-  }
-
-  if (body.action === "coupon.delete") {
-    const coupon = await prisma.coupon.delete({ where: { id: body.id } });
-    return NextResponse.json({ coupon });
   }
 
   if (body.action === "course.reorder") {

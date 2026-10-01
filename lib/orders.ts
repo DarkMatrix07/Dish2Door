@@ -622,7 +622,9 @@ export async function confirmOnlineOrder(orderId: string, payment: {
 // baseline to the current reviewed-order count. That zeroes the wheel-eligibility
 // counter, so the customer must review another 3 orders to earn the next spin, while
 // leaving the real order history untouched. Non-wheel coupons are a no-op.
-async function redeemSpinRewardIfAny(
+// A prize an admin gave by hand (issuedById set) is a bonus on top of the loyalty loop: it
+// is marked redeemed, but the cycle is not reset and baselineBefore stays null.
+export async function redeemSpinRewardIfAny(
   tx: Prisma.TransactionClient,
   couponCode: string,
   customerPhone: string,
@@ -633,6 +635,11 @@ async function redeemSpinRewardIfAny(
     where: { couponCode, phone, redeemedAt: null, expiredAt: null }
   });
   if (!reward) return;
+
+  if (reward.issuedById !== null) {
+    await tx.spinReward.update({ where: { id: reward.id }, data: { redeemedAt: new Date(), orderId } });
+    return;
+  }
 
   const [reviewedCount, customer] = await Promise.all([
     tx.order.count({ where: { customerPhone: phone, rating: { isNot: null } } }),
@@ -1077,8 +1084,9 @@ export async function cancelOrder(orderId: string, refund: boolean, pendingOnly 
 
 // Cancelling an order gives back any spin-wheel reward it consumed: the coupon becomes
 // usable again and the reward returns to "outstanding", so the customer keeps a prize
-// they legitimately won instead of silently losing it with the order.
-async function restoreSpinRewardForCancelledOrder(
+// they legitimately won instead of silently losing it with the order. A gift never moved
+// the loyalty baseline (baselineBefore is null), so reopening one rewinds nothing.
+export async function restoreSpinRewardForCancelledOrder(
   tx: Prisma.TransactionClient,
   orderId: string,
   couponCode: string | null

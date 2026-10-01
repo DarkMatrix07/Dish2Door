@@ -3,7 +3,7 @@ import { Prisma, SpinMode, SpinOutcome } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
-import { getActiveSpinReward } from "@/lib/spin-rewards";
+import { findFreeWheelCouponCode, getActiveSpinReward } from "@/lib/spin-rewards";
 import {
   getIndiaSpinDay,
   isValidIndianMobile,
@@ -20,16 +20,7 @@ const schema = z.object({
   phone: z.string().min(8).max(20)
 });
 
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const REWARD_TTL_MS = 24 * 60 * 60 * 1000;
-
-function randomCouponCode() {
-  let suffix = "";
-  for (let i = 0; i < 6; i += 1) {
-    suffix += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
-  }
-  return `WHEEL${suffix}`;
-}
 
 function rewardResponse(reward: { discountPercent: number; couponCode: string }) {
   return NextResponse.json({
@@ -78,14 +69,7 @@ export async function POST(request: Request) {
     const segmentIndex = pickWeightedSegmentIndex(Math.random());
     const discountPercent = WHEEL_SEGMENTS[segmentIndex].percent;
 
-    // Retry on the rare coupon-code collision.
-    let couponCode = "";
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      couponCode = randomCouponCode();
-      const clash = await prisma.coupon.findUnique({ where: { code: couponCode } });
-      if (!clash) break;
-      couponCode = "";
-    }
+    const couponCode = await findFreeWheelCouponCode();
     if (!couponCode) {
       return NextResponse.json({ error: "Could not issue your reward. Please try again." }, { status: 500 });
     }

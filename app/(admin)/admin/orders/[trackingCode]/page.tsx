@@ -318,7 +318,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                 </li>
               ))}
             </ul>
-            <table className="hidden w-full table-fixed text-sm sm:table">
+            <table className="hidden w-full min-w-0! table-fixed text-sm sm:table">
               <colgroup>
                 <col />
                 <col className="w-16" />
