@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { describeChanges, recordAudit, summariseChanges, type ChangeSpec } from "@/lib/audit";
 import { DEFAULT_SETTINGS_ID, getSettings } from "@/lib/settings";
 import { promoUntilDayFromNow } from "@/lib/spin-promo";
 
@@ -17,6 +18,21 @@ const schema = z.object({
   orderingCloseMinute: z.number().int().min(0).max(1439).optional(),
   spinWheelForEveryone: z.boolean().optional(),
 });
+
+// What the activity log reports when a field here moves. The closed message is named, not
+// quoted, to keep the row short.
+const SETTING_CHANGES: readonly ChangeSpec[] = [
+  { key: "ordersOpen", label: "taking orders", kind: "bool" },
+  { key: "closedMessage", label: "closed message", kind: "changed" },
+  { key: "contactNumber", label: "contact number", kind: "text" },
+  { key: "platformFeePaise", label: "platform fee", kind: "money" },
+  { key: "hostelDeliveryFeePaise", label: "hostel delivery fee", kind: "money" },
+  { key: "paymentChargePercentBps", label: "payment charge", kind: "bps" },
+  { key: "paymentChargeFixedPaise", label: "fixed payment charge", kind: "money" },
+  { key: "orderingOpenMinute", label: "opening time", kind: "minute" },
+  { key: "orderingCloseMinute", label: "closing time", kind: "minute" },
+  { key: "spinWheelForEveryone", label: "wheel open to everyone", kind: "bool" }
+];
 
 export async function GET() {
   const user = await requireApiRole(["ADMIN"]);
@@ -57,6 +73,9 @@ export async function POST(request: Request) {
     update: { ...body, ...promoFields },
     create: { id: DEFAULT_SETTINGS_ID, ...body, ...promoFields }
   });
+
+  const detail = summariseChanges("Store settings", describeChanges(current, body, SETTING_CHANGES));
+  if (detail) await recordAudit({ actorId: user.id, action: "settings.update", targetType: "settings", targetId: DEFAULT_SETTINGS_ID, detail });
 
   return NextResponse.json({ settings });
 }

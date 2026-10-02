@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
+import { plural, recordAudit } from "@/lib/audit";
+import { prisma } from "@/lib/db";
 import { markAllReachedCampus, markReachedCampusFor } from "@/lib/orders";
 
 // Optional scope. A key left out means "do not filter on it"; null means the orders with no
@@ -36,5 +38,24 @@ export async function POST(request: Request) {
     campusId === undefined && slot === undefined
       ? await markAllReachedCampus()
       : await markReachedCampusFor({ campusId, slot });
+
+  // Nothing moved means nothing happened worth a row. Who pressed it, and for which
+  // campus and slot, is what the owner asks about afterwards. (The orders themselves are
+  // not listed: the sweep reports only how many it moved.)
+  if (result.count > 0) {
+    const campus = typeof campusId === "string"
+      ? await prisma.campus.findUnique({ where: { id: campusId }, select: { name: true } }).catch(() => null)
+      : null;
+    const scope = [
+      campusId === undefined ? null : campusId === null ? "orders with no campus" : campus?.name ?? "one campus",
+      slot === undefined ? null : slot === null ? "orders with no slot" : `${slot.toLowerCase()} slot`
+    ].filter(Boolean);
+    await recordAudit({
+      actorId: user.id,
+      action: "order.reached_bulk",
+      targetType: "order",
+      detail: `Marked ${plural(result.count, "order")} as reached campus (${scope.length ? scope.join(", ") : "all of today's confirmed orders"})`
+    });
+  }
   return NextResponse.json(result);
 }

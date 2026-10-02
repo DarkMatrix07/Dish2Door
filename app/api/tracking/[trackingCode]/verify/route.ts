@@ -3,16 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifyOrderPasscode } from "@/lib/order-codes";
 import { clientAddress, consumeRateLimit } from "@/lib/rate-limit";
+import { passcodeAttemptLimits } from "@/lib/tracking-limits";
 import { toTrackingView } from "@/lib/order-views";
 
 const schema = z.object({
   passcode: z.string().length(4)
 });
-
-// Cap passcode guesses per tracking code so the 4-digit passcode can't be
-// brute-forced to read a customer's order details.
-const MAX_ATTEMPTS = 8;
-const WINDOW_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request, { params }: { params: Promise<{ trackingCode: string }> }) {
   const { trackingCode } = await params;
@@ -28,13 +24,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     return NextResponse.json({ error: "Invalid passcode" }, { status: 401 });
   }
 
-  const source = clientAddress(request);
-  const limits = [
-    consumeRateLimit(`verify:${trackingCode}`, MAX_ATTEMPTS, WINDOW_MS),
-    ...(source ? [consumeRateLimit(`verify-source:${source}`, 40, WINDOW_MS)] : [])
-  ];
-  const [codeLimit, sourceLimit] = await Promise.all(limits);
-  if (!codeLimit.allowed || (sourceLimit && !sourceLimit.allowed)) {
+  // Budgets live in lib/tracking-limits.ts: small per (code + address) so a stranger
+  // cannot lock the owner out, plus a per-address and a per-code ceiling that keep
+  // brute force of the 4-digit passcode bounded. Failures stay uniform.
+  const limits = await Promise.all(
+    passcodeAttemptLimits("verify", trackingCode, clientAddress(request)).map((spec) =>
+      consumeRateLimit(spec.key, spec.max, spec.windowMs)
+    )
+  );
+  if (limits.some((limit) => !limit.allowed)) {
     return NextResponse.json({ error: "Invalid passcode" }, { status: 429 });
   }
 

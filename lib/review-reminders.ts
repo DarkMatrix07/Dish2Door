@@ -8,6 +8,7 @@ import {
 import { prisma } from "@/lib/db";
 import { orderEmailHtml, sendOrderEmail } from "@/lib/mail";
 import { orderInclude } from "@/lib/order-select";
+import { createReviewLink } from "@/lib/review-token-store";
 import { getSettings } from "@/lib/settings";
 import {
   dueReminderIndex,
@@ -26,7 +27,7 @@ function reminderCopy(remainingReviews: number) {
   return {
     subject: "How was your order? Rate it to earn a discount",
     headline: "How was your food?",
-    body: `You haven't rated your last order yet. ${reward} It takes about ten seconds. Use the four-digit passcode from your original order email.`
+    body: `You haven't rated your last order yet. ${reward} It takes about ten seconds, and you do not need your passcode. Just tap the button below.`
   };
 }
 
@@ -67,10 +68,14 @@ export async function sendDueReviewReminders(now = new Date()) {
     const copy = reminderCopy(reviewsUntilSpin(effectiveCount));
 
     try {
+      // One-tap link: opens the rating form directly, valid for 7 days, good for this
+      // one rating only. Created inside the try so a failure here still consumes the
+      // reminder slot like any other failed send.
+      const reviewUrl = await createReviewLink(order.id, order.trackingCode);
       await sendOrderEmail(
         order,
         copy.subject,
-        orderEmailHtml(order, copy.headline, copy.body, undefined, "Rate your order")
+        orderEmailHtml(order, copy.headline, copy.body, undefined, "Rate your order", { reviewUrl })
       );
       await prisma.notificationLog.create({
         data: {

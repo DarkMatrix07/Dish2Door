@@ -1,7 +1,10 @@
 import { NotificationChannel, NotificationEvent, NotificationStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orderEmailHtml, sendOrderEmail } from "@/lib/mail";
+import { generatePasscode, hashPasscode } from "@/lib/order-codes";
 import { orderInclude } from "@/lib/order-select";
+import { orderCreatedRetryBody, passcodeSentNote, planOrderCreatedRetry } from "@/lib/passcode-retry";
+import { createReviewLink } from "@/lib/review-token-store";
 import { getSettings } from "@/lib/settings";
 import { sendTelegramGroupMessage, telegramOrderText } from "@/lib/telegram";
 import { orderWhatsAppText, sendWhatsApp } from "@/lib/whatsapp";
@@ -9,7 +12,14 @@ import { orderWhatsAppText, sendWhatsApp } from "@/lib/whatsapp";
 export const NOTIFICATION_RETRY_DELAY_MS = 10 * 60 * 1000;
 export const NOTIFICATION_MAX_AUTO_RETRIES = 3;
 
-function eventCopy(event: NotificationEvent) {
+type DeliveryExtras = {
+  // Set when a retried confirmation cannot carry the passcode because another message did.
+  passcodeNote?: string;
+  // Overrides the confirmation body so it matches what the message really contains.
+  bodyOverride?: string;
+};
+
+function eventCopy(event: NotificationEvent, hasReviewLink = false) {
   if (event === NotificationEvent.ORDER_CREATED) {
     return {
       headline: "Your order is confirmed",
@@ -29,7 +39,9 @@ function eventCopy(event: NotificationEvent) {
   return {
     headline: "Your order is delivered",
     subject: "Your campus food order was delivered — rate it to earn a discount",
-    body: "Your order has been marked delivered. Rate the food and delivery using your tracking link — every 3 rated orders unlocks a spin on our discount wheel."
+    body: hasReviewLink
+      ? "Your order has been marked delivered. Tap the button below to rate the food and delivery. No passcode needed. Every 3 rated orders unlocks a spin on our discount wheel."
+      : "Your order has been marked delivered. Rate the food and delivery using your tracking link — every 3 rated orders unlocks a spin on our discount wheel."
   };
 }
 
@@ -61,16 +73,36 @@ async function deliverOrderNotification(
   orderId: string,
   channel: NotificationChannel,
   event: NotificationEvent,
-  passcode?: string
+  passcode?: string,
+  extras: DeliveryExtras = {}
 ) {
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
   if (!order) throw new Error("Order not found");
-  const copy = eventCopy(event);
+
+  // The delivered message is the main prompt to rate, so it carries a one-tap review
+  // link (the customer should not have to dig up the passcode). Not for Telegram, which
+  // goes to the staff group.
+  const reviewUrl =
+    event === NotificationEvent.DELIVERED &&
+    !order.rating &&
+    (channel === NotificationChannel.EMAIL || channel === NotificationChannel.WHATSAPP)
+      ? await createReviewLink(order.id, order.trackingCode)
+      : undefined;
+
+  const copy = eventCopy(event, Boolean(reviewUrl));
+  const body = extras.bodyOverride ?? copy.body;
 
   if (channel === NotificationChannel.EMAIL) {
-    await sendOrderEmail(order, copy.subject, orderEmailHtml(order, copy.headline, copy.body, passcode));
+    await sendOrderEmail(
+      order,
+      copy.subject,
+      orderEmailHtml(order, copy.headline, body, passcode, reviewUrl ? "Rate your order" : undefined, {
+        passcodeNote: extras.passcodeNote,
+        reviewUrl
+      })
+    );
   } else if (channel === NotificationChannel.WHATSAPP) {
-    await sendWhatsApp(order, orderWhatsAppText(order, copy.headline, passcode));
+    await sendWhatsApp(order, orderWhatsAppText(order, copy.headline, passcode, { passcodeNote: extras.passcodeNote, reviewUrl }));
   } else {
     await sendTelegramGroupMessage(telegramOrderText(order));
   }
@@ -98,6 +130,47 @@ export async function sendSingleOrderNotification(
 }
 
 const retryingLogs = new Set<string>();
+// Orders whose confirmation is being re-sent right now. A retry may rotate the passcode,
+// and a second retry rotating it again while the first message is still in flight would
+// make the passcode the customer is about to receive wrong.
+const rotatingOrders = new Set<string>();
+
+type OrderCreatedRetryPrep =
+  | { kind: "rotated"; passcode: string }
+  | { kind: "already_sent"; note: string }
+  | { kind: "busy" };
+
+// Decides what a retried ORDER_CREATED message should say about the passcode. If no
+// other confirmation was ever delivered on email or WhatsApp, the customer has no
+// passcode, so issue a new one. The hash is swapped with a conditional update on the
+// hash that was read first, so two retries (even in two processes) cannot both rotate
+// from the same starting point; the loser backs off and tries again on its next run.
+async function prepareOrderCreatedRetry(orderId: string, logId: string): Promise<OrderCreatedRetryPrep> {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { trackingPasscodeHash: true } });
+  if (!order) throw new Error("Order not found");
+
+  const delivered = await prisma.notificationLog.findMany({
+    where: {
+      orderId,
+      event: NotificationEvent.ORDER_CREATED,
+      status: NotificationStatus.SUCCESS,
+      channel: { in: [NotificationChannel.EMAIL, NotificationChannel.WHATSAPP] },
+      id: { not: logId }
+    },
+    select: { channel: true }
+  });
+  const plan = planOrderCreatedRetry(
+    delivered.flatMap((row) => (row.channel === NotificationChannel.EMAIL || row.channel === NotificationChannel.WHATSAPP ? [row.channel] : []))
+  );
+  if (plan.kind === "already_sent") return { kind: "already_sent", note: passcodeSentNote(plan.channels) };
+
+  const passcode = generatePasscode();
+  const swapped = await prisma.order.updateMany({
+    where: { id: orderId, trackingPasscodeHash: order.trackingPasscodeHash },
+    data: { trackingPasscodeHash: await hashPasscode(passcode) }
+  });
+  return swapped.count === 1 ? { kind: "rotated", passcode } : { kind: "busy" };
+}
 
 export async function retryNotificationLog(logId: string, options?: { force?: boolean }) {
   if (retryingLogs.has(logId)) return { outcome: "already_running" as const };
@@ -116,9 +189,26 @@ export async function retryNotificationLog(logId: string, options?: { force?: bo
 
     const attemptedAt = new Date();
     const retryCount = log.retryCount + 1;
+    const rotatesPasscode = log.event === NotificationEvent.ORDER_CREATED;
+    if (rotatesPasscode) {
+      if (rotatingOrders.has(log.orderId)) return { outcome: "already_running" as const };
+      rotatingOrders.add(log.orderId);
+    }
 
     try {
-      await deliverOrderNotification(log.orderId, log.channel, log.event);
+      let passcode: string | undefined;
+      let extras: DeliveryExtras = {};
+      if (rotatesPasscode) {
+        const prep = await prepareOrderCreatedRetry(log.orderId, log.id);
+        // Another retry swapped the passcode first; leave this log for its next run.
+        if (prep.kind === "busy") return { outcome: "already_running" as const };
+        passcode = prep.kind === "rotated" ? prep.passcode : undefined;
+        extras = {
+          bodyOverride: orderCreatedRetryBody(prep.kind === "rotated" ? "rotate" : "already_sent"),
+          passcodeNote: prep.kind === "already_sent" ? prep.note : undefined
+        };
+      }
+      await deliverOrderNotification(log.orderId, log.channel, log.event, passcode, extras);
       await prisma.notificationLog.update({
         where: { id: log.id },
         data: {
@@ -143,6 +233,8 @@ export async function retryNotificationLog(logId: string, options?: { force?: bo
         }
       });
       throw error;
+    } finally {
+      if (rotatesPasscode) rotatingOrders.delete(log.orderId);
     }
   } finally {
     retryingLogs.delete(logId);

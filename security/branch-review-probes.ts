@@ -59,6 +59,7 @@ const db: any = {
     findUnique: async () => null // Background notification lookup sends nothing.
   },
   user: { findFirst: async () => ({ id: "fixture-user", active: true, role: "ADMIN", passwordHash: "synthetic" }) },
+  auditEvent: { create: async () => ({}) },
   $queryRaw: async (_parts: any, ...values: any[]) => {
     const key = values[0];
     const count = (counts.get(key) ?? 0) + 1;

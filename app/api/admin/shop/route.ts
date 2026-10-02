@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { describeChanges, recordAudit, summariseChanges } from "@/lib/audit";
 import { normalizeIndianWhatsAppNumber } from "@/lib/whatsapp-order";
 
 // Stored in wa.me form (91XXXXXXXXXX). Accepts whatever the admin types — 9876543210,
@@ -46,7 +47,21 @@ export async function POST(request: Request) {
 
   try {
     const { slug, ...data } = schema.parse(await request.json());
+    const before = await prisma.restaurant.findUnique({ where: { slug } }).catch(() => null);
     const restaurant = await prisma.restaurant.update({ where: { slug }, data });
+    // The shop's WhatsApp number is where orders are sent, so it is logged in full.
+    const detail = summariseChanges(
+      restaurant.name,
+      describeChanges(before, restaurant, [
+        { key: "name", label: "name", kind: "text" },
+        { key: "description", label: "description", kind: "changed" },
+        { key: "imageUrl", label: "photo", kind: "changed" },
+        { key: "acceptingOrders", label: "taking orders", kind: "bool" },
+        { key: "whatsappNumber", label: "WhatsApp number", kind: "text", empty: "none" },
+        { key: "restrictedToCampusCode", label: "limited to campus", kind: "text", empty: "all campuses" }
+      ])
+    );
+    if (detail) await recordAudit({ actorId: user.id, action: "shop.update", targetType: "shop", targetId: restaurant.id, detail });
     return NextResponse.json({ restaurant });
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole, hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { describeChanges, recordAudit, summariseChanges, type AuditAction } from "@/lib/audit";
 import { FEATURES } from "@/lib/features";
 import { HOSTEL_BLOCKS } from "@/lib/hostels";
 
@@ -33,6 +34,12 @@ const schema = z.discriminatedUnion("action", [
     id: z.string()
   })
 ]);
+
+// Delivery accounts are people who can sign in, so every change to them is logged. The
+// password the admin types is never part of a row.
+function logStaff(actorId: string, action: AuditAction, userId: string, detail: string) {
+  return recordAudit({ actorId, action, targetType: "user", targetId: userId, detail });
+}
 
 export async function GET() {
   const user = await requireApiRole(["ADMIN"]);
@@ -77,11 +84,15 @@ export async function POST(request: Request) {
       },
       select: { id: true, name: true, email: true, phone: true, active: true, assignedHostelBlocks: true }
     });
+    await logStaff(user.id, "delivery.create", deliveryUser.id, `Added delivery person "${deliveryUser.name}"`);
     return NextResponse.json({ user: deliveryUser });
   }
 
   if (body.action === "update") {
-    const existing = await prisma.user.findFirst({ where: { id: body.id, role: "DELIVERY" }, select: { id: true } });
+    const existing = await prisma.user.findFirst({
+      where: { id: body.id, role: "DELIVERY" },
+      select: { id: true, name: true, email: true, phone: true, active: true, assignedHostelBlocks: true }
+    });
     if (!existing) return NextResponse.json({ error: "Delivery person not found" }, { status: 404 });
 
     const deliveryUser = await prisma.user.update({
@@ -95,6 +106,19 @@ export async function POST(request: Request) {
       },
       select: { id: true, name: true, email: true, phone: true, active: true, assignedHostelBlocks: true }
     });
+    const changes = describeChanges(
+      { ...existing, hostelBlocks: existing.assignedHostelBlocks.join(", ") },
+      { ...deliveryUser, hostelBlocks: deliveryUser.assignedHostelBlocks.join(", ") },
+      [
+        { key: "name", label: "name", kind: "text" },
+        { key: "email", label: "email", kind: "text" },
+        { key: "phone", label: "phone", kind: "text" },
+        { key: "active", label: "account switched on", kind: "bool" },
+        { key: "hostelBlocks", label: "hostel blocks", kind: "text", empty: "none" }
+      ]
+    );
+    const detail = summariseChanges(existing.name, changes);
+    if (detail) await logStaff(user.id, "delivery.update", deliveryUser.id, detail);
     return NextResponse.json({ user: deliveryUser });
   }
 
@@ -111,6 +135,7 @@ export async function POST(request: Request) {
       },
       select: { id: true, name: true, email: true }
     });
+    await logStaff(user.id, "delivery.password_reset", deliveryUser.id, `Reset the password for "${deliveryUser.name}" and signed them out everywhere`);
     return NextResponse.json({ user: deliveryUser });
   }
 
@@ -119,13 +144,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This delivery person has order history. Deactivate instead." }, { status: 400 });
   }
 
-  const existing = await prisma.user.findFirst({ where: { id: body.id, role: "DELIVERY" }, select: { id: true } });
+  const existing = await prisma.user.findFirst({ where: { id: body.id, role: "DELIVERY" }, select: { id: true, name: true } });
   if (!existing) return NextResponse.json({ error: "Delivery person not found" }, { status: 404 });
 
   const deliveryUser = await prisma.user.delete({
     where: { id: body.id },
     select: { id: true }
   });
+  await logStaff(user.id, "delivery.delete", deliveryUser.id, `Deleted delivery person "${existing.name}"`);
   return NextResponse.json({ user: deliveryUser });
   } catch (error) {
     if (error instanceof z.ZodError) {

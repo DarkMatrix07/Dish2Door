@@ -11,14 +11,24 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, "&#39;");
 }
 
+export type OrderEmailExtras = {
+  // Shown instead of the passcode when it was already delivered by another message.
+  passcodeNote?: string;
+  // One-tap review link (no passcode needed). Becomes the button target.
+  reviewUrl?: string;
+};
+
 export function orderEmailHtml(
   order: FullOrder,
   headline: string,
   body: string,
   passcode?: string,
-  ctaLabel = "Track your order"
+  ctaLabel = "Track your order",
+  extras: OrderEmailExtras = {}
 ) {
-  const trackingUrl = `${env.NEXT_PUBLIC_APP_URL}/orders/${order.trackingCode}`;
+  // A one-tap review link replaces the tracking link as the button target, so the
+  // customer can rate without hunting for the passcode.
+  const trackingUrl = extras.reviewUrl ?? `${env.NEXT_PUBLIC_APP_URL}/orders/${order.trackingCode}`;
   const items = order.items
     .map(
       (item) => `
@@ -36,7 +46,13 @@ export function orderEmailHtml(
         <p style="margin:0;color:#111827;font-size:30px;line-height:1;font-weight:800;letter-spacing:8px;">${escapeHtml(passcode)}</p>
       </div>
     `
-    : "";
+    : extras.passcodeNote
+      ? `
+      <div style="margin:20px 0 0;padding:14px 16px;border-radius:14px;background:#f9fafb;border:1px solid #eef0f3;text-align:center;">
+        <p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">${escapeHtml(extras.passcodeNote)}</p>
+      </div>
+    `
+      : "";
   const deliveryLabel =
     order.deliveryType === "HOSTEL" ? `Hostel ${escapeHtml(order.hostelBlock)}` : "Campus gate";
 

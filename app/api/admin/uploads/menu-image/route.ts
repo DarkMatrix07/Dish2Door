@@ -4,6 +4,7 @@ import path from "path";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { requireApiRole } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 // Uploads used to be written byte-for-byte, so phone photos of 3-5 MB were served
@@ -74,5 +75,13 @@ export async function POST(request: Request) {
   await mkdir(uploadDir, { recursive: true });
   await writeFile(path.join(uploadDir, fileName), optimised);
 
-  return NextResponse.json({ imageUrl: `/uploads/menu/${fileName}` });
+  const imageUrl = `/uploads/menu/${fileName}`;
+  await recordAudit({
+    actorId: user.id,
+    action: "menu.image.upload",
+    targetType: "upload",
+    targetId: imageUrl,
+    detail: `Uploaded a menu photo (${Math.max(1, Math.round(file.size / 1024))} KB before it was shrunk)`
+  });
+  return NextResponse.json({ imageUrl });
 }

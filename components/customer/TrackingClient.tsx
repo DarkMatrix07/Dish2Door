@@ -9,6 +9,7 @@ import { Confetti } from "@/components/customer/Confetti";
 import { SiteNav } from "@/components/customer/SiteNav";
 import { SiteFooter } from "@/components/customer/SiteFooter";
 import { readApiJson } from "@/lib/api-client";
+import { reviewLinkProblemMessage } from "@/lib/review-link-messages";
 import { formatPaise } from "@/lib/utils";
 import { SUPPORT_WHATSAPP_NUMBER } from "@/lib/whatsapp-order";
 
@@ -25,6 +26,8 @@ type Order = {
   items: { id: string; nameSnapshot: string; quantity: number; linePaise: number }[];
   rating: null | { id: string };
 };
+
+type ReviewView = { trackingCode: string; restaurantName: string; items: string[]; alreadyRated: boolean };
 
 const steps = [
   { key: "ORDER_CONFIRMED", number: "01", label: "Order confirmed", helper: "The kitchen has received your order" },
@@ -53,7 +56,60 @@ function StarRating({ value, onChange, label }: { value: number; onChange: (valu
   );
 }
 
-export function TrackingClient({ trackingCode }: { trackingCode: string }) {
+type RatingDraft = { foodRating: number; deliveryRating: number; review: string };
+
+function RatingCard({ rating, setRating, busy, onSubmit }: { rating: RatingDraft; setRating: (value: RatingDraft) => void; busy: boolean; onSubmit: () => void }) {
+  return (
+    <section className="mt-10 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(58,43,22,0.08)]">
+      <div className="flex items-center gap-3 border-b border-black/8 bg-[#fff8e8] px-6 py-4 sm:px-8">
+        <Gift size={18} className="shrink-0 text-[#c65d24]" />
+        <p className="text-sm font-black leading-5">
+          Rate this order — every 3 reviews unlocks a spin on the discount wheel.
+        </p>
+      </div>
+      <div className="p-6 sm:p-8">
+        <h2 className="text-3xl font-black tracking-[-0.04em]">How was your order?</h2>
+        <p className="mt-3 max-w-lg leading-6 text-[#716a5f]">
+          Takes about ten seconds, and it tells the kitchen and the delivery team what to fix.
+        </p>
+
+        <div className="mt-8 grid gap-8 sm:mt-10 sm:grid-cols-2">
+          <StarRating
+            label="Food rating"
+            value={rating.foodRating}
+            onChange={(value) => setRating({ ...rating, foodRating: value })}
+          />
+          <StarRating
+            label="Delivery rating"
+            value={rating.deliveryRating}
+            onChange={(value) => setRating({ ...rating, deliveryRating: value })}
+          />
+        </div>
+
+        <label className="mt-9 block text-sm font-bold">
+          Optional review
+          <textarea
+            className="mt-3 min-h-28 w-full resize-y rounded-md border border-black/12 bg-[#f7f3eb] p-4 font-normal leading-6 outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
+            placeholder="Tell us what worked well"
+            value={rating.review}
+            onChange={(event) => setRating({ ...rating, review: event.target.value })}
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={busy}
+          className="tracking-dark-link mt-7 flex min-h-12 w-full items-center justify-center rounded-md bg-[#171713] px-6 py-3.5 font-black transition hover:bg-[#c65d24] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        >
+          {busy ? "Submitting..." : "Submit rating"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function TrackingClient({ trackingCode, reviewToken }: { trackingCode: string; reviewToken?: string }) {
   const [passcode, setPasscode] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,15 +120,41 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
   // Set when the customer lands here straight from a successful payment.
   const [celebrate, setCelebrate] = useState(false);
   const [rating, setRating] = useState({ foodRating: 5, deliveryRating: 5, review: "" });
+  // One-tap review link (?review=...). It opens only a rating form for this order: order
+  // code, restaurant and item names. Anything more needs the passcode.
+  const [reviewLoading, setReviewLoading] = useState(Boolean(reviewToken));
+  const [reviewView, setReviewView] = useState<ReviewView | null>(null);
+  const [reviewDone, setReviewDone] = useState(false);
+  // Friendly reason shown on the passcode screen when a review link could not be used.
+  const [linkProblem, setLinkProblem] = useState<string | null>(null);
 
   useEffect(() => {
     const savedPasscode = window.sessionStorage.getItem(`dish2door_passcode_${trackingCode}`);
     if (savedPasscode) {
       setPasscode(savedPasscode);
       window.sessionStorage.removeItem(`dish2door_passcode_${trackingCode}`);
+      setReviewLoading(false);
       void verify(savedPasscode, { celebrate: true });
+      return;
     }
-  }, [trackingCode]);
+    if (!reviewToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`/api/tracking/${trackingCode}/review`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: reviewToken }) });
+        const data = await readApiJson<{ error?: string; review?: ReviewView }>(response, reviewLinkProblemMessage("invalid"));
+        if (cancelled) return;
+        if (!response.ok || !data.review) throw new Error(data.error ?? reviewLinkProblemMessage("invalid"));
+        setReviewView(data.review);
+        setReviewDone(data.review.alreadyRated);
+      } catch (error) {
+        if (!cancelled) setLinkProblem(error instanceof Error ? error.message : reviewLinkProblemMessage("invalid"));
+      } finally {
+        if (!cancelled) setReviewLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [trackingCode, reviewToken]);
 
   async function verify(passcodeOverride?: string, options: { refresh?: boolean; celebrate?: boolean } = {}) {
     if (options.refresh) setRefreshing(true); else setBusy(true);
@@ -98,12 +180,21 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
   async function submitRating() {
     if (ratingBusy) return;
     setRatingBusy(true);
+    const usingReviewLink = Boolean(reviewView && reviewToken);
     try {
-      const response = await fetch(`/api/tracking/${trackingCode}/rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passcode, ...rating }) });
+      const response = await fetch(`/api/tracking/${trackingCode}/rating`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(usingReviewLink ? { token: reviewToken, ...rating } : { passcode, ...rating }) });
       const data = await readApiJson<{ error?: string; rating: { id: string } }>(response, "Could not submit rating");
+      // The link went stale between opening it and submitting (used elsewhere, expired).
+      // Hand over to the passcode screen with a plain explanation instead of a dead end.
+      if (usingReviewLink && response.status === 401) {
+        setReviewView(null);
+        setLinkProblem(data.error ?? reviewLinkProblemMessage("invalid"));
+        return;
+      }
       if (!response.ok) throw new Error(data.error ?? "Could not submit rating");
       toast.success("Thanks for rating your order.");
-      setOrder((current) => current ? { ...current, rating: data.rating } : current);
+      if (usingReviewLink) setReviewDone(true);
+      else setOrder((current) => current ? { ...current, rating: data.rating } : current);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not submit rating");
     } finally {
@@ -127,7 +218,25 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
       </section>
 
       <AnimatePresence mode="wait">
-        {!order ? (
+        {!order && (reviewLoading || reviewView) ? (
+          <motion.section key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mx-auto max-w-[760px] px-5 py-12 pb-24 sm:px-8 lg:py-16">
+            {reviewView ? (
+              <>
+                <span className="rounded-md bg-[#f6b73c] px-3 py-2 font-mono text-xs font-black">{reviewView.trackingCode}</span>
+                <h1 className="mt-5 text-4xl font-black leading-none tracking-[-0.05em] sm:text-6xl">{reviewView.restaurantName}</h1>
+                {reviewView.items.length ? <p className="mt-4 leading-7 text-[#6c6458]">{reviewView.items.join(", ")}</p> : null}
+                {reviewDone ? (
+                  <div className="mt-10 flex items-center gap-3 rounded-xl border border-[#34705a]/20 bg-[#34705a]/8 p-5 font-bold text-[#285d4a]"><CheckCircle2 size={19} /> Thanks for rating this order.</div>
+                ) : (
+                  <RatingCard rating={rating} setRating={setRating} busy={ratingBusy} onSubmit={submitRating} />
+                )}
+                <button type="button" onClick={() => setReviewView(null)} className="mt-8 text-sm font-bold text-[#6c6458] underline underline-offset-4 transition hover:text-[#c65d24]">Track this order with my passcode</button>
+              </>
+            ) : (
+              <p className="py-16 text-center font-bold text-[#6c6458]" role="status">Opening your rating form...</p>
+            )}
+          </motion.section>
+        ) : !order ? (
           <motion.section key="locked" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mx-auto grid max-w-[1200px] gap-12 px-5 py-14 sm:px-8 lg:min-h-[620px] lg:grid-cols-[1fr_28rem] lg:items-center lg:gap-20 lg:px-12 lg:py-20">
             <div>
               <div className="flex items-center gap-3 text-sm font-semibold text-[#746c5f]"><span className="h-px w-9 bg-[#d97706]" /> Private order access</div>
@@ -140,6 +249,7 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <span className="grid h-12 w-12 place-items-center rounded-lg bg-[#171713] text-[#f6b73c]"><LockKeyhole size={21} /></span>
               <h2 className="mt-7 text-2xl font-black tracking-[-0.035em]">Unlock tracking</h2>
               <p className="mt-2 text-sm leading-6 text-[#716a5f]">Order reference <span className="font-mono font-bold text-[#171713]">{trackingCode}</span></p>
+              {linkProblem ? <p role="status" className="mt-5 rounded-xl border border-[#c65d24]/25 bg-[#fff8e8] p-4 text-sm font-bold leading-6 text-[#7a4a12]">{linkProblem}</p> : null}
               <div className="mt-5 flex gap-3 rounded-xl border border-[#c65d24]/15 bg-[#c65d24]/[0.06] p-4">
                 <Mail size={18} className="mt-0.5 shrink-0 text-[#c65d24]" />
                 <p className="text-xs leading-5 text-[#625b50]">Your tracking link and passcode were sent by email. If you cannot find the message in your inbox, please check your Spam or Junk folder.</p>
@@ -175,54 +285,7 @@ export function TrackingClient({ trackingCode }: { trackingCode: string }) {
               <div className="sm:text-right"><p className="text-sm font-bold text-[#817a70]">Total paid</p><p className="mt-1 text-3xl font-black tracking-[-0.04em] tabular-nums">{formatPaise(order.totalPaise)}</p></div>
             </div>
 
-            {needsRating ? (
-              <section className="mt-10 overflow-hidden rounded-2xl bg-white shadow-[0_24px_70px_rgba(58,43,22,0.08)]">
-                <div className="flex items-center gap-3 border-b border-black/8 bg-[#fff8e8] px-6 py-4 sm:px-8">
-                  <Gift size={18} className="shrink-0 text-[#c65d24]" />
-                  <p className="text-sm font-black leading-5">
-                    Rate this order — every 3 reviews unlocks a spin on the discount wheel.
-                  </p>
-                </div>
-                <div className="p-6 sm:p-8">
-                  <h2 className="text-3xl font-black tracking-[-0.04em]">How was your order?</h2>
-                  <p className="mt-3 max-w-lg leading-6 text-[#716a5f]">
-                    Takes about ten seconds, and it tells the kitchen and the delivery team what to fix.
-                  </p>
-
-                  <div className="mt-8 grid gap-8 sm:mt-10 sm:grid-cols-2">
-                    <StarRating
-                      label="Food rating"
-                      value={rating.foodRating}
-                      onChange={(value) => setRating({ ...rating, foodRating: value })}
-                    />
-                    <StarRating
-                      label="Delivery rating"
-                      value={rating.deliveryRating}
-                      onChange={(value) => setRating({ ...rating, deliveryRating: value })}
-                    />
-                  </div>
-
-                  <label className="mt-9 block text-sm font-bold">
-                    Optional review
-                    <textarea
-                      className="mt-3 min-h-28 w-full resize-y rounded-md border border-black/12 bg-[#f7f3eb] p-4 font-normal leading-6 outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
-                      placeholder="Tell us what worked well"
-                      value={rating.review}
-                      onChange={(event) => setRating({ ...rating, review: event.target.value })}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={submitRating}
-                    disabled={ratingBusy}
-                    className="tracking-dark-link mt-7 flex min-h-12 w-full items-center justify-center rounded-md bg-[#171713] px-6 py-3.5 font-black transition hover:bg-[#c65d24] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    {ratingBusy ? "Submitting..." : "Submit rating"}
-                  </button>
-                </div>
-              </section>
-            ) : null}
+            {needsRating ? <RatingCard rating={rating} setRating={setRating} busy={ratingBusy} onSubmit={submitRating} /> : null}
 
             {isCancelled ? (
               <div className="mt-10 rounded-xl border border-[#8a342c]/20 bg-[#8a342c]/8 p-6"><h2 className="text-xl font-black text-[#6f2923]">This order was cancelled</h2><p className="mt-2 max-w-2xl leading-7 text-[#7c4a45]">Questions about a cancelled order are handled on WhatsApp. Message us with your tracking code <span className="font-mono font-bold">{order.trackingCode}</span> and the phone number you ordered with.</p><a href={`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}`} target="_blank" rel="noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-[#25D366] px-4 text-sm font-black text-white transition hover:brightness-105"><MessageCircle size={16} /> Message us on WhatsApp</a></div>

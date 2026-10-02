@@ -35,7 +35,13 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Content-Security-Policy-Report-Only", value: "frame-ancestors 'none'; object-src 'none'" }
+          { key: "Content-Security-Policy-Report-Only", value: "frame-ancestors 'none'; object-src 'none'" },
+          // Production only: browsers ignore HSTS over plain http, and sending it from a
+          // local or staging build over https would pin that host to https for a year.
+          // No includeSubDomains and no preload on purpose, so this stays reversible.
+          ...(process.env.NODE_ENV === "production"
+            ? [{ key: "Strict-Transport-Security", value: "max-age=31536000" }]
+            : [])
         ]
       }
     ];

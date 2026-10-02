@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, type Coupon } from "@prisma/client";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import {
@@ -14,6 +14,7 @@ import {
   isWheelCode,
   maxUsesProblem
 } from "@/lib/coupon-admin";
+import { describeChanges, plural, recordAudit, summariseChanges } from "@/lib/audit";
 import { countOrdersByCode, toCouponRow } from "@/lib/coupon-data";
 import { prisma } from "@/lib/db";
 
@@ -47,6 +48,23 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("coupon.active"), id: z.string().min(1), active: z.boolean() }),
   z.object({ action: z.literal("coupon.delete"), id: z.string().min(1) })
 ]);
+
+// Wording for the activity log.
+function couponLimitText(maxUses: number | null) {
+  return maxUses === null ? "no use limit" : `${plural(maxUses, "use")} allowed`;
+}
+function couponExpiryText(expiresAt: Date | null) {
+  return expiresAt ? `expires ${expiryToDay(expiresAt)}` : "no expiry";
+}
+// The fields the log compares, in the same shape on both sides (expiry as a plain day).
+function couponAuditView(coupon: Coupon) {
+  return {
+    discountPercent: coupon.discountPercent,
+    maxUses: coupon.maxUses,
+    expiresOn: coupon.expiresAt ? expiryToDay(coupon.expiresAt) : null,
+    description: coupon.description
+  };
+}
 
 class Refusal extends Error {
   constructor(message: string, readonly status = 400, readonly reason?: string) {
@@ -86,24 +104,43 @@ export async function POST(request: Request) {
           expiresAt: body.expiresOn ? expiryFromDay(body.expiresOn) : null
         }
       });
+      await recordAudit({
+        actorId: user.id,
+        action: "coupon.create",
+        targetType: "coupon",
+        targetId: coupon.id,
+        detail: `Created coupon ${coupon.code}: ${coupon.discountPercent}% off, ${couponLimitText(coupon.maxUses)}, ${couponExpiryText(coupon.expiresAt)}`
+      });
       return NextResponse.json({ coupon: toCouponRow(coupon, 0) });
     }
 
     if (body.action === "coupon.active") {
-      const existing = await prisma.coupon.findUnique({ where: { id: body.id }, select: { code: true } });
+      const existing = await prisma.coupon.findUnique({ where: { id: body.id }, select: { code: true, active: true } });
       if (!existing) throw new Refusal("That coupon no longer exists. Refresh the page.", 404);
       await assertOwnerCoupon(existing.code);
       const coupon = await prisma.coupon.update({ where: { id: body.id }, data: { active: body.active } });
+      if (existing.active !== coupon.active) {
+        await recordAudit({
+          actorId: user.id,
+          action: "coupon.active",
+          targetType: "coupon",
+          targetId: coupon.id,
+          detail: `Coupon ${coupon.code} switched ${coupon.active ? "on" : "off"}`
+        });
+      }
       const counts = await countOrdersByCode([coupon.code]);
       return NextResponse.json({ coupon: toCouponRow(coupon, counts.get(coupon.code) ?? 0) });
     }
 
     if (body.action === "coupon.update") {
       // Lock the row so a checkout claiming a use at the same moment waits for this check.
+      // The row as it was before the edit is kept for the activity log.
+      let before = null as Coupon | null;
       const coupon = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "Coupon" WHERE id = ${body.id} FOR UPDATE`;
         const current = await tx.coupon.findUnique({ where: { id: body.id } });
         if (!current) throw new Refusal("That coupon no longer exists. Refresh the page.", 404);
+        before = current;
         if (await tx.spinReward.count({ where: { couponCode: current.code } })) {
           throw new Refusal("That is a discount wheel prize. It is managed on the Discount wheel page.", 403);
         }
@@ -126,6 +163,14 @@ export async function POST(request: Request) {
           }
         });
       });
+      const changes = describeChanges(before && couponAuditView(before), couponAuditView(coupon), [
+        { key: "discountPercent", label: "discount", kind: "percent" },
+        { key: "maxUses", label: "uses allowed", kind: "number", empty: "no limit" },
+        { key: "expiresOn", label: "expires", kind: "text", empty: "never" },
+        { key: "description", label: "description", kind: "changed" }
+      ]);
+      const detail = summariseChanges(`Coupon ${coupon.code}`, changes);
+      if (detail) await recordAudit({ actorId: user.id, action: "coupon.update", targetType: "coupon", targetId: coupon.id, detail });
       const counts = await countOrdersByCode([coupon.code]);
       return NextResponse.json({ coupon: toCouponRow(coupon, counts.get(coupon.code) ?? 0) });
     }
@@ -139,11 +184,15 @@ export async function POST(request: Request) {
       prisma.couponReservation.count({ where: { couponId: existing.id } })
     ]);
     const block = couponDeleteBlock({ ...existing, orderCount: counts.get(existing.code) ?? 0 }, reservations);
-    if (block) throw new Refusal(block, 409, "IN_USE");
+    if (block) {
+      await recordAudit({ actorId: user.id, action: "coupon.delete", targetType: "coupon", targetId: existing.id, outcome: "refused", detail: `Refused to delete coupon ${existing.code}: ${block}` });
+      throw new Refusal(block, 409, "IN_USE");
+    }
     // The counts are checked again in the delete itself, in case a checkout claimed it a
     // moment ago.
     const removed = await prisma.coupon.deleteMany({ where: { id: existing.id, usedCount: 0, heldCount: 0 } });
     if (!removed.count) throw new Refusal(COUPON_IN_USE_MESSAGE, 409, "IN_USE");
+    await recordAudit({ actorId: user.id, action: "coupon.delete", targetType: "coupon", targetId: existing.id, detail: `Deleted coupon ${existing.code} (${existing.discountPercent}% off, never used)` });
     return NextResponse.json({ coupon: toCouponRow(existing, 0) });
   } catch (error) {
     if (error instanceof Refusal) return refuse({ error: error.message, reason: error.reason }, error.status);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { describeChanges, plural, recordAudit, rupees, shortList, summariseChanges, type AuditAction } from "@/lib/audit";
 import {
   DOMINOS_MANAGED_MESSAGE,
   DOMINOS_MODE,
@@ -181,6 +182,61 @@ async function assertCourseBelongsToRestaurant(courseId: string, restaurantId: s
   if (count !== 1) throw new Error("That course belongs to a different restaurant.");
 }
 
+// ---- Activity log ----
+// Every successful change below adds one row to the admin activity log (lib/audit.ts). The
+// "before" values are read just ahead of the write and are best effort: if a read fails the
+// change itself still goes ahead, and the log row simply says less.
+//
+// A restaurant's rows point at its menu page. A Domino's shop has its own admin section,
+// so its rows are filed under "shop" and point there instead.
+type AuditSubject = { type: "restaurant" | "shop"; id: string | null; name: string };
+
+const subjectOf = (restaurant: { id: string; name: string; orderMode: string }): AuditSubject => ({
+  type: restaurant.orderMode === DOMINOS_MODE ? "shop" : "restaurant",
+  id: restaurant.id,
+  name: restaurant.name
+});
+
+async function restaurantSubject(restaurantId: string): Promise<AuditSubject> {
+  const found = await prisma.restaurant
+    .findUnique({ where: { id: restaurantId }, select: { id: true, name: true, orderMode: true } })
+    .catch(() => null);
+  return found ? subjectOf(found) : { type: "restaurant", id: restaurantId, name: "A restaurant" };
+}
+
+async function itemBefore(itemId: string) {
+  return prisma.menuItem
+    .findUnique({
+      where: { id: itemId },
+      select: {
+        name: true,
+        description: true,
+        imageUrl: true,
+        pricePaise: true,
+        discountPercent: true,
+        available: true,
+        sizeLabel: true,
+        courseId: true,
+        restaurant: { select: { id: true, name: true, orderMode: true } }
+      }
+    })
+    .catch(() => null);
+}
+
+function logMenu(actorId: string, action: AuditAction, subject: AuditSubject, detail: string, outcome: "ok" | "refused" = "ok") {
+  return recordAudit({ actorId, action, targetType: subject.type, targetId: subject.id, outcome, detail });
+}
+
+const ITEM_CHANGES = [
+  { key: "name", label: "name", kind: "text" },
+  { key: "pricePaise", label: "price", kind: "money" },
+  { key: "discountPercent", label: "discount", kind: "percent" },
+  { key: "description", label: "description", kind: "changed" },
+  { key: "imageUrl", label: "photo", kind: "changed" },
+  { key: "sizeLabel", label: "size", kind: "text", empty: "no size" },
+  { key: "courseId", label: "course", kind: "changed" }
+] as const;
+
 export async function GET(request: Request) {
   const user = await requireApiRole(["ADMIN"]);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -235,10 +291,14 @@ export async function POST(request: Request) {
         imageUrl: body.imageUrl
       }
     });
+    await logMenu(user.id, "menu.restaurant.create", subjectOf(restaurant), `Added restaurant "${restaurant.name}"`);
     return NextResponse.json({ restaurant });
   }
 
   if (body.action === "restaurant.update") {
+    const before = await prisma.restaurant
+      .findUnique({ where: { id: body.id }, select: { name: true, description: true, imageUrl: true } })
+      .catch(() => null);
     const restaurant = await prisma.restaurant.update({
       where: { id: body.id },
       data: {
@@ -247,6 +307,13 @@ export async function POST(request: Request) {
         imageUrl: body.imageUrl
       }
     });
+    const changes = describeChanges(before, restaurant, [
+      { key: "name", label: "name", kind: "text" },
+      { key: "description", label: "description", kind: "changed" },
+      { key: "imageUrl", label: "photo", kind: "changed" }
+    ]);
+    const detail = summariseChanges(before?.name ?? restaurant.name, changes);
+    if (detail) await logMenu(user.id, "menu.restaurant.update", subjectOf(restaurant), detail);
     return NextResponse.json({ restaurant });
   }
 
@@ -256,8 +323,13 @@ export async function POST(request: Request) {
     // never taken an order can be deleted. Its courses, items and combos cascade.
     const orderCount = await prisma.order.count({ where: { restaurantId: body.id } });
     const block = restaurantDeleteBlock(orderCount);
-    if (block) throw new Error(block);
+    const subject = await restaurantSubject(body.id);
+    if (block) {
+      await logMenu(user.id, "menu.restaurant.delete", subject, `Refused to delete "${subject.name}": ${block}`, "refused");
+      throw new Error(block);
+    }
     const restaurant = await prisma.restaurant.delete({ where: { id: body.id } });
+    await logMenu(user.id, "menu.restaurant.delete", subject, `Deleted restaurant "${restaurant.name}" (it had never taken an order)`);
     return NextResponse.json({ restaurant });
   }
 
@@ -269,10 +341,13 @@ export async function POST(request: Request) {
         sortOrder: body.sortOrder
       }
     });
+    const subject = await restaurantSubject(course.restaurantId);
+    await logMenu(user.id, "menu.course.create", subject, `${subject.name}: added course "${course.name}"`);
     return NextResponse.json({ course });
   }
 
   if (body.action === "course.update") {
+    const before = await prisma.course.findUnique({ where: { id: body.id }, select: { name: true } }).catch(() => null);
     const course = await prisma.course.update({
       where: { id: body.id },
       data: {
@@ -280,11 +355,18 @@ export async function POST(request: Request) {
         sortOrder: body.sortOrder
       }
     });
+    // A reorder-only save (same name) is not worth a row.
+    if (!before || before.name !== course.name) {
+      const subject = await restaurantSubject(course.restaurantId);
+      await logMenu(user.id, "menu.course.update", subject, `${subject.name}: course ${before ? `"${before.name}" → ` : "renamed to "}"${course.name}"`);
+    }
     return NextResponse.json({ course });
   }
 
   if (body.action === "course.delete") {
     const course = await prisma.course.delete({ where: { id: body.id } });
+    const subject = await restaurantSubject(course.restaurantId);
+    await logMenu(user.id, "menu.course.delete", subject, `${subject.name}: deleted course "${course.name}"`);
     return NextResponse.json({ course });
   }
 
@@ -293,6 +375,7 @@ export async function POST(request: Request) {
       where: { id: body.id },
       data: { active: body.active }
     });
+    await logMenu(user.id, "menu.restaurant.active", subjectOf(restaurant), `${restaurant.name}: switched ${restaurant.active ? "on" : "off"}`);
     return NextResponse.json({ restaurant });
   }
 
@@ -313,6 +396,8 @@ export async function POST(request: Request) {
         sizeOrder: body.sizeOrder
       }
     });
+    const subject = await restaurantSubject(item.restaurantId);
+    await logMenu(user.id, "menu.item.create", subject, `${subject.name}: added "${item.name}" at ${rupees(item.pricePaise)}`);
     return NextResponse.json({ item });
   }
 
@@ -322,6 +407,7 @@ export async function POST(request: Request) {
       if (!existing) throw new Error("That item was already removed. Refresh and try again.");
       await assertCourseBelongsToRestaurant(body.courseId, existing.restaurantId);
     }
+    const before = await itemBefore(body.id);
     const item = await prisma.menuItem.update({
       where: { id: body.id },
       include: itemInclude,
@@ -336,6 +422,14 @@ export async function POST(request: Request) {
         sizeOrder: body.sizeOrder
       }
     });
+    // One row per save. The most important thing that moved names the row, so the "price"
+    // and "discount" entries are easy to pick out; the detail lists everything that moved.
+    const changes = describeChanges(before, item, ITEM_CHANGES);
+    const detail = summariseChanges(before?.name ?? item.name, changes);
+    if (detail) {
+      const action: AuditAction = before && before.pricePaise !== item.pricePaise ? "menu.item.price" : before && before.discountPercent !== item.discountPercent ? "menu.item.discount" : "menu.item.edit";
+      await logMenu(user.id, action, before ? subjectOf(before.restaurant) : await restaurantSubject(item.restaurantId), detail);
+    }
     return NextResponse.json({ item });
   }
 
@@ -362,15 +456,30 @@ export async function POST(request: Request) {
       prisma.menuItem.findMany({ where, include: itemInclude })
     ]);
     if (!items.length) throw new Error("Those items were already removed. Refresh and try again.");
+    // One row for the whole batch: how many, and the first few names.
+    const restaurantIds = [...new Set(items.map((item) => item.restaurantId))];
+    const what = body.discountPercent === 0 ? "Removed the discount from" : `Set a ${body.discountPercent}% discount on`;
+    await recordAudit({
+      actorId: user.id,
+      action: "menu.item.discount.bulk",
+      targetType: "restaurant",
+      targetId: restaurantIds.length === 1 ? restaurantIds[0] : null,
+      detail: `${what} ${plural(items.length, "item")}: ${shortList(items.map((item) => item.name))}`
+    });
     return NextResponse.json({ items });
   }
 
   if (body.action === "item.stock") {
+    const before = await itemBefore(body.id);
     const item = await prisma.menuItem.update({
       where: { id: body.id },
       include: itemInclude,
       data: { available: body.available }
     });
+    if (!before || before.available !== item.available) {
+      const subject = before ? subjectOf(before.restaurant) : await restaurantSubject(item.restaurantId);
+      await logMenu(user.id, "menu.item.stock", subject, `${subject.name}: "${item.name}" marked ${item.available ? "back in stock" : "sold out"}`);
+    }
     return NextResponse.json({ item });
   }
 
@@ -387,6 +496,8 @@ export async function POST(request: Request) {
       },
       include: comboInclude
     });
+    const subject = await restaurantSubject(combo.restaurantId);
+    await logMenu(user.id, "menu.combo.create", subject, `${subject.name}: added combo "${combo.name}" at ${rupees(combo.comboPricePaise)} (${plural(combo.items.length, "item")})`);
     return NextResponse.json({ combo });
   }
 
@@ -416,6 +527,15 @@ export async function POST(request: Request) {
       }
       return tx.combo.findUnique({ where: { id: body.id }, include: comboInclude });
     });
+    const changes = describeChanges(existing, combo ?? {}, [
+      { key: "name", label: "name", kind: "text" },
+      { key: "comboPricePaise", label: "price", kind: "money" },
+      { key: "description", label: "description", kind: "changed" },
+      { key: "imageUrl", label: "photo", kind: "changed" }
+    ]);
+    if (body.items) changes.push("items changed");
+    const detail = summariseChanges(`${existing.name} (combo)`, changes);
+    if (detail) await logMenu(user.id, "menu.combo.update", await restaurantSubject(existing.restaurantId), detail);
     return NextResponse.json({ combo });
   }
 
@@ -425,17 +545,24 @@ export async function POST(request: Request) {
       data: { active: body.active },
       include: comboInclude
     });
+    const subject = await restaurantSubject(combo.restaurantId);
+    await logMenu(user.id, "menu.combo.active", subject, `${subject.name}: combo "${combo.name}" switched ${combo.active ? "on" : "off"}`);
     return NextResponse.json({ combo });
   }
 
   if (body.action === "combo.delete") {
     const combo = await prisma.combo.delete({ where: { id: body.id } });
+    const subject = await restaurantSubject(combo.restaurantId);
+    await logMenu(user.id, "menu.combo.delete", subject, `${subject.name}: deleted combo "${combo.name}"`);
     return NextResponse.json({ combo });
   }
 
+  const before = await itemBefore(body.id);
   const item = await prisma.menuItem.delete({
     where: { id: body.id }
   });
+  const subject = before ? subjectOf(before.restaurant) : await restaurantSubject(item.restaurantId);
+  await logMenu(user.id, "menu.item.delete", subject, `${subject.name}: deleted "${item.name}" (${rupees(item.pricePaise)})`);
   return NextResponse.json({ item });
   } catch (error) {
     if (error instanceof z.ZodError) {

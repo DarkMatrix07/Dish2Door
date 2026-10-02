@@ -11,7 +11,9 @@ let sessionsCreated = 0;
 const db = {
   $queryRaw: async () => [{ count: 1, expiresAt: new Date(Date.now() + 900000) }],
   user: { findFirst: async () => ({ id: "staff", name: "Staff", active: true, role, passwordHash: "hash" }) },
-  appSession: { create: async () => { sessionsCreated++; return {}; } }
+  appSession: { create: async () => { sessionsCreated++; return {}; } },
+  // The route records sign-in failures in the activity log; nothing here reads them back.
+  auditEvent: { create: async () => ({}) }
 };
 (globalThis as unknown as { prisma: unknown }).prisma = db;
 

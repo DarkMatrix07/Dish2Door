@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { describeChanges, recordAudit, summariseChanges } from "@/lib/audit";
 
 // Campus commercials. These values price every order, so they are only ever written
 // here (admin-only) and always re-read server-side at checkout.
@@ -24,7 +25,23 @@ export async function POST(request: Request) {
 
   try {
     const { id, ...data } = schema.parse(await request.json());
+    // Fees price every order, so the log keeps what each figure was and what it became.
+    const before = await prisma.campus.findUnique({ where: { id } }).catch(() => null);
     const campus = await prisma.campus.update({ where: { id }, data });
+    const detail = summariseChanges(
+      campus.name,
+      describeChanges(before, data, [
+        { key: "name", label: "name", kind: "text" },
+        { key: "active", label: "switched on", kind: "bool" },
+        { key: "platformFeePaise", label: "platform fee", kind: "money" },
+        { key: "hostelDeliveryFeePaise", label: "hostel delivery fee", kind: "money" },
+        { key: "hostelDeliveryEnabled", label: "hostel delivery", kind: "bool" },
+        { key: "hostelDeliveryNightOnly", label: "hostel delivery at night only", kind: "bool" },
+        { key: "paymentChargePercentBps", label: "payment charge", kind: "bps" },
+        { key: "paymentChargeFixedPaise", label: "fixed payment charge", kind: "money" }
+      ])
+    );
+    if (detail) await recordAudit({ actorId: user.id, action: "campus.update", targetType: "campus", targetId: campus.id, detail });
     return NextResponse.json({ campus });
   } catch (error) {
     if (error instanceof z.ZodError) {

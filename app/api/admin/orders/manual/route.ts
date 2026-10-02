@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { DeliveryType, OrderSlot, PaymentStatus } from "@prisma/client";
 import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
+import { recordAudit, rupees } from "@/lib/audit";
 import { createManualOrder } from "@/lib/orders";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
 
@@ -40,6 +41,14 @@ export async function POST(request: Request) {
       body.items,
       body.paymentStatus
     );
+    // The tracking passcode in the response is never written to the log.
+    await recordAudit({
+      actorId: user.id,
+      action: "order.manual_create",
+      targetType: "order",
+      targetId: result.order.trackingCode,
+      detail: `Created order ${result.order.trackingCode} by hand: ${body.items.reduce((sum, line) => sum + line.quantity, 0)} items, ${rupees(result.order.totalPaise)}, payment ${body.paymentStatus.toLowerCase().replace(/_/g, " ")}`
+    });
     return NextResponse.json({ order: toOrderMutationView(result.order), passcode: result.passcode });
   } catch (error) {
     return NextResponse.json(

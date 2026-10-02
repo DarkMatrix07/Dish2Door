@@ -31,6 +31,9 @@ export function buildNav(features: { deliveryPortal: boolean }): NavEntry[] {
     ...(features.deliveryPortal ? [{ type: "link" as const, href: "/admin/delivery-persons", label: "Delivery", icon: "delivery" as const }] : []),
     { type: "link", href: "/admin/analytics", label: "Analytics", icon: "analytics" },
     { type: "link", href: "/admin/notifications", label: "Notification log", icon: "log" },
+    // Who changed what in the admin. It reuses the log icon: AdminShell maps icons and is
+    // not part of this change.
+    { type: "link", href: "/admin/activity", label: "Activity log", icon: "log" },
     // The Domino's shop is a separate business inside the admin, so it sits apart from the
     // main store's links.
     {

@@ -17,7 +17,9 @@ const db = {
     return [row];
   },
   user: { findFirst: async () => { lookups++; return { id: "test", active: true, role: "ADMIN", passwordHash: "test" }; } },
-  appSession: { create: async () => { sessions++; throw new Error("Session creation must not be reached"); } }
+  appSession: { create: async () => { sessions++; throw new Error("Session creation must not be reached"); } },
+  // The route records sign-in failures in the activity log; nothing here reads them back.
+  auditEvent: { create: async () => ({}) }
 };
 (globalThis as unknown as { prisma: unknown }).prisma = db;
 const { POST } = await import("../app/api/session/login/route");
