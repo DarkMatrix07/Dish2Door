@@ -546,6 +546,18 @@ export function CartPageClient({
       }
       writeStoredIdentity({ name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone.trim() }, { remember: rememberContact });
 
+      // Test site only: the server already placed and confirmed the order, no payment.
+      if (payment.testPlaced && payment.trackingCode) {
+        completeCheckoutAttempt(attempt);
+        clearStoredCart();
+        if (payment.passcode) {
+          window.sessionStorage.setItem(`dish2door_passcode_${payment.trackingCode}`, payment.passcode);
+          toast.success(`Test order placed. Passcode: ${payment.passcode}`);
+        }
+        window.location.href = `/orders/${payment.trackingCode}`;
+        return;
+      }
+
       new window.Razorpay({
         key: payment.razorpayKeyId,
         amount: payment.amountPaise,

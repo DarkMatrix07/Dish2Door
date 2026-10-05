@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { DeliveryType, OrderSlot } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { cancelOrder, createPendingOnlineOrder, PENDING_ORDER_TTL_MS } from "@/lib/orders";
+import { cancelOrder, confirmOnlineOrder, createPendingOnlineOrder, PENDING_ORDER_TTL_MS } from "@/lib/orders";
 import { assertOrderSlotAvailable } from "@/lib/order-slots";
 import { createRazorpayClient, paymentSiteKey } from "@/lib/razorpay";
 import { env } from "@/lib/env";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
 import { createHash } from "node:crypto";
 import { PublicError, publicErrorMessage } from "@/lib/public-error";
+import { testCheckoutEnabled } from "@/lib/test-checkout";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -145,6 +146,22 @@ export async function POST(request: Request) {
     }
     assertOrderSlotAvailable(body.customer.orderSlot);
     const order = await createPendingOnlineOrder(body.customer, body.items, attemptId);
+
+    // Test site only (lib/test-checkout.ts): confirm the order straight away through the
+    // normal confirmation path, with clearly fake payment ids, instead of opening Razorpay.
+    if (testCheckoutEnabled()) {
+      const testOrderId = `test_order_${order.id}`;
+      await prisma.payment.update({ where: { orderId: order.id }, data: { razorpayOrderId: testOrderId } });
+      const placed = await confirmOnlineOrder(order.id, {
+        razorpayOrderId: testOrderId,
+        razorpayPaymentId: `test_pay_${order.id}`,
+        amountPaise: order.totalPaise,
+        currency: "INR",
+        captured: true
+      });
+      return NextResponse.json({ testPlaced: true, trackingCode: placed.order?.trackingCode ?? order.trackingCode, passcode: placed.passcode });
+    }
+
     const razorpay = createRazorpayClient();
     const razorpayOrder = await razorpay.orders.create({
       amount: order.totalPaise,
