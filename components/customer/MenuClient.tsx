@@ -14,6 +14,7 @@ import { SiteNav } from "@/components/customer/SiteNav";
 import { MAX_LINE_QUANTITY, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
 import { flyToCart, tapFeedback } from "@/lib/cart-feedback";
 import type { FeaturedCombo, FeaturedData, FeaturedDish } from "@/lib/featured";
+import type { SlotTimes } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
 type MenuItem = {
@@ -136,7 +137,7 @@ function featuredComboLine(combo: FeaturedCombo): StoredCartItem {
   };
 }
 
-export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[]; featured: FeaturedData }) {
+export function MenuClient({ restaurants, featured, slotTimes }: { restaurants: Restaurant[]; featured: FeaturedData; slotTimes: SlotTimes }) {
   // The open kitchen lives in the URL (?kitchen=<id>) rather than in state, so the
   // phone's Back button returns to the kitchen list instead of leaving /menu, and a
   // kitchen link can be shared. pushState updates useSearchParams without a reload.
@@ -535,6 +536,7 @@ export function MenuClient({ restaurants, featured }: { restaurants: Restaurant[
           <motion.section key="featured" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pt-8">
             <FeaturedShowcase
               data={featured}
+              slotTimes={slotTimes}
               quantityOf={quantityOf}
               onAddDish={(dish, source) => addLineToCart(featuredDishLine(dish), source)}
               onStepDish={(dish, delta) => stepCartLine(dish.id, delta, () => addLineToCart(featuredDishLine(dish)))}

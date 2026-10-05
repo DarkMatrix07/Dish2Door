@@ -2,6 +2,7 @@ import { ClosedOrders } from "@/components/customer/ClosedOrders";
 import { MenuClient } from "@/components/customer/MenuClient";
 import { prisma } from "@/lib/db";
 import { getFeaturedData } from "@/lib/featured";
+import { DEFAULT_SLOT_TIMES, slotTimesFrom } from "@/lib/order-slots";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +52,7 @@ async function getMenuData() {
       getFeaturedData()
     ]);
 
-    return { settings, restaurants, featured };
+    return { settings, restaurants, featured, slotTimes: slotTimesFrom(settings) };
   } catch {
     return {
       settings: {
@@ -60,17 +61,18 @@ async function getMenuData() {
         contactNumber: "Contact admin"
       },
       restaurants: [],
-      featured: EMPTY_FEATURED
+      featured: EMPTY_FEATURED,
+      slotTimes: DEFAULT_SLOT_TIMES
     };
   }
 }
 
 export default async function MenuPage() {
-  const { settings, restaurants, featured } = await getMenuData();
+  const { settings, restaurants, featured, slotTimes } = await getMenuData();
 
   if (!settings.ordersOpen) {
     return <ClosedOrders message={settings.closedMessage} contactNumber={settings.contactNumber} />;
   }
 
-  return <MenuClient restaurants={restaurants} featured={featured} />;
+  return <MenuClient restaurants={restaurants} featured={featured} slotTimes={slotTimes} />;
 }

@@ -1,6 +1,7 @@
 import { CartPageClient } from "@/components/customer/CartPageClient";
 import { ClosedOrders } from "@/components/customer/ClosedOrders";
 import { listActiveCampuses, toPublicCampus, type CampusPublic } from "@/lib/campus";
+import { DEFAULT_SLOT_TIMES, slotTimesFrom } from "@/lib/order-slots";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export default async function CartPage() {
   let campuses = FALLBACK_CAMPUSES;
   let orderingOpenMinute = 360;
   let orderingCloseMinute = 1380;
+  let slotTimes = DEFAULT_SLOT_TIMES;
 
   try {
     const [dbSettings, dbCampuses] = await Promise.all([getSettings(), listActiveCampuses()]);
@@ -40,6 +42,7 @@ export default async function CartPage() {
     };
     orderingOpenMinute = dbSettings.orderingOpenMinute;
     orderingCloseMinute = dbSettings.orderingCloseMinute;
+    slotTimes = slotTimesFrom(dbSettings);
     if (dbCampuses.length) campuses = dbCampuses.map(toPublicCampus);
   } catch {
     // Keep the cart review usable before Postgres is running locally.
@@ -55,6 +58,7 @@ export default async function CartPage() {
       serverNowMs={Date.now()}
       windowOpenMinute={orderingOpenMinute}
       windowCloseMinute={orderingCloseMinute}
+      slotTimes={slotTimes}
     />
   );
 }

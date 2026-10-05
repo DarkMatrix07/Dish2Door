@@ -1,4 +1,5 @@
 import { calculateTotals } from "./money";
+import type { SlotTimes } from "./order-slots";
 
 // Pure helpers behind the admin Settings page: what counts as "unsaved", what a section is
 // allowed to send, and how typed money/time text becomes stored numbers.
@@ -17,6 +18,11 @@ export type Settings = {
   orderingOpenMinute: number;
   orderingCloseMinute: number;
   spinWheelForEveryone: boolean;
+  // Delivery slot times, minutes after midnight (India time).
+  afternoonCutoffMinute: number;
+  afternoonDeliveryMinute: number;
+  nightCutoffMinute: number;
+  nightDeliveryMinute: number;
 };
 
 // The API answers with the whole database row; only these fields belong on the page.
@@ -30,11 +36,16 @@ export const SETTINGS_KEYS = [
   "paymentChargeFixedPaise",
   "orderingOpenMinute",
   "orderingCloseMinute",
-  "spinWheelForEveryone"
+  "spinWheelForEveryone",
+  "afternoonCutoffMinute",
+  "afternoonDeliveryMinute",
+  "nightCutoffMinute",
+  "nightDeliveryMinute"
 ] as const satisfies readonly (keyof Settings)[];
 
 export const ORDERING_FIELDS = ["ordersOpen", "orderingOpenMinute", "orderingCloseMinute", "closedMessage", "contactNumber"] as const;
 export const WHEEL_FIELDS = ["spinWheelForEveryone"] as const;
+export const SLOT_FIELDS = ["afternoonCutoffMinute", "afternoonDeliveryMinute", "nightCutoffMinute", "nightDeliveryMinute"] as const;
 
 type Keys = readonly (keyof Settings)[];
 
@@ -93,6 +104,17 @@ export function validateOrdering(draft: Pick<Settings, "closedMessage" | "contac
   if (contact.length < 3) return "Add a contact number customers can reach you on.";
   if (contact.length > 40) return "The contact number can be at most 40 characters.";
   return null;
+}
+
+// A slot whose order-by time is later than the daily closing time can never be ordered for
+// up to that time, because ordering has already shut. Allowed, but worth a gentle word.
+export function slotsPastClosing(
+  draft: Pick<Settings, "afternoonCutoffMinute" | "nightCutoffMinute" | "orderingCloseMinute">
+): (keyof SlotTimes)[] {
+  const past: (keyof SlotTimes)[] = [];
+  if (draft.afternoonCutoffMinute > draft.orderingCloseMinute) past.push("AFTERNOON");
+  if (draft.nightCutoffMinute > draft.orderingCloseMinute) past.push("NIGHT");
+  return past;
 }
 
 // ---- Campuses -------------------------------------------------------------------------

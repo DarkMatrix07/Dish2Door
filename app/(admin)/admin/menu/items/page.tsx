@@ -15,7 +15,7 @@ export default async function AdminMenuItemsPage({ searchParams }: { searchParam
   const [rows, soldOut] = await Promise.all([
     prisma.restaurant.findMany({
       where: { orderMode: MAIN_STORE_MODE },
-      select: { id: true, name: true, _count: { select: { menuItems: true } } },
+      select: { id: true, name: true, imageUrl: true, active: true, _count: { select: { menuItems: true } } },
       orderBy: { name: "asc" }
     }),
     prisma.menuItem.groupBy({
@@ -28,6 +28,8 @@ export default async function AdminMenuItemsPage({ searchParams }: { searchParam
   const restaurants = rows.map((row) => ({
     id: row.id,
     name: row.name,
+    imageUrl: row.imageUrl,
+    active: row.active,
     itemCount: row._count.menuItems,
     soldOutCount: soldOutByRestaurant.get(row.id) ?? 0
   }));

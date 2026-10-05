@@ -4,7 +4,8 @@ import { DeliveryType, OrderSlot } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { createWhatsAppOrder } from "@/lib/orders";
-import { assertOrderSlotAvailable, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
+import { assertOrderSlotAvailable, slotTimesFrom } from "@/lib/order-slots";
+import { getSettings } from "@/lib/settings";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
 import { clientAddress, consumeRateLimit } from "@/lib/rate-limit";
 import {
@@ -73,7 +74,8 @@ export async function POST(request: Request) {
     }
 
     // Only enforce a cutoff when the shop actually asked for a slot.
-    if (body.customer.orderSlot) assertOrderSlotAvailable(body.customer.orderSlot);
+    const slotTimes = slotTimesFrom(await getSettings());
+    if (body.customer.orderSlot) assertOrderSlotAvailable(body.customer.orderSlot, slotTimes);
 
     const { order, shop, campus } = await createWhatsAppOrder(body.customer, body.items);
 
@@ -94,7 +96,7 @@ export async function POST(request: Request) {
       campusName: campus.name,
       deliveryType: order.deliveryType,
       hostelBlock: order.hostelBlock,
-      slotLabel: order.orderSlot ? ORDER_SLOT_DETAILS[order.orderSlot].deliveryLabel : null,
+      slotLabel: order.orderSlot ? slotTimes[order.orderSlot].deliveryLabel : null,
       lines: order.items.map((item) => ({
         name: item.nameSnapshot,
         quantity: item.quantity,

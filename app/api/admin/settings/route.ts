@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireApiRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { describeChanges, recordAudit, summariseChanges, type ChangeSpec } from "@/lib/audit";
+import { validateSlotTimes } from "@/lib/order-slots";
 import { DEFAULT_SETTINGS_ID, getSettings } from "@/lib/settings";
 import { promoUntilDayFromNow } from "@/lib/spin-promo";
 
@@ -17,6 +18,10 @@ const schema = z.object({
   orderingOpenMinute: z.number().int().min(0).max(1439).optional(),
   orderingCloseMinute: z.number().int().min(0).max(1439).optional(),
   spinWheelForEveryone: z.boolean().optional(),
+  afternoonCutoffMinute: z.number().int().min(0).max(1439).optional(),
+  afternoonDeliveryMinute: z.number().int().min(0).max(1439).optional(),
+  nightCutoffMinute: z.number().int().min(0).max(1439).optional(),
+  nightDeliveryMinute: z.number().int().min(0).max(1439).optional(),
 });
 
 // What the activity log reports when a field here moves. The closed message is named, not
@@ -31,7 +36,11 @@ const SETTING_CHANGES: readonly ChangeSpec[] = [
   { key: "paymentChargeFixedPaise", label: "fixed payment charge", kind: "money" },
   { key: "orderingOpenMinute", label: "opening time", kind: "minute" },
   { key: "orderingCloseMinute", label: "closing time", kind: "minute" },
-  { key: "spinWheelForEveryone", label: "wheel open to everyone", kind: "bool" }
+  { key: "spinWheelForEveryone", label: "wheel open to everyone", kind: "bool" },
+  { key: "afternoonCutoffMinute", label: "afternoon order-by time", kind: "minute" },
+  { key: "afternoonDeliveryMinute", label: "afternoon delivery time", kind: "minute" },
+  { key: "nightCutoffMinute", label: "night order-by time", kind: "minute" },
+  { key: "nightDeliveryMinute", label: "night delivery time", kind: "minute" }
 ];
 
 export async function GET() {
@@ -56,6 +65,15 @@ export async function POST(request: Request) {
   if (openMinute >= (body.orderingCloseMinute ?? current.orderingCloseMinute)) {
     return NextResponse.json({ error: "Opening time must be before closing time." }, { status: 400 });
   }
+
+  // Fields left out keep their saved value, so the four times are judged together.
+  const slotProblem = validateSlotTimes({
+    afternoonCutoffMinute: body.afternoonCutoffMinute ?? current.afternoonCutoffMinute,
+    afternoonDeliveryMinute: body.afternoonDeliveryMinute ?? current.afternoonDeliveryMinute,
+    nightCutoffMinute: body.nightCutoffMinute ?? current.nightCutoffMinute,
+    nightDeliveryMinute: body.nightDeliveryMinute ?? current.nightDeliveryMinute
+  });
+  if (slotProblem) return NextResponse.json({ error: slotProblem }, { status: 400 });
 
   // Switching the everyone-mode promo on stamps the day its ordering window close
   // should end it; switching it off clears the stamp. Saving other settings while the

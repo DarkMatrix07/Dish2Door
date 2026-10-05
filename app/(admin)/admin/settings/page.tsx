@@ -22,7 +22,7 @@ export default async function AdminSettingsPage() {
       <AdminPageHeader
         eyebrow="Settings"
         title="Settings"
-        description="Ordering hours, campus fees, notification channels and the discount wheel promo. Each section has its own Save button."
+        description="Ordering hours, delivery slot times, campus fees, notification channels and the discount wheel promo. Each section has its own Save button."
       />
       <StoreSettingsManager
         initialSettings={pickSettings(settings)}

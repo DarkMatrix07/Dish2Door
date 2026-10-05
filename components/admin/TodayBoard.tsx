@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { formatIstTime } from "@/lib/ist-day";
 import { slotLabel } from "@/lib/order-labels";
-import { ORDER_SLOT_DETAILS } from "@/lib/order-slots";
+import type { SlotTimes } from "@/lib/order-slots";
 import { prepSheetCount } from "@/lib/prep-sheet";
 import {
   boardCampusOptions,
@@ -53,8 +53,8 @@ const SLOT_TITLES: Record<SlotKey, string> = {
   NONE: "No slot set"
 };
 
-function slotDeliverBy(slot: SlotKey) {
-  return slot === "NONE" ? "Placed without a delivery slot" : lowerMeridiem(ORDER_SLOT_DETAILS[slot].deliveryLabel);
+function slotDeliverBy(slot: SlotKey, slotTimes: SlotTimes) {
+  return slot === "NONE" ? "Placed without a delivery slot" : lowerMeridiem(slotTimes[slot].deliveryLabel);
 }
 
 function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -78,10 +78,13 @@ type BulkTarget = { slot: SlotKey; campusId: string | null; campusLabel: string 
 
 export function TodayBoard({
   initial,
-  ordering
+  ordering,
+  slotTimes
 }: {
   initial: TodayBoardData;
   ordering: { openLabel: string; closeLabel: string; ordersOpen: boolean };
+  // Read when the page loads; a slot time changed in Settings shows here after a refresh.
+  slotTimes: SlotTimes;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -438,6 +441,7 @@ export function TodayBoard({
         <div className="space-y-6 sm:space-y-8">
           {groups.map((group) => (
             <SlotSection
+              slotTimes={slotTimes}
               key={group.key}
               group={group}
               orders={orders}
@@ -501,7 +505,7 @@ export function TodayBoard({
               <dt className="text-neutral-500">Slot</dt>
               <dd className="font-semibold">
                 {slotLabel(scopeForSlot(bulk.slot))}
-                {bulk.slot === "NONE" ? "" : ` · ${lowerMeridiem(ORDER_SLOT_DETAILS[bulk.slot].deliveryLabel)}`}
+                {bulk.slot === "NONE" ? "" : ` · ${lowerMeridiem(slotTimes[bulk.slot].deliveryLabel)}`}
               </dd>
               <dt className="text-neutral-500">Orders</dt>
               <dd className="font-semibold tabular-nums">{bulkCount} confirmed</dd>
@@ -520,6 +524,7 @@ export function TodayBoard({
 
 function SlotSection({
   group,
+  slotTimes,
   orders,
   nowMs,
   searching,
@@ -527,6 +532,7 @@ function SlotSection({
   onBulk
 }: {
   group: SlotGroup;
+  slotTimes: SlotTimes;
   orders: TodayBoardData["orders"];
   nowMs: number;
   searching: boolean;
@@ -541,7 +547,7 @@ function SlotSection({
           {SLOT_TITLES[group.key]}
         </h2>
         <p className="text-sm text-neutral-500">
-          {slotDeliverBy(group.key)} · {plural(group.total, "order")}
+          {slotDeliverBy(group.key, slotTimes)} · {plural(group.total, "order")}
         </p>
       </div>
       <div className="space-y-4">

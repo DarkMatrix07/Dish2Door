@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button, linkButtonClasses } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RestaurantPicker } from "@/components/admin/RestaurantPicker";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import {
@@ -43,7 +44,7 @@ type MenuItem = {
   sizeOrder: number;
 };
 
-export type RestaurantChoice = { id: string; name: string; itemCount: number; soldOutCount: number };
+export type RestaurantChoice = { id: string; name: string; imageUrl: string | null; active: boolean; itemCount: number; soldOutCount: number };
 export type RestaurantMenu = { courses: Course[]; items: MenuItem[] };
 
 type Draft = { name: string; price: string; discountPercent: string; courseId: string; sizeLabel: string; sizeOrder: string };
@@ -130,6 +131,18 @@ export function ItemsManager({
   const items = useMemo(() => menu?.items ?? [], [menu]);
   const restaurant = restaurants.find((entry) => entry.id === restaurantId);
   const loadError = restaurantId ? loadErrors[restaurantId] : undefined;
+
+  // Counts come from the loaded menu once there is one, so they follow edits made here.
+  const pickerRestaurants = useMemo(
+    () =>
+      restaurants.map((entry) => {
+        const loaded = cache[entry.id];
+        return loaded
+          ? { ...entry, itemCount: loaded.items.length, soldOutCount: loaded.items.filter((item) => !item.available).length }
+          : entry;
+      }),
+    [restaurants, cache]
+  );
 
   useEffect(() => {
     if (!restaurantId || cache[restaurantId] || loadErrors[restaurantId] || inflight.current.has(restaurantId)) return;
@@ -399,19 +412,7 @@ export function ItemsManager({
   return (
     <div className="space-y-4 sm:space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <Field label="Restaurant" className="w-full sm:max-w-sm">
-          <Select value={restaurantId ?? ""} onChange={(event) => chooseRestaurant(event.target.value)}>
-            {restaurants.map((entry) => {
-              const loaded = cache[entry.id];
-              const total = loaded ? loaded.items.length : entry.itemCount;
-              return (
-                <option key={entry.id} value={entry.id}>
-                  {entry.name} ({total} item{total === 1 ? "" : "s"})
-                </option>
-              );
-            })}
-          </Select>
-        </Field>
+        <RestaurantPicker label="Restaurant" restaurants={pickerRestaurants} value={restaurantId} onChange={chooseRestaurant} />
         <Button onClick={openCreate} disabled={!menu}>
           <Plus size={16} className="-ml-1 mr-1" />
           Add item

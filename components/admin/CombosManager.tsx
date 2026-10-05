@@ -1,13 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronDown, Minus, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Check, Minus, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { SectionCard } from "@/components/admin/AdminShell";
 import { useConfirm } from "@/components/admin/ConfirmDialog";
 import { EmptyState } from "@/components/admin/EmptyState";
+import { RestaurantPicker } from "@/components/admin/RestaurantPicker";
 import { linkButtonClasses } from "@/components/ui/button";
 import { formatPaise } from "@/lib/utils";
 
@@ -79,6 +80,19 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
   const [selected, setSelected] = useState<Record<string, number>>({});
   const [itemQuery, setItemQuery] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const pickerRestaurants = useMemo(
+    () =>
+      restaurants.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        imageUrl: entry.imageUrl,
+        active: entry.active,
+        itemCount: entry.menuItems.length,
+        summary: `${entry.combos.length} combo${entry.combos.length === 1 ? "" : "s"} · ${entry.menuItems.length} item${entry.menuItems.length === 1 ? "" : "s"}`
+      })),
+    [restaurants]
+  );
 
   const menuItems = useMemo(() => restaurant?.menuItems ?? [], [restaurant]);
   const menuMap = useMemo(() => new Map(menuItems.map((item) => [item.id, item])), [menuItems]);
@@ -229,24 +243,7 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Restaurant selector */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-        <label htmlFor="combo-restaurant" className="text-sm font-bold text-[#3f4046]">Restaurant</label>
-        <div className="relative w-full sm:max-w-sm">
-          <select
-            id="combo-restaurant"
-            value={activeRestaurantId}
-            onChange={(event) => switchRestaurant(event.target.value)}
-            className="h-11 w-full appearance-none rounded-lg border border-black/12 bg-white pl-3.5 pr-10 text-sm font-bold text-[#202126] outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
-          >
-            {restaurants.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.name} — {entry.combos.length} combo{entry.combos.length === 1 ? "" : "s"}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={17} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#85878e]" />
-        </div>
-      </div>
+      <RestaurantPicker label="Restaurant" restaurants={pickerRestaurants} value={activeRestaurantId} onChange={switchRestaurant} />
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         {/* Builder */}

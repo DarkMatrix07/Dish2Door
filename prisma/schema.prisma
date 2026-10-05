@@ -445,6 +445,13 @@ model SystemSettings {
   // background job flips the promo off once this day's close passes, so it can never
   // be left on by accident.
   spinWheelEveryoneUntilDay String?
+  // Delivery slot times as minutes after midnight, India time. Order-by is when the slot
+  // stops taking orders; delivery is the time promised to customers. Defaults are the
+  // original hard-coded times (12:00 PM / 1:40 PM and 5:45 PM / 7:30 PM).
+  afternoonCutoffMinute    Int      @default(720)
+  afternoonDeliveryMinute  Int      @default(820)
+  nightCutoffMinute        Int      @default(1065)
+  nightDeliveryMinute      Int      @default(1170)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 }

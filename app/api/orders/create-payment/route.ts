@@ -3,7 +3,8 @@ import { DeliveryType, OrderSlot } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { cancelOrder, confirmOnlineOrder, createPendingOnlineOrder, PENDING_ORDER_TTL_MS } from "@/lib/orders";
-import { assertOrderSlotAvailable } from "@/lib/order-slots";
+import { assertOrderSlotAvailable, slotTimesFrom } from "@/lib/order-slots";
+import { getSettings } from "@/lib/settings";
 import { createRazorpayClient, paymentSiteKey } from "@/lib/razorpay";
 import { env } from "@/lib/env";
 import { optionalHostelBlockSchema } from "@/lib/hostels";
@@ -144,7 +145,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ orderId: prior.id, amountPaise: prior.totalPaise, razorpayOrderId: prior.payment.razorpayOrderId, razorpayKeyId: env.RAZORPAY_KEY_ID,
         customer: { name: prior.customerName, email: prior.customerEmail, phone: prior.customerPhone } });
     }
-    assertOrderSlotAvailable(body.customer.orderSlot);
+    // Re-checked here with the saved times; the cart page's own copy of them is only a convenience.
+    assertOrderSlotAvailable(body.customer.orderSlot, slotTimesFrom(await getSettings()));
     const order = await createPendingOnlineOrder(body.customer, body.items, attemptId);
 
     // Test site only (lib/test-checkout.ts): confirm the order straight away through the

@@ -13,23 +13,35 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ORDERING_FIELDS,
+  SLOT_FIELDS,
   WHEEL_FIELDS,
   buildSettingsPayload,
   isSectionDirty,
   mergeSavedSection,
   minutesToTimeInput,
+  slotsPastClosing,
   timeInputToMinutes,
   validateOrdering
 } from "@/lib/admin-settings";
+import { formatIndiaMinutes, slotTimesFrom, validateSlotTimes, type SlotTimes } from "@/lib/order-slots";
 
 const SECTIONS = [
   { id: "ordering", label: "Ordering" },
+  { id: "slots", label: "Order slots" },
   { id: "campuses", label: "Campuses and fees" },
   { id: "notifications", label: "Notification channels" },
   { id: "wheel", label: "Discount wheel promo" }
 ];
 
-type SectionKey = "ordering" | "wheel";
+type SectionKey = "ordering" | "slots" | "wheel";
+type FieldKeys = typeof ORDERING_FIELDS | typeof SLOT_FIELDS | typeof WHEEL_FIELDS;
+type TimeField = (typeof SLOT_FIELDS)[number] | "orderingOpenMinute" | "orderingCloseMinute";
+
+// The two delivery slots, in the owner's words. Night is what the owner calls evening orders.
+const SLOT_CARDS: { slot: keyof SlotTimes; title: string; cutoff: TimeField; delivery: TimeField }[] = [
+  { slot: "AFTERNOON", title: "Afternoon", cutoff: "afternoonCutoffMinute", delivery: "afternoonDeliveryMinute" },
+  { slot: "NIGHT", title: "Night (evening orders)", cutoff: "nightCutoffMinute", delivery: "nightDeliveryMinute" }
+];
 
 // The whole Settings page below its header. The sections share one saved copy of the
 // store settings, so saving one never overwrites another section's saved values.
@@ -51,9 +63,13 @@ export function StoreSettingsManager({
 
   const orderingDirty = isSectionDirty(saved, draft, ORDERING_FIELDS);
   const wheelDirty = isSectionDirty(saved, draft, WHEEL_FIELDS);
+  const slotsDirty = isSectionDirty(saved, draft, SLOT_FIELDS);
   const orderingProblem = orderingDirty ? validateOrdering(draft) : null;
+  const slotsProblem = slotsDirty ? validateSlotTimes(draft) : null;
+  const draftSlotTimes = slotTimesFrom(draft);
+  const pastClosing = slotsPastClosing(draft);
 
-  async function saveSection(key: SectionKey, keys: typeof ORDERING_FIELDS | typeof WHEEL_FIELDS, done: string) {
+  async function saveSection(key: SectionKey, keys: FieldKeys, done: string) {
     setSaving(key);
     try {
       const next = await saveSettings(buildSettingsPayload(saved, draft, keys));
@@ -80,11 +96,11 @@ export function StoreSettingsManager({
     await saveSection("ordering", ORDERING_FIELDS, "Ordering settings saved");
   }
 
-  function undo(keys: typeof ORDERING_FIELDS | typeof WHEEL_FIELDS) {
+  function undo(keys: FieldKeys) {
     setDraft((current) => mergeSavedSection(current, saved, keys));
   }
 
-  function setTime(field: "orderingOpenMinute" | "orderingCloseMinute", value: string) {
+  function setTime(field: TimeField, value: string) {
     const minutes = timeInputToMinutes(value);
     if (minutes !== null) setDraft({ ...draft, [field]: minutes });
   }
@@ -151,6 +167,50 @@ export function StoreSettingsManager({
             <Input className="mt-2" maxLength={40} value={draft.contactNumber} onChange={(event) => setDraft({ ...draft, contactNumber: event.target.value })} />
           </label>
         </div>
+      </SettingsSection>
+
+      <SettingsSection
+        id="slots"
+        title="Order slots"
+        description="The Afternoon and Night delivery slots customers pick from at checkout: the time they must order by, and the time you promise delivery."
+        dirty={slotsDirty}
+        saving={saving === "slots"}
+        problem={slotsProblem}
+        onSave={() => saveSection("slots", SLOT_FIELDS, "Order slots saved")}
+        onDiscard={() => undo(SLOT_FIELDS)}
+        saveLabel="Save order slots"
+      >
+        <div className="grid max-w-3xl gap-4 md:grid-cols-2">
+          {SLOT_CARDS.map((card) => {
+            const times = draftSlotTimes[card.slot];
+            return (
+              <div key={card.slot} className="rounded-lg bg-[#f3f4f6] p-4">
+                <p className="font-black">{card.title}</p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <label className="text-xs font-semibold text-neutral-500">
+                    Customers order by
+                    <Input className="mt-1" type="time" value={minutesToTimeInput(draft[card.cutoff])} onChange={(event) => setTime(card.cutoff, event.target.value)} />
+                  </label>
+                  <label className="text-xs font-semibold text-neutral-500">
+                    We deliver by
+                    <Input className="mt-1" type="time" value={minutesToTimeInput(draft[card.delivery])} onChange={(event) => setTime(card.delivery, event.target.value)} />
+                  </label>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-neutral-500">
+                  Customers will see: <span className="font-bold text-neutral-700">{times.cutoffLabel} · {times.deliveryLabel}</span>
+                </p>
+                {pastClosing.includes(card.slot) ? (
+                  <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                    Heads up: ordering closes at {formatIndiaMinutes(draft.orderingCloseMinute)} (see Ordering above), which is before this time. Customers will not be able to order for this slot after {formatIndiaMinutes(draft.orderingCloseMinute)}.
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+        <p className="max-w-3xl text-xs leading-5 text-neutral-500">
+          Changes apply straight away to new orders. Orders already placed keep the slot they chose. Each slot&apos;s order-by time must be earlier than its delivery time, and Afternoon must close before Night.
+        </p>
       </SettingsSection>
 
       <CampusesManager initialCampuses={campuses} />

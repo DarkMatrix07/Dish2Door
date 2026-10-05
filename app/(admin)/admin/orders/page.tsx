@@ -1,7 +1,7 @@
 import { PageContainer } from "@/components/admin/AdminShell";
 import { TodayBoard } from "@/components/admin/TodayBoard";
 import { requireRole } from "@/lib/auth";
-import { formatIndiaMinutes } from "@/lib/order-slots";
+import { formatIndiaMinutes, slotTimesFrom } from "@/lib/order-slots";
 import { getSettings } from "@/lib/settings";
 import { loadTodayBoard } from "@/lib/today-orders";
 
@@ -18,6 +18,7 @@ export default async function TodayOrdersPage() {
     <PageContainer>
       <TodayBoard
         initial={initial}
+        slotTimes={slotTimesFrom(settings)}
         ordering={{
           openLabel: formatIndiaMinutes(settings.orderingOpenMinute),
           closeLabel: formatIndiaMinutes(settings.orderingCloseMinute),

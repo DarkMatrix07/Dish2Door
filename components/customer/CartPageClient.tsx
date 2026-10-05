@@ -13,7 +13,7 @@ import { SpinWheel } from "@/components/customer/SpinWheel";
 import { clearStoredCart, MAX_LINE_QUANTITY, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
 import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity, type CustomerIdentity } from "@/lib/customer-identity";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
-import { formatIndiaMinutes, getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
+import { formatIndiaMinutes, getIndiaMinutes, type SlotTimes } from "@/lib/order-slots";
 import { getCheckoutAttempt, markCheckoutPending, completeCheckoutAttempt, claimCheckout, releaseCheckout, hasPendingCheckout, getPendingCheckout, saveCheckoutProof, completePendingCheckout, markCheckoutTerminal } from "@/lib/checkout-attempt-client";
 import { AnimatedPaise } from "@/components/customer/AnimatedPaise";
 import { FadeImage } from "@/components/customer/FadeImage";
@@ -128,12 +128,15 @@ export function CartPageClient({
   campuses,
   serverNowMs,
   windowOpenMinute,
-  windowCloseMinute
+  windowCloseMinute,
+  slotTimes
 }: {
   campuses: CampusPublic[];
   serverNowMs: number;
   windowOpenMinute: number;
   windowCloseMinute: number;
+  // For display and the button states only; checkout re-checks against the saved times.
+  slotTimes: SlotTimes;
 }) {
   // Which campus the customer is ordering for. Fees and hostel availability come from
   // this record; the server re-reads them from the campus code at checkout.
@@ -181,7 +184,7 @@ export function CartPageClient({
 
   // Hostel runs happen on the night slot only at some campuses.
   const hostelIsNightOnly = campus.hostelDeliveryEnabled && campus.hostelDeliveryNightOnly;
-  const nightSlotClosed = indiaMinutes !== null && indiaMinutes >= ORDER_SLOT_DETAILS.NIGHT.cutoffMinutes;
+  const nightSlotClosed = indiaMinutes !== null && indiaMinutes >= slotTimes.NIGHT.cutoffMinutes;
 
   // Picking hostel delivery moves the order to the night slot, since that is the only
   // slot it runs on. Done here so the customer never reaches payment on a bad combination.
@@ -283,8 +286,8 @@ export function CartPageClient({
 
   useEffect(() => {
     if (indiaMinutes === null) return;
-    const afternoonOpen = indiaMinutes < ORDER_SLOT_DETAILS.AFTERNOON.cutoffMinutes;
-    const nightOpen = indiaMinutes < ORDER_SLOT_DETAILS.NIGHT.cutoffMinutes;
+    const afternoonOpen = indiaMinutes < slotTimes.AFTERNOON.cutoffMinutes;
+    const nightOpen = indiaMinutes < slotTimes.NIGHT.cutoffMinutes;
 
     setCustomer((current) => {
       if (current.orderSlot === "AFTERNOON" && !afternoonOpen) {
@@ -295,7 +298,7 @@ export function CartPageClient({
       }
       return current;
     });
-  }, [indiaMinutes]);
+  }, [indiaMinutes, slotTimes]);
 
   useEffect(() => {
     if (!identityGateOpen) return;
@@ -710,8 +713,8 @@ export function CartPageClient({
                 ) : null}
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {([
-                    { value: "AFTERNOON", label: "Afternoon", ...ORDER_SLOT_DETAILS.AFTERNOON },
-                    { value: "NIGHT", label: "Night", ...ORDER_SLOT_DETAILS.NIGHT },
+                    { value: "AFTERNOON", label: "Afternoon", ...slotTimes.AFTERNOON },
+                    { value: "NIGHT", label: "Night", ...slotTimes.NIGHT },
                   ] as const).map((slot) => {
                     // Hostel delivery only runs at night, so the afternoon slot is not
                     // selectable while hostel is chosen.

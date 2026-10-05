@@ -5,13 +5,14 @@ import { ArrowRight, Flame, Minus, Plus, Sparkles, Store, TrendingUp, Wallet } f
 import { useEffect, useState } from "react";
 import { FadeImage } from "@/components/customer/FadeImage";
 import type { FeaturedCombo, FeaturedData, FeaturedDish } from "@/lib/featured";
-import { getIndiaMinutes, ORDER_SLOT_DETAILS } from "@/lib/order-slots";
+import { getIndiaMinutes, type SlotTimes } from "@/lib/order-slots";
 import { formatPaise } from "@/lib/utils";
 
 const ITEM_FALLBACK = "/dish-placeholder.webp";
 
 type Props = {
   data: FeaturedData;
+  slotTimes: SlotTimes;
   quantityOf: (cartId: string) => number;
   onAddDish: (dish: FeaturedDish, source?: Element | null) => void;
   onStepDish: (dish: FeaturedDish, delta: number) => void;
@@ -56,21 +57,21 @@ function Rail({ icon, title, subtitle, children }: { icon: React.ReactNode; titl
   );
 }
 
-export function FeaturedShowcase({ data, quantityOf, onAddDish, onStepDish, onAddCombo, onStepCombo, onOpenRestaurant, onBrowseKitchens }: Props) {
+export function FeaturedShowcase({ data, slotTimes, quantityOf, onAddDish, onStepDish, onAddCombo, onStepCombo, onOpenRestaurant, onBrowseKitchens }: Props) {
   // Slot is resolved after mount so the server-rendered markup can't disagree with the
   // client clock (hydration) — until then the copy stays slot-neutral.
   const [slot, setSlot] = useState<{ key: "AFTERNOON" | "NIGHT"; label: string; cutoff: string } | null>(null);
 
   useEffect(() => {
     const minutes = getIndiaMinutes();
-    if (minutes < ORDER_SLOT_DETAILS.AFTERNOON.cutoffMinutes) {
-      setSlot({ key: "AFTERNOON", label: "this afternoon", cutoff: ORDER_SLOT_DETAILS.AFTERNOON.cutoffLabel });
-    } else if (minutes < ORDER_SLOT_DETAILS.NIGHT.cutoffMinutes) {
-      setSlot({ key: "NIGHT", label: "tonight", cutoff: ORDER_SLOT_DETAILS.NIGHT.cutoffLabel });
+    if (minutes < slotTimes.AFTERNOON.cutoffMinutes) {
+      setSlot({ key: "AFTERNOON", label: "this afternoon", cutoff: slotTimes.AFTERNOON.cutoffLabel });
+    } else if (minutes < slotTimes.NIGHT.cutoffMinutes) {
+      setSlot({ key: "NIGHT", label: "tonight", cutoff: slotTimes.NIGHT.cutoffLabel });
     } else {
       setSlot(null);
     }
-  }, []);
+  }, [slotTimes]);
 
   const hero = data.topDishes[0];
   const rest = data.topDishes.slice(1, 7);

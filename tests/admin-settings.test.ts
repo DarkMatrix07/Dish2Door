@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ORDERING_FIELDS,
+  SLOT_FIELDS,
   WHEEL_FIELDS,
   buildSettingsPayload,
   isCampusDirty,
@@ -12,6 +13,7 @@ import {
   parseRupeesToPaise,
   pickSettings,
   sampleOrderTotalPaise,
+  slotsPastClosing,
   timeInputToMinutes,
   unitsToDecimalText,
   campusFromDraft,
@@ -32,7 +34,11 @@ const saved: Settings = {
   paymentChargeFixedPaise: 0,
   orderingOpenMinute: 360,
   orderingCloseMinute: 1380,
-  spinWheelForEveryone: false
+  spinWheelForEveryone: false,
+  afternoonCutoffMinute: 720,
+  afternoonDeliveryMinute: 820,
+  nightCutoffMinute: 1065,
+  nightDeliveryMinute: 1170
 };
 
 test("a section is unsaved only when one of its own fields changed", () => {
@@ -156,4 +162,23 @@ test("the sample order total uses the checkout calculator", () => {
   // 20000 + 200 platform = 20200; 2.5% of that rounds up to 505 -> 20705.
   assert.equal(sampleOrderTotalPaise(campus), 20_705);
   assert.equal(sampleOrderTotalPaise({ ...campus, platformFeePaise: 0, paymentChargePercentBps: 0 }), 20_000);
+});
+
+test("the slot times are their own section and are carried through other sections' saves", () => {
+  const draft = { ...saved, nightCutoffMinute: 1080, ordersOpen: false };
+  assert.equal(isSectionDirty(saved, draft, SLOT_FIELDS), true);
+  assert.equal(isSectionDirty(saved, { ...saved, ordersOpen: false }, SLOT_FIELDS), false);
+  const orderingPayload = buildSettingsPayload(saved, draft, ORDERING_FIELDS);
+  assert.equal(orderingPayload.nightCutoffMinute, saved.nightCutoffMinute);
+  const slotPayload = buildSettingsPayload(saved, draft, SLOT_FIELDS);
+  assert.equal(slotPayload.nightCutoffMinute, 1080);
+  assert.equal(slotPayload.ordersOpen, true);
+});
+
+test("a slot is flagged only when its order-by time is after the daily closing time", () => {
+  assert.deepEqual(slotsPastClosing(saved), []);
+  assert.deepEqual(slotsPastClosing({ ...saved, orderingCloseMinute: 1000 }), ["NIGHT"]);
+  assert.deepEqual(slotsPastClosing({ ...saved, orderingCloseMinute: 700 }), ["AFTERNOON", "NIGHT"]);
+  // Closing exactly at the order-by time loses nothing.
+  assert.deepEqual(slotsPastClosing({ ...saved, orderingCloseMinute: 1065 }), []);
 });
