@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { AdminPageHeader, PageContainer, SectionCard, StatCard } from "@/components/admin/AdminShell";
 import { Pager, readPage } from "@/components/admin/Pager";
 import { Badge } from "@/components/ui/badge";
+import { Dropdown } from "@/components/ui/dropdown";
 import { prisma } from "@/lib/db";
 import { formatIstDateTime } from "@/lib/ist-day";
 import { SPIN_ORDERS_PER_REWARD } from "@/lib/spin-wheel";
@@ -20,6 +21,7 @@ const SORTS = {
   new: { label: "Newest customers", order: Prisma.sql`"firstSeenAt" DESC, phone` }
 } as const;
 type SortKey = keyof typeof SORTS;
+const SORT_OPTIONS = (Object.keys(SORTS) as SortKey[]).map((key) => ({ value: key, label: SORTS[key].label }));
 
 type CustomerRow = {
   phone: string;
@@ -136,16 +138,7 @@ export default async function CustomersPage({
               placeholder="Search name, phone, email"
               className="h-9 w-full rounded-md border border-neutral-200 px-3 text-sm outline-none focus:border-neutral-400 sm:w-52"
             />
-            <select
-              name="sort"
-              defaultValue={sort}
-              aria-label="Sort customers"
-              className="h-9 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-sm outline-none focus:border-neutral-400 sm:flex-none"
-            >
-              {(Object.keys(SORTS) as SortKey[]).map((key) => (
-                <option key={key} value={key}>{SORTS[key].label}</option>
-              ))}
-            </select>
+            <Dropdown name="sort" defaultValue={sort} ariaLabel="Sort customers" size="sm" options={SORT_OPTIONS} className="w-auto min-w-0 flex-1 sm:w-48 sm:flex-none" />
             <button type="submit" className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-semibold text-white">Apply</button>
           </form>
         }

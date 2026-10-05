@@ -1,5 +1,15 @@
-// Pure helpers for the admin restaurant picker, kept out of the component so the
-// filtering and keyboard behaviour can be tested without a browser.
+// Pure helpers for the admin restaurant picker. The picker is a thin wrapper around the
+// shared Dropdown, so the search and keyboard behaviour lives in lib/dropdown.ts.
+
+import {
+  filterByText,
+  initialActiveIndex as initialDropdownIndex,
+  moveActiveIndex,
+  optionInitial,
+  type DropdownOption
+} from "./dropdown";
+
+export { moveActiveIndex };
 
 export type PickerRestaurant = {
   id: string;
@@ -17,9 +27,7 @@ function plural(count: number, one: string, many = `${one}s`) {
 }
 
 export function filterRestaurants<T extends { name: string }>(list: T[], query: string): T[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return list;
-  return list.filter((entry) => entry.name.toLowerCase().includes(needle));
+  return filterByText(list, query, (entry) => entry.name);
 }
 
 // "73 items", with ", 2 sold out" when the caller wants it inline (the closed button).
@@ -29,21 +37,27 @@ export function restaurantCountsLine(restaurant: PickerRestaurant, includeSoldOu
   return includeSoldOut && soldOut > 0 ? `${base} · ${soldOut} sold out` : base;
 }
 
-export function restaurantInitial(name: string) {
-  const first = name.trim().charAt(0);
-  return first ? first.toUpperCase() : "?";
-}
-
-// Moves the highlighted row, wrapping at both ends. With nothing to show there is no row.
-export function moveActiveIndex(current: number, delta: number, length: number) {
-  if (length <= 0) return -1;
-  if (current < 0 || current >= length) return delta < 0 ? length - 1 : 0;
-  return (current + delta + length) % length;
-}
+export const restaurantInitial = optionInitial;
 
 // Where the highlight starts when the list opens: on the chosen restaurant if it is shown.
 export function initialActiveIndex<T extends { id: string }>(list: T[], selectedId: string | null | undefined) {
-  if (!list.length) return -1;
-  const found = list.findIndex((entry) => entry.id === selectedId);
-  return found >= 0 ? found : 0;
+  return initialDropdownIndex(
+    list.map((entry) => ({ value: entry.id })),
+    selectedId
+  );
+}
+
+// A restaurant as a dropdown row. imageUrl is always passed (null when there is no photo) so
+// every row gets a tile.
+export function restaurantToOption(restaurant: PickerRestaurant): DropdownOption {
+  const soldOut = restaurant.soldOutCount ?? 0;
+  return {
+    value: restaurant.id,
+    label: restaurant.name,
+    imageUrl: restaurant.imageUrl ?? null,
+    description: restaurantCountsLine(restaurant, false),
+    selectedDescription: restaurantCountsLine(restaurant, true),
+    badge: restaurant.active === false ? { text: "Switched off", tone: "red" } : undefined,
+    endBadge: soldOut > 0 ? { text: `Sold out: ${soldOut}`, tone: "amber" } : undefined
+  };
 }

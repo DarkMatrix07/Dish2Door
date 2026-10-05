@@ -12,7 +12,7 @@ import { Button, linkButtonClasses } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RestaurantPicker } from "@/components/admin/RestaurantPicker";
 import { Modal } from "@/components/ui/modal";
-import { Select } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/dropdown";
 import {
   MAX_BULK_ITEMS,
   MAX_DISCOUNT_PERCENT,
@@ -609,15 +609,13 @@ export function ItemsManager({
               <Input type="number" inputMode="numeric" value={newItem.sizeOrder} onChange={(event) => setNewItem({ ...newItem, sizeOrder: event.target.value })} />
             </Field>
           </div>
-          <Field label="Course">
-            <Select value={newItem.courseId} onChange={(event) => setNewItem({ ...newItem, courseId: event.target.value })}>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <Dropdown
+            label="Course"
+            placeholder="Choose a course"
+            value={newItem.courseId}
+            onChange={(courseId) => setNewItem({ ...newItem, courseId })}
+            options={courses.map((course) => ({ value: course.id, label: course.name }))}
+          />
           <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3">
             <div className="grid gap-3 min-[430px]:grid-cols-[80px_1fr] min-[430px]:items-center">
               <div className="h-20 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${imagePreview || PLACEHOLDER}')` }} />
@@ -675,15 +673,13 @@ function ItemRow({
           <Field label="Name">
             <Input value={draft.name} onChange={(event) => onDraft({ ...draft, name: event.target.value })} />
           </Field>
-          <Field label="Course">
-            <Select value={draft.courseId} onChange={(event) => onDraft({ ...draft, courseId: event.target.value })}>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          <Dropdown
+            label="Course"
+            placeholder="Choose a course"
+            value={draft.courseId}
+            onChange={(courseId) => onDraft({ ...draft, courseId })}
+            options={courses.map((course) => ({ value: course.id, label: course.name }))}
+          />
           <Field label="Price (₹)">
             <Input type="number" inputMode="decimal" min={1} value={draft.price} onChange={(event) => onDraft({ ...draft, price: event.target.value })} />
           </Field>

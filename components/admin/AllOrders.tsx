@@ -11,7 +11,7 @@ import { PaymentBadge, SlotBadge, StatusBadge, itemsSummary, sourceLabel, status
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 import { formatIstFull } from "@/lib/ist-day";
 import { statusTone } from "@/lib/order-labels";
 import {
@@ -81,26 +81,16 @@ export function OrderListSkeleton() {
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  children
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block min-w-0 text-xs font-bold text-neutral-500">
-      {label}
-      <Select className="mt-1 font-normal text-neutral-900" value={value} onChange={(event) => onChange(event.target.value)}>
-        {children}
-      </Select>
-    </label>
-  );
+function pairOptions(pairs: readonly (readonly [string, string])[], all?: string): DropdownOption[] {
+  const options = pairs.map(([value, label]) => ({ value, label }));
+  return all ? [{ value: "", label: all }, ...options] : options;
 }
+
+const STATUS_CHOICES = pairOptions(STATUS_OPTIONS, "Every status");
+const PAYMENT_CHOICES = pairOptions(PAYMENT_OPTIONS);
+const SOURCE_CHOICES = pairOptions(SOURCE_OPTIONS, "Every source");
+const SLOT_CHOICES = pairOptions(SLOT_OPTIONS, "Every slot");
+const PAGE_SIZE_OPTIONS: DropdownOption[] = PAGE_SIZE_CHOICES.map((size) => ({ value: String(size), label: String(size) }));
 
 export function AllOrders({
   initial,
@@ -298,43 +288,20 @@ export function AllOrders({
   const lastShown = Math.min(total, (page - 1) * pageSize + orders.length);
   const hasNarrowing = activeChips.length > 0 || Boolean(filters.search) || !noDates;
 
+  const campusOptions = useMemo(() => [{ value: "", label: "All campuses" }, ...campuses.map((campus) => ({ value: campus.id, label: campus.name }))], [campuses]);
+  const restaurantOptions = useMemo(
+    () => [{ value: "", label: "All restaurants" }, ...restaurants.map((restaurant) => ({ value: restaurant.id, label: restaurant.name }))],
+    [restaurants]
+  );
+
   const filterFields = (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <FilterSelect label="Campus" value={filters.campusId ?? ""} onChange={(value) => change({ campusId: value || null })}>
-        <option value="">All campuses</option>
-        {campuses.map((campus) => (
-          <option key={campus.id} value={campus.id}>{campus.name}</option>
-        ))}
-      </FilterSelect>
-      <FilterSelect label="Restaurant" value={filters.restaurantId ?? ""} onChange={(value) => change({ restaurantId: value || null })}>
-        <option value="">All restaurants</option>
-        {restaurants.map((restaurant) => (
-          <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>
-        ))}
-      </FilterSelect>
-      <FilterSelect label="Status" value={filters.status ?? ""} onChange={(value) => change({ status: (value || null) as OrderSearch["status"] })}>
-        <option value="">Every status</option>
-        {STATUS_OPTIONS.map(([value, label]) => (
-          <option key={value} value={value}>{label}</option>
-        ))}
-      </FilterSelect>
-      <FilterSelect label="Payment" value={filters.payment} onChange={(value) => change({ payment: value as OrderSearch["payment"] })}>
-        {PAYMENT_OPTIONS.map(([value, label]) => (
-          <option key={value} value={value}>{label}</option>
-        ))}
-      </FilterSelect>
-      <FilterSelect label="Source" value={filters.source ?? ""} onChange={(value) => change({ source: (value || null) as OrderSearch["source"] })}>
-        <option value="">Every source</option>
-        {SOURCE_OPTIONS.map(([value, label]) => (
-          <option key={value} value={value}>{label}</option>
-        ))}
-      </FilterSelect>
-      <FilterSelect label="Slot" value={filters.slot ?? ""} onChange={(value) => change({ slot: (value || null) as OrderSearch["slot"] })}>
-        <option value="">Every slot</option>
-        {SLOT_OPTIONS.map(([value, label]) => (
-          <option key={value} value={value}>{label}</option>
-        ))}
-      </FilterSelect>
+      <Dropdown label="Campus" value={filters.campusId ?? ""} onChange={(value) => change({ campusId: value || null })} options={campusOptions} />
+      <Dropdown label="Restaurant" value={filters.restaurantId ?? ""} onChange={(value) => change({ restaurantId: value || null })} options={restaurantOptions} searchPlaceholder="Search restaurants" />
+      <Dropdown label="Status" value={filters.status ?? ""} onChange={(value) => change({ status: (value || null) as OrderSearch["status"] })} options={STATUS_CHOICES} />
+      <Dropdown label="Payment" value={filters.payment} onChange={(value) => change({ payment: value as OrderSearch["payment"] })} options={PAYMENT_CHOICES} />
+      <Dropdown label="Source" value={filters.source ?? ""} onChange={(value) => change({ source: (value || null) as OrderSearch["source"] })} options={SOURCE_CHOICES} />
+      <Dropdown label="Slot" value={filters.slot ?? ""} onChange={(value) => change({ slot: (value || null) as OrderSearch["slot"] })} options={SLOT_CHOICES} />
     </div>
   );
 
@@ -557,18 +524,17 @@ export function AllOrders({
                 <p className="text-sm text-neutral-500" aria-live="polite">
                   Page {page} of {totalPages} · showing {firstShown}–{lastShown} of {total}
                 </p>
-                <label className="flex items-center gap-2 text-xs font-bold text-neutral-500">
+                <div className="flex items-center gap-2 text-xs font-bold text-neutral-500">
                   Per page
-                  <Select
-                    className="h-9 w-20 font-normal text-neutral-900"
-                    value={pageSize}
-                    onChange={(event) => go(orderListParams(filters, 1, Number(event.target.value)))}
-                  >
-                    {PAGE_SIZE_CHOICES.map((size) => (
-                      <option key={size} value={size}>{size}</option>
-                    ))}
-                  </Select>
-                </label>
+                  <Dropdown
+                    size="sm"
+                    ariaLabel="Orders per page"
+                    className="w-24"
+                    value={String(pageSize)}
+                    onChange={(value) => go(orderListParams(filters, 1, Number(value)))}
+                    options={PAGE_SIZE_OPTIONS}
+                  />
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className={FOCUS} disabled={page <= 1} onClick={() => go(orderListParams(filters, page - 1, pageSize))}>

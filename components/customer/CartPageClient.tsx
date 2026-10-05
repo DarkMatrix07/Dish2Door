@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, ChevronDown, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Star, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, GraduationCap, MailCheck, MapPin, Minus, Plus, ShieldCheck, ShoppingBag, Star, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/customer/SiteNav";
@@ -10,6 +10,7 @@ import { SiteFooter } from "@/components/customer/SiteFooter";
 import { HostelPicker } from "@/components/customer/HostelPicker";
 import { RememberDetails } from "@/components/customer/RememberDetails";
 import { SpinWheel } from "@/components/customer/SpinWheel";
+import { Dropdown } from "@/components/ui/dropdown";
 import { clearStoredCart, MAX_LINE_QUANTITY, readStoredCart, writeStoredCart, type StoredCartItem } from "@/lib/cart";
 import { forgetStoredIdentity, readStoredIdentity, writeStoredIdentity, type CustomerIdentity } from "@/lib/customer-identity";
 import { readStoredCampus, writeStoredCampus, type CampusPublic } from "@/lib/customer-campus";
@@ -44,82 +45,6 @@ function loadRazorpayScript() {
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
-}
-
-// The native <select> rendered with the OS blue highlight, which looked nothing like
-// the rest of the cart. This is a plain button + panel with the site's own styling.
-function CampusDropdown({
-  campuses,
-  value,
-  onChange
-}: {
-  campuses: CampusPublic[];
-  value: string;
-  onChange: (code: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const selected = campuses.find((entry) => entry.code === value);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={boxRef} className="relative">
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="flex h-11 min-w-36 items-center justify-between gap-3 rounded-lg border border-black/12 bg-white px-3.5 text-sm font-black text-[#171713] transition hover:border-black/30 focus:border-[#c65d24] focus:outline-none focus:ring-2 focus:ring-[#c65d24]/10"
-      >
-        {selected?.name ?? "Choose"}
-        <ChevronDown size={16} className={`text-[#817a70] transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      <AnimatePresence>
-        {open ? (
-          <motion.ul
-            role="listbox"
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.14 }}
-            className="absolute right-0 z-30 mt-2 w-full min-w-40 overflow-hidden rounded-xl border border-black/10 bg-[#fffdf8] p-1 shadow-[0_18px_50px_rgba(23,23,19,0.16)]"
-          >
-            {campuses.map((entry) => {
-              const picked = entry.code === value;
-              return (
-                <li key={entry.code} role="option" aria-selected={picked}>
-                  <button
-                    type="button"
-                    onClick={() => { onChange(entry.code); setOpen(false); }}
-                    className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold transition ${picked ? "bg-[#171713] text-white" : "text-[#171713] hover:bg-[#f0ebe1]"}`}
-                  >
-                    {entry.name}
-                    {picked ? <Check size={15} className="text-[#f6b73c]" /> : null}
-                  </button>
-                </li>
-              );
-            })}
-          </motion.ul>
-        ) : null}
-      </AnimatePresence>
-    </div>
-  );
 }
 
 const fieldClass = "h-12 w-full rounded-md border border-black/12 bg-white/75 px-4 text-sm font-medium text-[#171713] outline-none transition placeholder:text-[#a29b90] focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10";
@@ -181,6 +106,8 @@ export function CartPageClient({
     setCampusCode(code);
     writeStoredCampus(code);
   }
+
+  const campusOptions = useMemo(() => campuses.map((entry) => ({ value: entry.code, label: entry.name })), [campuses]);
 
   // Hostel runs happen on the night slot only at some campuses.
   const hostelIsNightOnly = campus.hostelDeliveryEnabled && campus.hostelDeliveryNightOnly;
@@ -676,7 +603,7 @@ export function CartPageClient({
                 <span className="inline-flex items-center gap-2 text-sm font-bold">
                   <GraduationCap size={17} className="text-[#c65d24]" /> Your campus
                 </span>
-                <CampusDropdown campuses={campuses} value={campus.code} onChange={chooseCampus} />
+                <Dropdown tone="customer" ariaLabel="Your campus" className="w-auto min-w-44" value={campus.code} onChange={chooseCampus} options={campusOptions} />
               </div>
             ) : null}
 

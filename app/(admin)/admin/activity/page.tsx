@@ -3,6 +3,7 @@ import { AdminPageHeader, PageContainer, SectionCard } from "@/components/admin/
 import { EmptyState } from "@/components/admin/EmptyState";
 import { Pager, readPage } from "@/components/admin/Pager";
 import { Badge } from "@/components/ui/badge";
+import { Dropdown } from "@/components/ui/dropdown";
 import { linkButtonClasses } from "@/components/ui/button";
 import { AUDIT_GROUPS, AUDIT_GROUP_LABELS, AUDIT_OUTCOME_LABELS, auditActionLabel, type AuditOutcome } from "@/lib/audit-actions";
 import {
@@ -33,7 +34,7 @@ const chipClasses = (active: boolean) =>
   );
 
 const fieldClasses =
-  "mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950";
+  "mt-1 h-11 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950";
 
 function actorName(row: { actor: { name: string } | null; action: string; outcome: string }) {
   if (row.actor) return row.actor.name;
@@ -112,19 +113,17 @@ export default async function AdminActivityPage({
         <form action={BASE_PATH} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_2fr_auto] lg:items-end">
           {search.group ? <input type="hidden" name="group" value={search.group} /> : null}
           {search.range !== "all" ? <input type="hidden" name="range" value={search.range} /> : null}
-          <label className="block text-xs font-semibold text-neutral-500">
-            Who
-            <select name="who" defaultValue={search.who ?? ""} className={fieldClasses}>
-              <option value="">Everyone</option>
-              {people.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                  {person.role === "DELIVERY" ? " (delivery)" : ""}
-                </option>
-              ))}
-              <option value={UNKNOWN_WHO}>Failed sign-ins</option>
-            </select>
-          </label>
+          <Dropdown
+            name="who"
+            label="Who"
+            defaultValue={search.who ?? ""}
+            searchPlaceholder="Search people"
+            options={[
+              { value: "", label: "Everyone" },
+              ...people.map((person) => ({ value: person.id, label: `${person.name}${person.role === "DELIVERY" ? " (delivery)" : ""}` })),
+              { value: UNKNOWN_WHO, label: "Failed sign-ins" }
+            ]}
+          />
           <label className="block text-xs font-semibold text-neutral-500">
             Search the details
             <input
@@ -136,11 +135,11 @@ export default async function AdminActivityPage({
             />
           </label>
           <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
-            <button type="submit" className="h-10 flex-1 rounded-lg bg-neutral-950 px-4 text-sm font-semibold text-white lg:flex-none">
+            <button type="submit" className="h-11 flex-1 rounded-lg bg-neutral-950 px-4 text-sm font-semibold text-white lg:flex-none">
               Show activity
             </button>
             {filtered ? (
-              <Link href={BASE_PATH} className={cn(linkButtonClasses("outline", "sm"), "h-10")}>
+              <Link href={BASE_PATH} className={cn(linkButtonClasses("outline", "sm"), "h-11")}>
                 Clear
               </Link>
             ) : null}

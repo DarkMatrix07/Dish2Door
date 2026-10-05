@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 import { readApiJson } from "@/lib/api-client";
 import { HOSTEL_BLOCKS } from "@/lib/hostels";
 import { formatPaise } from "@/lib/utils";
@@ -21,6 +21,20 @@ type Restaurant = {
 type DraftItem = { menuItemId: string; quantity: number };
 
 type CampusRef = { id: string; code: string; name: string };
+
+const DELIVERY_OPTIONS: DropdownOption[] = [
+  { value: "GATE", label: "Gate" },
+  { value: "HOSTEL", label: "Hostel" }
+];
+const PAYMENT_OPTIONS: DropdownOption[] = [
+  { value: "PAID_MANUALLY", label: "Paid manually" },
+  { value: "UNPAID", label: "Unpaid" }
+];
+const SLOT_OPTIONS: DropdownOption[] = [
+  { value: "AFTERNOON", label: "Deliver by afternoon" },
+  { value: "NIGHT", label: "Deliver by night" }
+];
+const HOSTEL_OPTIONS: DropdownOption[] = HOSTEL_BLOCKS.map((block) => ({ value: block, label: block }));
 
 export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restaurant[]; campuses: CampusRef[] }) {
   const router = useRouter();
@@ -50,6 +64,14 @@ export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restau
     if (!courseId) return restaurant.menuItems;
     return restaurant.menuItems.filter((item) => item.courseId === courseId);
   }, [courseId, restaurant]);
+
+  const campusOptions = useMemo(() => campuses.map((campus) => ({ value: campus.code, label: campus.name })), [campuses]);
+  const restaurantOptions = useMemo(() => restaurants.map((item) => ({ value: item.id, label: item.name })), [restaurants]);
+  const courseOptions = useMemo(
+    () => [{ value: "", label: "All courses" }, ...(restaurant?.courses ?? []).map((course) => ({ value: course.id, label: course.name }))],
+    [restaurant]
+  );
+  const itemOptions = useMemo(() => visibleItems.map((item) => ({ value: item.id, label: `${item.name} - ${formatPaise(item.pricePaise)}` })), [visibleItems]);
 
   const cartTotal = useMemo(
     () =>
@@ -103,64 +125,47 @@ export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restau
           <Input placeholder="Phone number" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} />
           <Input placeholder="Email (optional)" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} />
           {campuses.length > 1 ? (
-            <Select value={customer.campusCode} onChange={(event) => setCustomer({ ...customer, campusCode: event.target.value })}>
-              {campuses.map((campus) => <option key={campus.code} value={campus.code}>{campus.name}</option>)}
-            </Select>
+            <Dropdown
+              ariaLabel="Campus"
+              value={customer.campusCode}
+              onChange={(campusCode) => setCustomer({ ...customer, campusCode })}
+              options={campusOptions}
+            />
           ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
-            <Select value={customer.deliveryType} onChange={(event) => setCustomer({ ...customer, deliveryType: event.target.value })}>
-              <option value="GATE">Gate</option>
-              <option value="HOSTEL">Hostel</option>
-            </Select>
-            <Select value={customer.paymentStatus} onChange={(event) => setCustomer({ ...customer, paymentStatus: event.target.value })}>
-              <option value="PAID_MANUALLY">Paid manually</option>
-              <option value="UNPAID">Unpaid</option>
-            </Select>
+            <Dropdown ariaLabel="Delivery type" value={customer.deliveryType} onChange={(deliveryType) => setCustomer({ ...customer, deliveryType })} options={DELIVERY_OPTIONS} />
+            <Dropdown ariaLabel="Payment" value={customer.paymentStatus} onChange={(paymentStatus) => setCustomer({ ...customer, paymentStatus })} options={PAYMENT_OPTIONS} />
           </div>
           {customer.deliveryType === "HOSTEL" ? (
-            <Select value={customer.hostelBlock} onChange={(event) => setCustomer({ ...customer, hostelBlock: event.target.value })}><option value="">Select hostel block</option>{HOSTEL_BLOCKS.map((block) => <option key={block} value={block}>{block}</option>)}</Select>
+            <Dropdown
+              ariaLabel="Hostel block"
+              placeholder="Select hostel block"
+              value={customer.hostelBlock}
+              onChange={(hostelBlock) => setCustomer({ ...customer, hostelBlock })}
+              options={HOSTEL_OPTIONS}
+            />
           ) : null}
-          <Select value={customer.orderSlot} onChange={(event) => setCustomer({ ...customer, orderSlot: event.target.value })}>
-            <option value="AFTERNOON">Deliver by afternoon</option>
-            <option value="NIGHT">Deliver by night</option>
-          </Select>
+          <Dropdown ariaLabel="Delivery time" value={customer.orderSlot} onChange={(orderSlot) => setCustomer({ ...customer, orderSlot })} options={SLOT_OPTIONS} />
         </div>
       </SectionCard>
 
       <SectionCard title="Items" description="Pick a restaurant, then add items to the order.">
         <div className="grid gap-3">
-          <Select
+          <Dropdown
+            ariaLabel="Restaurant"
             value={restaurantId}
-            onChange={(event) => {
-              setRestaurantId(event.target.value);
+            onChange={(id) => {
+              setRestaurantId(id);
               setCourseId("");
               setMenuItemId("");
               setItems([]);
             }}
-          >
-            {restaurants.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={courseId} onChange={(event) => setCourseId(event.target.value)}>
-            <option value="">All courses</option>
-            {restaurant?.courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.name}
-              </option>
-            ))}
-          </Select>
+            options={restaurantOptions}
+            searchPlaceholder="Search restaurants"
+          />
+          <Dropdown ariaLabel="Course" value={courseId} onChange={setCourseId} options={courseOptions} />
           <div className="grid grid-cols-[1fr_84px] gap-2">
-            <Select value={menuItemId} onChange={(event) => setMenuItemId(event.target.value)}>
-              <option value="">Select item</option>
-              {visibleItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} - {formatPaise(item.pricePaise)}
-                </option>
-              ))}
-            </Select>
+            <Dropdown ariaLabel="Item" placeholder="Select item" value={menuItemId} onChange={setMenuItemId} options={itemOptions} searchPlaceholder="Search items" />
             <Input type="number" min={1} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
           </div>
           <Button variant="outline" onClick={addItem}>

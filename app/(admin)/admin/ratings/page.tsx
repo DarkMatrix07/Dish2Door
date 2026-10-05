@@ -5,6 +5,7 @@ import { CampusBadge } from "@/components/admin/CampusBadge";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { Pager, readPage } from "@/components/admin/Pager";
 import { Badge } from "@/components/ui/badge";
+import { Dropdown } from "@/components/ui/dropdown";
 import { linkButtonClasses } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -49,24 +50,10 @@ function Stars({ value, label }: { value: number; label: string }) {
   );
 }
 
+const STAR_OPTIONS = [{ value: "", label: "Any" }, ...STAR_FILTERS.map((option) => ({ value: String(option), label: starLabel(option) }))];
+
 function StarSelect({ name, label, value }: { name: string; label: string; value: StarFilter | null }) {
-  return (
-    <label className="block text-xs font-semibold text-neutral-500">
-      {label}
-      <select
-        name={name}
-        defaultValue={value === null ? "" : String(value)}
-        className="mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950"
-      >
-        <option value="">Any</option>
-        {STAR_FILTERS.map((option) => (
-          <option key={option} value={String(option)}>
-            {starLabel(option)}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  return <Dropdown name={name} label={label} defaultValue={value === null ? "" : String(value)} options={STAR_OPTIONS} />;
 }
 
 export default async function AdminRatingsPage({
@@ -168,33 +155,25 @@ export default async function AdminRatingsPage({
         </div>
         <form action={BASE_PATH} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto_auto] lg:items-end">
           {search.range !== "all" ? <input type="hidden" name="range" value={search.range} /> : null}
-          <label className="block text-xs font-semibold text-neutral-500">
-            Restaurant
-            <select
-              name="restaurant"
-              defaultValue={search.restaurantId ?? ""}
-              className="mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950"
-            >
-              <option value="">All restaurants</option>
-              {restaurants.map((restaurant) => (
-                <option key={restaurant.id} value={restaurant.id}>
-                  {restaurant.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Dropdown
+            name="restaurant"
+            label="Restaurant"
+            defaultValue={search.restaurantId ?? ""}
+            options={[{ value: "", label: "All restaurants" }, ...restaurants.map((restaurant) => ({ value: restaurant.id, label: restaurant.name }))]}
+            searchPlaceholder="Search restaurants"
+          />
           <StarSelect name="food" label="Food stars" value={search.food} />
           <StarSelect name="delivery" label="Delivery stars" value={search.delivery} />
-          <label className="flex h-10 items-center gap-2 text-sm font-semibold text-neutral-700">
+          <label className="flex h-11 items-center gap-2 text-sm font-semibold text-neutral-700">
             <input type="checkbox" name="comment" value="1" defaultChecked={search.withComment} className="h-4 w-4 accent-neutral-950" />
             Has a written comment
           </label>
           <div className="flex gap-2">
-            <button type="submit" className="h-10 flex-1 rounded-lg bg-neutral-950 px-4 text-sm font-semibold text-white lg:flex-none">
+            <button type="submit" className="h-11 flex-1 rounded-lg bg-neutral-950 px-4 text-sm font-semibold text-white lg:flex-none">
               Show reviews
             </button>
             {filtered ? (
-              <Link href={BASE_PATH} className={cn(linkButtonClasses("outline", "sm"), "h-10")}>
+              <Link href={BASE_PATH} className={cn(linkButtonClasses("outline", "sm"), "h-11")}>
                 Clear
               </Link>
             ) : null}

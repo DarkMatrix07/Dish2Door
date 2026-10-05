@@ -6,6 +6,7 @@ import { CopyButton } from "@/components/admin/CopyButton";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { Pager, readPage } from "@/components/admin/Pager";
 import { Badge } from "@/components/ui/badge";
+import { Dropdown } from "@/components/ui/dropdown";
 import { linkButtonClasses } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -24,7 +25,7 @@ import {
   type PrizeStatus
 } from "@/lib/wheel-stats";
 import { loadPrizeStatusCounts, loadPrizes, type PrizeRow } from "@/lib/wheel-data";
-import { formatPaise } from "@/lib/utils";
+import { cn, formatPaise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -269,34 +270,34 @@ export default async function RewardsPage({
               defaultValue={search.search}
               maxLength={80}
               placeholder="Phone, name or code"
-              className="mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950"
+              className="mt-1 h-11 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950"
             />
           </label>
-          <label className="block text-xs font-semibold text-neutral-500">
-            Status
-            <select name="status" defaultValue={search.status ?? ""} className="mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950">
-              <option value="">All ({totalPrizes})</option>
-              {(Object.keys(PRIZE_STATUS_LABELS) as PrizeStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {PRIZE_STATUS_LABELS[status]} ({statusCounts[status]})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-xs font-semibold text-neutral-500">
-            Where it came from
-            <select name="source" defaultValue={search.source ?? ""} className="mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 text-sm font-normal text-neutral-900 outline-none focus:border-neutral-950">
-              <option value="">Won and given</option>
-              <option value="won">Won on wheel</option>
-              <option value="given">Given by admin</option>
-            </select>
-          </label>
+          <Dropdown
+            name="status"
+            label="Status"
+            defaultValue={search.status ?? ""}
+            options={[
+              { value: "", label: `All (${totalPrizes})` },
+              ...(Object.keys(PRIZE_STATUS_LABELS) as PrizeStatus[]).map((status) => ({ value: status, label: `${PRIZE_STATUS_LABELS[status]} (${statusCounts[status]})` }))
+            ]}
+          />
+          <Dropdown
+            name="source"
+            label="Where it came from"
+            defaultValue={search.source ?? ""}
+            options={[
+              { value: "", label: "Won and given" },
+              { value: "won", label: "Won on wheel" },
+              { value: "given", label: "Given by admin" }
+            ]}
+          />
           <div className="flex gap-2">
-            <button type="submit" className="h-10 flex-1 rounded-lg bg-neutral-950 px-4 text-sm font-semibold text-white lg:flex-none">
+            <button type="submit" className="h-11 flex-1 rounded-lg bg-neutral-950 px-4 text-sm font-semibold text-white lg:flex-none">
               Show prizes
             </button>
             {filtered ? (
-              <Link href={BASE_PATH} className={linkButtonClasses("outline", "sm")}>
+              <Link href={BASE_PATH} className={cn(linkButtonClasses("outline", "sm"), "h-11")}>
                 Clear
               </Link>
             ) : null}
