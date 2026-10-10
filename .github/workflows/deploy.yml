@@ -58,10 +58,33 @@ jobs:
           echo "$VPS_SSH_KEY_B64" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          ssh -i ~/.ssh/deploy_key \
-            -o IdentitiesOnly=yes \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile="$KNOWN_HOSTS" \
-            -o GlobalKnownHostsFile=/dev/null \
-            -o UpdateHostKeys=no \
-            "$VPS_USER@$VPS_HOST" 'bash /var/www/dish2door.store/deploy.sh'
+          run_remote() {
+            ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$KNOWN_HOSTS" \
+              -o GlobalKnownHostsFile=/dev/null \
+              -o UpdateHostKeys=no \
+              -o ConnectTimeout=20 \
+              "$VPS_USER@$VPS_HOST" "$1"
+          }
+
+          # Start the deploy detached on the server, then watch its log. A dropped SSH
+          # session used to kill the deploy half-way (site rebuilt but never restarted);
+          # now the server finishes on its own and this job only reports the outcome.
+          LOG="deploy-actions-${GITHUB_SHA::7}.log"
+          run_remote "nohup bash /var/www/dish2door.store/deploy.sh > \$HOME/$LOG 2>&1 < /dev/null & echo '[actions] deploy started'"
+
+          STATE=running
+          for attempt in $(seq 1 120); do
+            sleep 10
+            STATE=$(run_remote "if grep -q '^\[deploy\] done' \$HOME/$LOG; then echo done; elif flock -n /var/lock/dish2door-deploy.lock true; then if grep -q '^\[deploy\] done' \$HOME/$LOG; then echo done; else echo stopped; fi; else echo running; fi" 2>/dev/null || echo unreachable)
+            echo "[actions] $(date -u +%H:%M:%S) deploy is $STATE"
+            if [ "$STATE" = "done" ] || [ "$STATE" = "stopped" ]; then break; fi
+          done
+
+          run_remote "tail -n 40 \$HOME/$LOG" || true
+          if [ "$STATE" != "done" ]; then
+            echo "::error::The deploy did not finish (last state: $STATE). See the log above."
+            exit 1
+          fi
