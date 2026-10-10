@@ -131,22 +131,71 @@ export default async function CustomersPage({
         title="All customers"
         description={`${SORTS[sort].label}. Wheel progress counts only orders rated since the current cycle began.`}
         actions={
-          <form className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <input
-              name="q"
-              defaultValue={search}
-              placeholder="Search name, phone, email"
-              className="h-9 w-full rounded-md border border-neutral-200 px-3 text-sm outline-none focus:border-neutral-400 sm:w-52"
-            />
-            <Dropdown name="sort" defaultValue={sort} ariaLabel="Sort customers" size="sm" options={SORT_OPTIONS} className="w-auto min-w-0 flex-1 sm:w-48 sm:flex-none" />
-            <button type="submit" className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-semibold text-white">Apply</button>
+          <form className="grid w-full gap-3 sm:flex sm:w-auto sm:flex-wrap sm:items-end">
+            <label className="block sm:w-52">
+              <span className="mb-1 block text-xs font-semibold text-neutral-500">Search</span>
+              <input
+                name="q"
+                defaultValue={search}
+                placeholder="Name, phone or email"
+                className="h-11 w-full rounded-xl border border-neutral-300 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-400 focus:border-neutral-950 focus:ring-4 focus:ring-amber-200"
+              />
+            </label>
+            <Dropdown name="sort" defaultValue={sort} label="Sort by" options={SORT_OPTIONS} className="sm:w-48" />
+            <button type="submit" className="h-11 rounded-xl bg-neutral-900 px-5 text-sm font-semibold text-white sm:px-4">Apply</button>
           </form>
         }
       >
         {view.length === 0 ? (
           <p className="py-6 text-center text-sm text-neutral-500">No customers match that search.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Phones get one card per customer: the seven-column table below needs 900px. */}
+          <ul className="divide-y divide-neutral-100 md:hidden">
+            {view.map((row) => (
+              <li key={row.phone} className="py-3.5 first:pt-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Link href={`/admin/customers/${row.phone}`} className="min-w-0 break-words font-semibold text-neutral-900 hover:underline">
+                    {row.name ?? "Unknown"}
+                  </Link>
+                  {row.rewardsActive > 0 ? <Badge tone="amber" className="px-2 py-0.5 text-[11px]">Prize waiting</Badge> : null}
+                </div>
+                <p className="mt-0.5 break-all text-xs tabular-nums text-neutral-500">
+                  {row.phone}
+                  {row.email ? ` · ${row.email}` : ""}
+                </p>
+                <dl className="mt-2.5 grid grid-cols-3 gap-2 text-center">
+                  <div className="min-w-0 rounded-lg bg-neutral-50 px-1 py-2">
+                    <dt className="text-xs font-medium text-neutral-500">Orders</dt>
+                    <dd className="mt-0.5 font-bold tabular-nums">{row.orders}</dd>
+                  </div>
+                  <div className="min-w-0 rounded-lg bg-neutral-50 px-1 py-2">
+                    <dt className="text-xs font-medium text-neutral-500">Spent</dt>
+                    <dd className="mt-0.5 truncate font-bold tabular-nums">{formatPaise(row.spent)}</dd>
+                  </div>
+                  <div className="min-w-0 rounded-lg bg-neutral-50 px-1 py-2">
+                    <dt className="text-xs font-medium text-neutral-500">Reviews</dt>
+                    <dd className="mt-0.5 font-bold tabular-nums">{row.reviewed}</dd>
+                  </div>
+                </dl>
+                <dl className="mt-2.5 space-y-1 text-xs text-neutral-600">
+                  <div className="flex flex-wrap justify-between gap-x-3">
+                    <dt className="text-neutral-500">Last order</dt>
+                    <dd className="tabular-nums">{row.lastOrderAt ? formatIstDateTime(new Date(row.lastOrderAt)) : "—"}</dd>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-x-3">
+                    <dt className="text-neutral-500">Wheel progress</dt>
+                    <dd><WheelProgress ready={row.wheelReady} done={row.cycleReviews} /></dd>
+                  </div>
+                  <div className="flex flex-wrap justify-between gap-x-3">
+                    <dt className="text-neutral-500">Rewards</dt>
+                    <dd className="tabular-nums">{rewardsText(row)}</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px] text-sm">
               <thead>
                 <tr className="border-b border-neutral-200 text-left text-xs font-bold uppercase tracking-wide text-neutral-500">
@@ -177,32 +226,17 @@ export default async function CustomersPage({
                     <td className="py-2.5 pr-3 text-right tabular-nums">{row.reviewed}</td>
                     <td className="py-2.5 pr-3 text-xs tabular-nums text-neutral-600">{row.lastOrderAt ? formatIstDateTime(new Date(row.lastOrderAt)) : "—"}</td>
                     <td className="py-2.5 pr-3">
-                      {row.wheelReady ? (
-                        <Badge tone="green">Spin ready</Badge>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <span className="flex gap-1">
-                            {Array.from({ length: SPIN_ORDERS_PER_REWARD }).map((_, step) => (
-                              <span
-                                key={step}
-                                className={`h-1.5 w-6 rounded-full ${step < row.cycleReviews ? "bg-amber-400" : "bg-neutral-200"}`}
-                              />
-                            ))}
-                          </span>
-                          <span className="text-xs tabular-nums text-neutral-500">
-                            {row.cycleReviews}/{SPIN_ORDERS_PER_REWARD}
-                          </span>
-                        </span>
-                      )}
+                      <WheelProgress ready={row.wheelReady} done={row.cycleReviews} />
                     </td>
                     <td className="py-2.5 text-right text-xs tabular-nums text-neutral-600">
-                      {row.rewardsUsed || row.rewardsActive ? [row.rewardsUsed ? `${row.rewardsUsed} used` : null, row.rewardsActive ? `${row.rewardsActive} active` : null].filter(Boolean).join(" · ") : "—"}
+                      {rewardsText(row)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          </>
         )}
         <Pager
           basePath="/admin/customers"
@@ -215,5 +249,26 @@ export default async function CustomersPage({
         />
       </SectionCard>
     </PageContainer>
+  );
+}
+
+function rewardsText(row: { rewardsUsed: number; rewardsActive: number }) {
+  if (!row.rewardsUsed && !row.rewardsActive) return "—";
+  return [row.rewardsUsed ? `${row.rewardsUsed} used` : null, row.rewardsActive ? `${row.rewardsActive} active` : null].filter(Boolean).join(" · ");
+}
+
+function WheelProgress({ ready, done }: { ready: boolean; done: number }) {
+  if (ready) return <Badge tone="green">Spin ready</Badge>;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="flex gap-1">
+        {Array.from({ length: SPIN_ORDERS_PER_REWARD }).map((_, step) => (
+          <span key={step} className={`h-1.5 w-6 rounded-full ${step < done ? "bg-amber-400" : "bg-neutral-200"}`} />
+        ))}
+      </span>
+      <span className="text-xs tabular-nums text-neutral-500">
+        {done}/{SPIN_ORDERS_PER_REWARD}
+      </span>
+    </span>
   );
 }

@@ -160,8 +160,8 @@ export function GiveWheelCoupon({
                     They have started a checkout with it, so it cannot be replaced yet. Try again once that order is paid or cancelled.
                   </p>
                 ) : (
-                  <label className="mt-2 flex cursor-pointer items-start gap-2 font-semibold">
-                    <input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} className="mt-1.5 h-4 w-4" />
+                  <label className="mt-2 flex min-h-10 cursor-pointer items-start gap-2 font-semibold">
+                    <input type="checkbox" checked={replace} onChange={(event) => setReplace(event.target.checked)} className="mt-1 h-5 w-5 shrink-0" />
                     <span>Replace it with the new one (the old code stops working)</span>
                   </label>
                 )}

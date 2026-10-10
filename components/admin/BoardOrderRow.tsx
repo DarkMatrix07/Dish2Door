@@ -71,7 +71,7 @@ export function BoardOrderRow({
               <a
                 href={contact.tel}
                 aria-label={`Call ${order.customerName} on ${order.customerPhone}`}
-                className={cn("inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs font-semibold tabular-nums text-neutral-700 hover:bg-neutral-100", FOCUS)}
+                className={cn("inline-flex min-h-9 items-center gap-1 rounded-md px-1.5 text-xs font-semibold tabular-nums text-neutral-700 hover:bg-neutral-100", FOCUS)}
               >
                 <Phone size={13} aria-hidden="true" />
                 {order.customerPhone}
@@ -85,7 +85,7 @@ export function BoardOrderRow({
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label={`WhatsApp ${order.customerName}`}
-                className={cn("grid h-8 w-8 place-items-center rounded-md text-emerald-700 hover:bg-emerald-50", FOCUS)}
+                className={cn("grid h-9 w-9 place-items-center rounded-md text-emerald-700 hover:bg-emerald-50", FOCUS)}
               >
                 <MessageCircle size={16} aria-hidden="true" />
               </a>

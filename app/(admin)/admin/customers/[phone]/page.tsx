@@ -181,7 +181,7 @@ export default async function CustomerDetailPage({
 
   return (
     <PageContainer>
-      <Link href="/admin/customers" className="text-sm font-semibold text-neutral-500 hover:underline">
+      <Link href="/admin/customers" className="inline-flex min-h-10 items-center text-sm font-semibold text-neutral-500 hover:underline">
         ← All customers
       </Link>
       <AdminPageHeader

@@ -238,10 +238,11 @@ export function CouponsManager({ initialCoupons, initialFilter }: { initialCoupo
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <StatCard label="Your coupons" value={counts.all} />
-        <StatCard label="Working now" value={counts.active} />
-        <StatCard label="Times used" value={counts.uses} />
+      {/* Three short labels so each box stays one line tall and the three line up on a 320px phone. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <StatCard label="Coupons" title="Your coupons" value={counts.all} />
+        <StatCard label="Working" title="Working now" value={counts.active} />
+        <StatCard label="Used" title="Times used" value={counts.uses} />
       </div>
 
       <SectionCard
@@ -263,7 +264,7 @@ export function CouponsManager({ initialCoupons, initialFilter }: { initialCoupo
               onClick={() => pickFilter(key)}
               aria-pressed={filter === key}
               className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition",
+                "inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition",
                 filter === key ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
               )}
             >
@@ -287,7 +288,7 @@ export function CouponsManager({ initialCoupons, initialFilter }: { initialCoupo
                     <span className="truncate font-mono text-lg font-bold">{coupon.code}</span>
                     <CopyButton value={coupon.code} label={`code ${coupon.code}`} />
                   </div>
-                  <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1 self-start">
                     {state === "expired" ? <Badge tone="red">Expired</Badge> : null}
                     {state === "paused" ? <Badge tone="amber">Paused</Badge> : null}
                     {usedUp ? <Badge tone="amber">Used up</Badge> : null}
@@ -297,7 +298,7 @@ export function CouponsManager({ initialCoupons, initialFilter }: { initialCoupo
                 <p className="mt-1 text-2xl font-black tabular-nums">{coupon.discountPercent}% off</p>
                 <p className="mt-1 text-neutral-500">{coupon.description || "No description"}</p>
 
-                <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <dl className="mt-4 grid grid-cols-3 gap-1.5 text-center sm:gap-2">
                   <div className="rounded-lg bg-neutral-50 p-2">
                     <dt className="text-xs font-medium text-neutral-500">Used</dt>
                     <dd className="mt-0.5 text-lg font-bold tabular-nums">
@@ -305,13 +306,25 @@ export function CouponsManager({ initialCoupons, initialFilter }: { initialCoupo
                       {coupon.maxUses !== null ? <span className="text-xs font-semibold text-neutral-400"> of {coupon.maxUses}</span> : null}
                     </dd>
                   </div>
-                  <div className="rounded-lg bg-neutral-50 p-2">
-                    <dt className="text-xs font-medium text-neutral-500">At checkout</dt>
+                  <div className="rounded-lg bg-neutral-50 p-2" title="At checkout">
+                    <dt className="text-xs font-medium text-neutral-500">
+                      <span aria-hidden="true">Held</span>
+                      <span className="sr-only">At checkout</span>
+                    </dt>
                     <dd className="mt-0.5 text-lg font-bold tabular-nums">{coupon.heldCount}</dd>
                   </div>
                   <div className="rounded-lg bg-neutral-50 p-2">
                     <dt className="text-xs font-medium text-neutral-500">Left</dt>
-                    <dd className="mt-0.5 text-lg font-bold tabular-nums">{left === null ? "No limit" : left}</dd>
+                    <dd className="mt-0.5 text-lg font-bold tabular-nums">
+                      {left === null ? (
+                        <>
+                          <span aria-hidden="true">∞</span>
+                          <span className="sr-only">No limit</span>
+                        </>
+                      ) : (
+                        left
+                      )}
+                    </dd>
                   </div>
                 </dl>
                 <p className={cn("mt-3 text-xs", state === "expired" ? "font-semibold text-red-700" : "text-neutral-500")}>

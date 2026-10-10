@@ -312,7 +312,7 @@ export function AllOrders({
       aria-pressed={shownRange === id}
       onClick={onClick}
       className={cn(
-        "h-9 rounded-full border px-3.5 text-sm font-semibold transition",
+        "h-10 rounded-full border px-3.5 text-sm font-semibold transition",
         FOCUS,
         shownRange === id ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
       )}
@@ -324,10 +324,11 @@ export function AllOrders({
   return (
     <div className="space-y-4 sm:space-y-6">
       <SectionCard bodyClassName="space-y-3">
-        <div className="flex gap-2">
+        {/* Stacked on phones: a search box squeezed beside a button cuts its placeholder off. */}
+        <div className="flex flex-col gap-2 sm:flex-row">
           <form
             role="search"
-            className="relative min-w-0 flex-1"
+            className="relative min-w-0 sm:flex-1"
             onSubmit={(event) => {
               // Enter searches straight away instead of waiting out the debounce.
               event.preventDefault();
@@ -355,7 +356,7 @@ export function AllOrders({
                   setSentSearch("");
                   change({ search: "" }, "replace");
                 }}
-                className={cn("absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900", FOCUS)}
+                className={cn("absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900", FOCUS)}
               >
                 <X size={15} />
               </button>
@@ -363,7 +364,7 @@ export function AllOrders({
           </form>
           <Button
             variant="outline"
-            className={cn("shrink-0", FOCUS)}
+            className={cn("w-full shrink-0 sm:w-auto", FOCUS)}
             aria-expanded={panelOpen}
             aria-controls="order-filters"
             onClick={() => setPanelOpen((open) => !open)}
@@ -407,19 +408,19 @@ export function AllOrders({
         {activeChips.length > 0 ? (
           <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
             {activeChips.map((chip) => (
-              <span key={chip.key} className="inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-100 py-1 pl-3 pr-1 text-xs font-semibold text-neutral-800">
+              <span key={chip.key} className="inline-flex max-w-full items-center gap-0.5 rounded-full bg-neutral-100 py-0 pl-3 pr-0.5 text-xs font-semibold text-neutral-800">
                 <span className="truncate">{chip.label}</span>
                 <button
                   type="button"
                   aria-label={`Remove filter: ${chip.label}`}
                   onClick={() => change(chip.remove)}
-                  className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900", FOCUS)}
+                  className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full text-neutral-500 hover:bg-neutral-200 hover:text-neutral-900", FOCUS)}
                 >
                   <X size={12} />
                 </button>
               </span>
             ))}
-            <button type="button" onClick={clearFilters} className={cn("rounded-md px-2 py-1 text-xs font-bold text-[#b65a20] hover:underline", FOCUS)}>
+            <button type="button" onClick={clearFilters} className={cn("inline-flex min-h-9 items-center rounded-md px-2 text-xs font-bold text-[#b65a20] hover:underline", FOCUS)}>
               Clear all
             </button>
           </div>
@@ -429,7 +430,7 @@ export function AllOrders({
       <div className={cn("grid grid-cols-2 gap-3 transition-opacity lg:grid-cols-4", loading && "opacity-50")} aria-busy={loading}>
         <StatCard label="Orders" value={total} helper={hasNarrowing ? "Matching these filters" : "All orders"} />
         <StatCard label="Revenue" value={formatPaise(summary?.revenuePaise ?? 0)} helper={`${summary?.revenueOrders ?? 0} paid, not cancelled`} />
-        <StatCard label="Average order" value={formatPaise(summary?.averagePaise ?? 0)} helper="Per paid, not cancelled order" />
+        <StatCard className="col-span-2 lg:col-span-1" label="Average order" value={formatPaise(summary?.averagePaise ?? 0)} helper="Per paid, not cancelled order" />
         <div className="col-span-2 min-w-0 rounded-xl bg-white p-4 shadow-[0_10px_35px_rgba(30,32,38,0.05)] sm:p-5 lg:col-span-1">
           <p className="text-xs font-bold text-[#85878e] sm:text-sm">By status</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -536,7 +537,7 @@ export function AllOrders({
                   />
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
                 <Button variant="outline" size="sm" className={FOCUS} disabled={page <= 1} onClick={() => go(orderListParams(filters, page - 1, pageSize))}>
                   Previous
                 </Button>
@@ -596,11 +597,11 @@ function OrderCard({ order }: { order: OrderListRow }) {
           <span className="shrink-0 font-bold tabular-nums">{formatPaiseExact(order.totalPaise)}</span>
         </span>
         <span className="block min-w-0">
-          <span className="block truncate text-sm font-semibold">{order.customerName}</span>
+          <span className="block break-words text-sm font-semibold">{order.customerName}</span>
           <span className="block text-xs tabular-nums text-neutral-500">{order.customerPhone}</span>
         </span>
         <span className="line-clamp-2 block break-words text-sm text-neutral-700">{items}</span>
-        <span className="block truncate text-xs text-neutral-500">{order.restaurant.name}</span>
+        <span className="block break-words text-xs text-neutral-500">{order.restaurant.name}</span>
         <span className="flex flex-wrap items-center gap-1.5">
           <StatusBadge order={order} />
           <PaymentBadge order={order} />

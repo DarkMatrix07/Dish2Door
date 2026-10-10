@@ -444,8 +444,8 @@ export function ItemsManager({
                 );
               })}
               {shownItems.length ? (
-                <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-neutral-700">
-                  <input type="checkbox" className="h-4 w-4 accent-neutral-950" checked={allShownSelected} onChange={(event) => toggleSelected(shownItems.map((item) => item.id), event.target.checked)} />
+                <label className="ml-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm font-semibold text-neutral-700">
+                  <input type="checkbox" className="h-5 w-5 accent-neutral-950" checked={allShownSelected} onChange={(event) => toggleSelected(shownItems.map((item) => item.id), event.target.checked)} />
                   Select all shown ({shownItems.length})
                 </label>
               ) : null}
@@ -462,7 +462,7 @@ export function ItemsManager({
                   min={1}
                   max={MAX_DISCOUNT_PERCENT}
                   aria-label="Discount percent"
-                  className="h-9 w-20 text-neutral-950"
+                  className="h-10 w-20 text-neutral-950"
                   value={bulkPercent}
                   onChange={(event) => setBulkPercent(event.target.value)}
                 />
@@ -516,8 +516,8 @@ export function ItemsManager({
                       <div className="hidden h-20 w-20 shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center sm:block" style={{ backgroundImage: `url('${dishImage ?? PLACEHOLDER}')` }} />
                       <div className="min-w-0 flex-1 space-y-2.5">
                         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
-                          <label className="flex min-w-0 cursor-pointer items-start gap-2">
-                            <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-neutral-950" aria-label={`Select ${group.name}`} checked={groupSelected} onChange={(event) => toggleSelected(group.items.map((item) => item.id), event.target.checked)} />
+                          <label className="flex min-h-10 min-w-0 cursor-pointer items-start gap-2">
+                            <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-neutral-950" aria-label={`Select ${group.name}`} checked={groupSelected} onChange={(event) => toggleSelected(group.items.map((item) => item.id), event.target.checked)} />
                             <span className="h-10 w-10 shrink-0 rounded-lg bg-neutral-100 bg-cover bg-center sm:hidden" style={{ backgroundImage: `url('${dishImage ?? PLACEHOLDER}')` }} />
                             <span className="min-w-0">
                               <span className="block break-words font-semibold">{group.name}</span>
@@ -525,7 +525,7 @@ export function ItemsManager({
                             </span>
                           </label>
                           <div className="flex flex-wrap gap-2">
-                            <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl border border-neutral-300 bg-white px-3 text-sm font-semibold transition hover:bg-neutral-100">
+                            <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-neutral-300 bg-white px-3 text-sm font-semibold transition hover:bg-neutral-100">
                               {busyImage ? "Uploading..." : "Image"}
                               <input className="hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled={busyImage} onChange={(event) => replaceDishImage(group.key, fullDish, event.target.files?.[0])} />
                             </label>
@@ -707,7 +707,10 @@ function ItemRow({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border p-2.5 sm:p-3", item.available ? "border-neutral-100 bg-neutral-50/60" : "border-red-100 bg-red-50/40")}>
-      <input type="checkbox" className="h-4 w-4 shrink-0 accent-neutral-950" aria-label={`Select ${item.name}${item.sizeLabel ? ` ${item.sizeLabel}` : ""}`} checked={selected} onChange={(event) => onSelect(event.target.checked)} />
+      {/* The label is a 40px tap area; the negative margin keeps the row as tight as before. */}
+      <label className="-m-2.5 grid h-10 w-10 shrink-0 cursor-pointer place-items-center">
+        <input type="checkbox" className="h-5 w-5 accent-neutral-950" aria-label={`Select ${item.name}${item.sizeLabel ? ` ${item.sizeLabel}` : ""}`} checked={selected} onChange={(event) => onSelect(event.target.checked)} />
+      </label>
       {item.sizeLabel ? <Badge tone="neutral">{item.sizeLabel}</Badge> : null}
       <p className="text-sm">
         <span className="font-semibold text-neutral-900">{formatPaise(priceOf(item))}</span>

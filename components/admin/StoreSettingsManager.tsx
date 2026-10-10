@@ -110,7 +110,7 @@ export function StoreSettingsManager({
       <nav aria-label="Sections on this page" className="flex flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-bold text-neutral-500">Jump to</span>
         {SECTIONS.map((section) => (
-          <a key={section.id} href={`#${section.id}`} className="inline-flex min-h-9 items-center rounded-full border border-black/10 bg-white px-3.5 text-sm font-bold text-[#3f4046] transition hover:border-black/25">
+          <a key={section.id} href={`#${section.id}`} className="inline-flex min-h-10 items-center rounded-full border border-black/10 bg-white px-3.5 text-sm font-bold text-[#3f4046] transition hover:border-black/25">
             {section.label}
           </a>
         ))}
@@ -144,7 +144,7 @@ export function StoreSettingsManager({
           <div>
             <p className="mb-1 text-sm font-semibold text-neutral-600">Daily ordering hours (India time)</p>
             <p className="mb-3 text-xs text-neutral-500">Customers can only place orders between these times. Outside them, for example overnight, ordering is closed.</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 min-[340px]:grid-cols-2">
               <label className="text-xs font-semibold text-neutral-500">
                 Opens at
                 <Input className="mt-1" type="time" value={minutesToTimeInput(draft.orderingOpenMinute)} onChange={(event) => setTime("orderingOpenMinute", event.target.value)} />
@@ -186,7 +186,8 @@ export function StoreSettingsManager({
             return (
               <div key={card.slot} className="rounded-lg bg-[#f3f4f6] p-4">
                 <p className="font-black">{card.title}</p>
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                {/* Stacked on narrow phones: two time boxes plus long labels do not fit side by side there. */}
+                <div className="mt-3 grid gap-3 min-[380px]:grid-cols-2">
                   <label className="text-xs font-semibold text-neutral-500">
                     Customers order by
                     <Input className="mt-1" type="time" value={minutesToTimeInput(draft[card.cutoff])} onChange={(event) => setTime(card.cutoff, event.target.value)} />

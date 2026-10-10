@@ -203,6 +203,13 @@ export default async function RewardsPage({
                 <span className="text-xs tabular-nums text-neutral-500">{report.total} {report.total === 1 ? "spin" : "spins"}</span>
               </div>
               <table className="mt-2 w-full min-w-0! table-fixed text-sm">
+                {/* Widths picked so "higher than set" stays on one line in the last column on a 320px phone. */}
+                <colgroup>
+                  <col className="w-[17%]" />
+                  <col className="w-[27%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[34%]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-neutral-200 text-left text-xs font-bold text-neutral-500">
                     <th className="py-1.5 pr-2">Prize</th>

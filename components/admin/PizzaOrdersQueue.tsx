@@ -85,7 +85,7 @@ export function PizzaOrdersQueue({ orders: initialOrders }: { orders: Order[] })
               key={order.id}
               title={order.customerName}
               description={`${order.customerPhone} · ${order.trackingCode}`}
-              actions={<Badge tone="amber">{slotLabel(order.orderSlot)}</Badge>}
+              actions={<Badge tone="amber" className="whitespace-nowrap">{slotLabel(order.orderSlot)}</Badge>}
             >
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -95,9 +95,9 @@ export function PizzaOrdersQueue({ orders: initialOrders }: { orders: Order[] })
 
                 <ul className="space-y-1 text-sm text-neutral-700">
                   {order.items.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between gap-2">
-                      <span>{item.quantity}× {item.nameSnapshot}</span>
-                      <span className="tabular-nums text-neutral-500">{formatPaise(item.linePaise)}</span>
+                    <li key={item.id} className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 break-words">{item.quantity}× {item.nameSnapshot}</span>
+                      <span className="shrink-0 tabular-nums text-neutral-500">{formatPaise(item.linePaise)}</span>
                     </li>
                   ))}
                 </ul>
@@ -135,12 +135,12 @@ export function PizzaOrdersQueue({ orders: initialOrders }: { orders: Order[] })
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-1">
-                  <Button className="flex-1" disabled={busyId === order.id} onClick={() => act(order, "confirm")}>
+                <div className="grid grid-cols-2 gap-2 pt-1 [&>button]:whitespace-nowrap">
+                  <Button disabled={busyId === order.id} onClick={() => act(order, "confirm")}>
                     <Check size={16} className="-ml-1 mr-1" />
                     Confirm
                   </Button>
-                  <Button className="flex-1" variant="destructive" disabled={busyId === order.id} onClick={() => act(order, "reject")}>
+                  <Button variant="destructive" disabled={busyId === order.id} onClick={() => act(order, "reject")}>
                     <X size={16} className="-ml-1 mr-1" />
                     Reject
                   </Button>

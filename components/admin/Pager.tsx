@@ -27,7 +27,7 @@ export function Pager({
     const text = query.toString();
     return text ? `${basePath}?${text}` : basePath;
   };
-  const link = "inline-flex h-9 items-center rounded-md border border-neutral-200 px-3 text-sm font-semibold";
+  const link = "inline-flex h-10 items-center rounded-lg border border-neutral-200 px-4 text-sm font-semibold";
   return (
     <nav aria-label="Pages" className="flex flex-col items-center justify-between gap-3 border-t border-neutral-100 pt-4 sm:flex-row">
       <p className="text-sm text-neutral-500">

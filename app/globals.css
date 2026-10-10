@@ -209,9 +209,12 @@ label,
 }
 
 @media (max-width: 639px) {
+  /* text-wrap-style, not the text-wrap shorthand: the shorthand also resets
+     text-wrap-mode to "wrap", which silently cancelled every whitespace-nowrap
+     on admin buttons and links on phones. */
   .admin-app button,
   .admin-app a {
-    text-wrap: pretty;
+    text-wrap-style: pretty;
   }
 
   .admin-app [role="dialog"] {

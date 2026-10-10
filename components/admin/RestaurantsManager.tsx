@@ -53,6 +53,16 @@ async function uploadImage(file: File) {
   return data.imageUrl as string;
 }
 
+// A text box with a small visible label above it, matching the Dropdown's label.
+function LabeledField({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <label className={`block${className ? ` ${className}` : ""}`}>
+      <span className="mb-1 block text-xs font-semibold text-neutral-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export function RestaurantsManager({ initialRestaurants }: { initialRestaurants: AdminRestaurant[] }) {
   const [restaurants, setRestaurants] = useState(initialRestaurants);
   const [managingId, setManagingId] = useState<string | null>(null);
@@ -315,17 +325,17 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
           actions={selected.active ? <Badge tone="green">Live</Badge> : <Badge tone="red">Switched off</Badge>}
           bodyClassName="grid grid-cols-3 gap-3 text-center"
         >
-          <div className="rounded-xl bg-neutral-50 p-3">
+          <div className="rounded-xl bg-neutral-50 p-2.5 sm:p-3">
             <p className="text-xl font-bold">{selected.itemCount}</p>
-            <p className="text-xs text-neutral-500">Menu items</p>
+            <p className="text-xs text-neutral-500" title="Menu items"><span aria-hidden="true">Items</span><span className="sr-only">Menu items</span></p>
           </div>
-          <div className="rounded-xl bg-neutral-50 p-3">
+          <div className="rounded-xl bg-neutral-50 p-2.5 sm:p-3">
             <p className="text-xl font-bold">{selected.comboCount}</p>
             <p className="text-xs text-neutral-500">Combos</p>
           </div>
-          <div className="rounded-xl bg-neutral-50 p-3">
+          <div className="rounded-xl bg-neutral-50 p-2.5 sm:p-3">
             <p className="text-xl font-bold">{selected.orderCount}</p>
-            <p className="text-xs text-neutral-500">Past orders</p>
+            <p className="text-xs text-neutral-500" title="Past orders"><span aria-hidden="true">Orders</span><span className="sr-only">Past orders</span></p>
           </div>
         </SectionCard>
 
@@ -336,8 +346,12 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
               style={{ backgroundImage: `url('${selected.imageUrl ?? PLACEHOLDER}')` }}
             />
             <div className="min-w-0 space-y-3">
-              <Input defaultValue={selected.name} key={`name-${selected.id}-${selected.name}`} aria-label="Restaurant name" onBlur={(event) => saveName(event.target.value)} />
-              <Textarea defaultValue={selected.description ?? ""} key={`desc-${selected.id}`} aria-label="Description" placeholder="Short description" onBlur={(event) => saveDescription(event.target.value)} />
+              <LabeledField label="Restaurant name">
+                <Input defaultValue={selected.name} key={`name-${selected.id}-${selected.name}`} onBlur={(event) => saveName(event.target.value)} />
+              </LabeledField>
+              <LabeledField label="Description">
+                <Textarea defaultValue={selected.description ?? ""} key={`desc-${selected.id}`} placeholder="Short description" onBlur={(event) => saveDescription(event.target.value)} />
+              </LabeledField>
               <div className="flex flex-wrap gap-2">
                 <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl border border-neutral-300 bg-white px-4 text-sm font-semibold transition hover:bg-neutral-100">
                   {uploading ? "Uploading..." : "Replace image"}
@@ -354,8 +368,10 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
         </SectionCard>
 
         <SectionCard title="Courses" description="Menu sections that group items. Order controls how they appear on the customer menu.">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Input placeholder="New course/category" value={courseName} onChange={(event) => setCourseName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createCourse(); }} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <LabeledField label="New course or category" className="sm:flex-1">
+              <Input placeholder="e.g. Starters" value={courseName} onChange={(event) => setCourseName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void createCourse(); }} />
+            </LabeledField>
             <Button variant="outline" className="shrink-0" onClick={createCourse}>
               <Plus size={16} className="-ml-1 mr-1" />
               Add course
@@ -366,7 +382,7 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
               <div key={course.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-neutral-50 p-3">
                 {editingCourseId === course.id ? (
                   <>
-                    <Input className="min-w-0 flex-1" autoFocus value={courseDraft} aria-label="Course name" onChange={(event) => setCourseDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCourseName(course.id); if (event.key === "Escape") setEditingCourseId(null); }} />
+                    <Input className="min-w-[10rem] flex-1" autoFocus value={courseDraft} aria-label="Course name" onChange={(event) => setCourseDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void saveCourseName(course.id); if (event.key === "Escape") setEditingCourseId(null); }} />
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => saveCourseName(course.id)}>Save</Button>
                       <Button size="sm" variant="outline" onClick={() => setEditingCourseId(null)}>Cancel</Button>
@@ -374,16 +390,16 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
                   </>
                 ) : (
                   <>
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <div className="flex shrink-0 flex-col">
-                        <button type="button" className="text-neutral-400 hover:text-neutral-900 disabled:opacity-30" disabled={index === 0} aria-label={`Move ${course.name} up`} onClick={() => moveCourse(index, -1)}>
+                    <div className="flex min-w-[10rem] flex-1 items-center gap-1">
+                      <div className="-ml-1.5 flex shrink-0">
+                        <button type="button" className="grid h-9 w-9 place-items-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-30" disabled={index === 0} aria-label={`Move ${course.name} up`} onClick={() => moveCourse(index, -1)}>
                           <ChevronUp size={16} />
                         </button>
-                        <button type="button" className="text-neutral-400 hover:text-neutral-900 disabled:opacity-30" disabled={index === selected.courses.length - 1} aria-label={`Move ${course.name} down`} onClick={() => moveCourse(index, 1)}>
+                        <button type="button" className="grid h-9 w-9 place-items-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-30" disabled={index === selected.courses.length - 1} aria-label={`Move ${course.name} down`} onClick={() => moveCourse(index, 1)}>
                           <ChevronDown size={16} />
                         </button>
                       </div>
-                      <span className="min-w-0 truncate font-semibold">{course.name}</span>
+                      <span className="min-w-0 break-words font-semibold">{course.name}</span>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => { setEditingCourseId(course.id); setCourseDraft(course.name); }}>
@@ -421,10 +437,10 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
   // ---- List view: restaurant names ----
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 min-[430px]:grid-cols-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard label="Restaurants" value={stats.total} helper={`${stats.live} live`} />
         <StatCard label="Courses" value={stats.courses} helper="Across all restaurants" />
-        <StatCard label="Switched off" value={stats.total - stats.live} helper="Not shown to customers" />
+        <StatCard className="col-span-2 sm:col-span-1" label="Switched off" value={stats.total - stats.live} helper="Not shown to customers" />
       </div>
 
       <SectionCard
@@ -453,7 +469,7 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="truncate font-bold text-neutral-950">{restaurant.name}</p>
+                    <p className="min-w-0 break-words font-bold text-neutral-950">{restaurant.name}</p>
                     {!restaurant.active ? <Badge tone="red" className="shrink-0">Switched off</Badge> : null}
                   </div>
                   <p className="mt-1 text-xs text-neutral-500">
@@ -494,11 +510,17 @@ export function RestaurantsManager({ initialRestaurants }: { initialRestaurants:
         }
       >
         <div className="space-y-3">
-          <Input placeholder="Restaurant name" value={name} onChange={(event) => setName(event.target.value)} />
-          <Textarea placeholder="Short description" value={description} onChange={(event) => setDescription(event.target.value)} />
+          <LabeledField label="Restaurant name">
+            <Input placeholder="e.g. Bowl House" value={name} onChange={(event) => setName(event.target.value)} />
+          </LabeledField>
+          <LabeledField label="Short description (optional)">
+            <Textarea placeholder="What customers see under the name" value={description} onChange={(event) => setDescription(event.target.value)} />
+          </LabeledField>
           <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3">
             <div className="mb-3 h-28 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${imagePreview || PLACEHOLDER}')` }} />
-            <Input className="h-auto cursor-pointer bg-white py-2" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onNewImage(event.target.files?.[0])} />
+            <LabeledField label="Photo (optional)">
+              <Input className="h-auto cursor-pointer bg-white py-2" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onNewImage(event.target.files?.[0])} />
+            </LabeledField>
           </div>
         </div>
       </Modal>

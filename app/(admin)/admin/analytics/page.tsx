@@ -69,7 +69,8 @@ export default async function AnalyticsPage({
         {PERIOD_KEYS.map((key) => (
           <StatCard
             key={key}
-            label={key === "today" ? "Revenue today" : key === "all" ? "Revenue, all time" : `Revenue, ${PERIOD_LABELS[key].toLowerCase()}`}
+            label={PERIOD_LABELS[key]}
+            title={key === "today" ? "Revenue today" : key === "all" ? "Revenue, all time" : `Revenue, ${PERIOD_LABELS[key].toLowerCase()}`}
             value={formatPaise(main[key].revenuePaise)}
             helper={`${orderCount(main[key].orders)} · average ${main[key].orders > 0 ? formatPaise(averageOrderPaise(main[key].revenuePaise, main[key].orders)) : "none yet"}`}
           />
@@ -84,7 +85,7 @@ export default async function AnalyticsPage({
         <ul className={cn("divide-y divide-neutral-100", range > 30 && "max-h-[32rem] overflow-y-auto")}>
           {data.days.map((day) => (
             <li key={day.key} className="px-4 py-2.5 sm:px-5">
-              <div className="flex items-baseline justify-between gap-3 text-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
                 <span className="font-semibold text-neutral-800">{day.label}</span>
                 <span className="text-right tabular-nums text-neutral-600">
                   <span className="font-bold text-neutral-950">{formatPaise(day.revenuePaise)}</span>
@@ -128,9 +129,9 @@ export default async function AnalyticsPage({
             <ul className="space-y-3">
               {data.restaurants.main.map((row) => (
                 <li key={row.id}>
-                  <div className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="min-w-0 truncate font-semibold text-neutral-800">{row.name}</span>
-                    <span className="shrink-0 tabular-nums text-neutral-600">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+                    <span className="min-w-0 break-words font-semibold text-neutral-800">{row.name}</span>
+                    <span className="tabular-nums text-neutral-600">
                       {formatPaise(row.revenuePaise)} · {orderCount(row.orders)}
                     </span>
                   </div>
@@ -148,11 +149,11 @@ export default async function AnalyticsPage({
         <SectionCard title="By delivery slot" description={`Last ${range} days.`}>
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {data.slots.map((slot) => (
-              <div key={slot.slot} className="min-w-0 rounded-xl border border-neutral-200 bg-white p-4">
+              <div key={slot.slot} className="min-w-0 rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
                 <p className="text-sm font-semibold text-neutral-500">
                   {slot.slot === "AFTERNOON" ? "Afternoon" : slot.slot === "NIGHT" ? "Night" : "No slot"}
                 </p>
-                <p className="mt-2 truncate text-2xl font-black tabular-nums text-neutral-950">{formatPaise(slot.revenuePaise)}</p>
+                <p className="mt-2 truncate text-xl font-black tabular-nums text-neutral-950 sm:text-2xl">{formatPaise(slot.revenuePaise)}</p>
                 <p className="mt-1 text-xs text-neutral-500">{orderCount(slot.orders)}</p>
               </div>
             ))}
@@ -189,22 +190,22 @@ export default async function AnalyticsPage({
         bodyClassName="p-0"
       >
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[20rem] text-sm">
+          <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b border-neutral-100 text-left text-xs font-semibold text-neutral-500">
-                <th scope="col" className="px-4 py-3 sm:px-5">Period</th>
+                <th scope="col" className="px-3 py-3 sm:px-5">Period</th>
                 <th scope="col" className="px-2 py-3 text-right">Wheel prizes</th>
                 <th scope="col" className="px-2 py-3 text-right">Other coupons</th>
-                <th scope="col" className="px-4 py-3 text-right sm:px-5">Total</th>
+                <th scope="col" className="px-3 py-3 text-right sm:px-5">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 tabular-nums">
               {PERIOD_KEYS.map((key) => (
                 <tr key={key}>
-                  <th scope="row" className="px-4 py-3 text-left font-semibold text-neutral-800 sm:px-5">{PERIOD_LABELS[key]}</th>
+                  <th scope="row" className="px-3 py-3 text-left font-semibold text-neutral-800 sm:px-5">{PERIOD_LABELS[key]}</th>
                   <td className="px-2 py-3 text-right text-neutral-600">{formatPaise(main[key].wheelDiscountPaise)}</td>
                   <td className="px-2 py-3 text-right text-neutral-600">{formatPaise(main[key].otherDiscountPaise)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-neutral-950 sm:px-5">{formatPaise(totalDiscountPaise(main[key]))}</td>
+                  <td className="px-3 py-3 text-right font-bold text-neutral-950 sm:px-5">{formatPaise(totalDiscountPaise(main[key]))}</td>
                 </tr>
               ))}
             </tbody>
@@ -230,9 +231,9 @@ export default async function AnalyticsPage({
             {data.restaurants.whatsapp.length > 0 ? (
               <ul className="mt-4 divide-y divide-neutral-100 text-sm">
                 {data.restaurants.whatsapp.map((row) => (
-                  <li key={row.id} className="flex items-baseline justify-between gap-3 py-2">
-                    <span className="min-w-0 truncate font-semibold text-neutral-800">{row.name}</span>
-                    <span className="shrink-0 tabular-nums text-neutral-600">
+                  <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2">
+                    <span className="min-w-0 break-words font-semibold text-neutral-800">{row.name}</span>
+                    <span className="tabular-nums text-neutral-600">
                       {formatPaise(row.revenuePaise)} · {orderCount(row.orders)}
                       <span className="text-neutral-400"> (last {range} days)</span>
                     </span>
@@ -267,7 +268,7 @@ function DishList({
         <li key={dish.name} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="w-5 shrink-0 text-sm font-black text-neutral-400">{index + 1}</span>
-            <span className="min-w-0 truncate font-semibold text-neutral-800">{dish.name}</span>
+            <span className="min-w-0 break-words font-semibold text-neutral-800">{dish.name}</span>
           </div>
           <div className="shrink-0 text-right text-sm tabular-nums">
             <span className="font-black text-neutral-950">{figure(dish)}</span>

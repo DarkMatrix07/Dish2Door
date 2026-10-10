@@ -1,10 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Minus, Package, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Check, Minus, Package, Pencil, Plus, Search, Sparkles, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/AdminShell";
+import { useConfirm } from "@/components/admin/ConfirmDialog";
 import { formatPaise } from "@/lib/utils";
 
 type MenuItemLite = {
@@ -15,6 +16,7 @@ type MenuItemLite = {
   discountPercent: number;
   imageUrl: string | null;
   available: boolean;
+  sizeLabel: string | null;
 };
 
 type ComboLine = { id: string; quantity: number; menuItem: MenuItemLite };
@@ -35,6 +37,21 @@ type Restaurant = {
   menuItems: MenuItemLite[];
   combos: Combo[];
 };
+
+// "Achari Do Pyaza · Regular": the same dish comes in several sizes, so the size has to be
+// shown or the rows look identical.
+function SizedName({ item }: { item: Pick<MenuItemLite, "name" | "sizeLabel"> }) {
+  return (
+    <>
+      {item.name}
+      {item.sizeLabel ? <span className="font-semibold text-[#85878e]"> · {item.sizeLabel}</span> : null}
+    </>
+  );
+}
+
+function sizedLabel(item: Pick<MenuItemLite, "name" | "sizeLabel">) {
+  return item.sizeLabel ? `${item.name} ${item.sizeLabel}` : item.name;
+}
 
 function discountedUnit(item: Pick<MenuItemLite, "pricePaise" | "discountPercent">) {
   return Math.round(item.pricePaise * (1 - (item.discountPercent ?? 0) / 100));
@@ -63,6 +80,7 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
   const [selected, setSelected] = useState<Record<string, number>>({});
   const [itemQuery, setItemQuery] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
 
   const menuItems = restaurant.menuItems;
   const menuMap = useMemo(() => new Map(menuItems.map((item) => [item.id, item])), [menuItems]);
@@ -70,7 +88,7 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
   const filteredItems = useMemo(() => {
     const search = itemQuery.trim().toLowerCase();
     if (!search) return menuItems;
-    return menuItems.filter((item) => item.name.toLowerCase().includes(search));
+    return menuItems.filter((item) => sizedLabel(item).toLowerCase().includes(search));
   }, [menuItems, itemQuery]);
 
   const selectedLines = useMemo(
@@ -164,7 +182,13 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
   }
 
   async function removeCombo(combo: Combo) {
-    if (!window.confirm(`Delete the combo "${combo.name}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete the combo "${combo.name}"?`,
+      description: "Customers will no longer see it.",
+      confirmLabel: "Delete",
+      destructive: true
+    });
+    if (!ok) return;
     try {
       await postAction({ action: "combo.delete", id: combo.id });
       setRestaurant((current) => ({ ...current, combos: current.combos.filter((existing) => existing.id !== combo.id) }));
@@ -214,7 +238,7 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
             </div>
             <div className="relative mt-2">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#a0a2a8]" />
-              <input className={`${inputClass} pl-9`} value={itemQuery} onChange={(event) => setItemQuery(event.target.value)} placeholder="Search menu items" />
+              <input className={`${inputClass} pl-9`} aria-label="Search menu items" value={itemQuery} onChange={(event) => setItemQuery(event.target.value)} placeholder="Search menu items" />
             </div>
 
             <div className="admin-scrollbar mt-3 max-h-80 space-y-1.5 overflow-y-auto pr-1">
@@ -223,19 +247,20 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
                 const chosen = quantity > 0;
                 return (
                   <div key={item.id} className={`flex items-center gap-3 rounded-lg border p-2.5 transition ${chosen ? "border-[#f6b73c] bg-[#f6b73c]/[0.08]" : "border-black/8 bg-white hover:border-black/15"}`}>
-                    <img loading="lazy" decoding="async" alt={item.name} src={item.imageUrl ?? "/pizza-placeholder.webp"} className="h-11 w-11 shrink-0 rounded-md object-cover" />
+                    {/* The photo is skipped on phones so the dish name and size get the room. */}
+                    <img loading="lazy" decoding="async" alt="" src={item.imageUrl ?? "/pizza-placeholder.webp"} className="hidden h-11 w-11 shrink-0 rounded-md object-cover sm:block" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-[#202126]">{item.name}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>
-                      <p className="mt-0.5 text-xs font-semibold tabular-nums text-[#70727a]">{formatPaise(discountedUnit(item))}{item.discountPercent ? <span className="ml-1.5 text-[#a0a2a8] line-through">{formatPaise(item.pricePaise)}</span> : null}</p>
+                      <p className="break-words text-sm font-bold leading-snug text-[#202126]"><SizedName item={item} /></p>
+                      <p className="mt-0.5 text-xs font-semibold tabular-nums text-[#70727a]">{formatPaise(discountedUnit(item))}{item.discountPercent ? <span className="ml-1.5 text-[#a0a2a8] line-through">{formatPaise(item.pricePaise)}</span> : null}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>
                     </div>
                     {chosen ? (
-                      <div className="flex h-9 items-center rounded-lg bg-[#171713] text-white">
-                        <button type="button" aria-label={`Remove one ${item.name}`} onClick={() => stepItem(item.id, -1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Minus size={13} /></button>
+                      <div className="flex h-10 shrink-0 items-center rounded-lg bg-[#171713] text-white">
+                        <button type="button" aria-label={`Remove one ${sizedLabel(item)}`} onClick={() => stepItem(item.id, -1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10"><Minus size={14} /></button>
                         <span className="w-6 text-center text-sm font-black tabular-nums">{quantity}</span>
-                        <button type="button" aria-label={`Add one ${item.name}`} onClick={() => stepItem(item.id, 1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Plus size={13} /></button>
+                        <button type="button" aria-label={`Add one ${sizedLabel(item)}`} onClick={() => stepItem(item.id, 1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10"><Plus size={14} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => addItem(item.id)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-black/12 bg-white px-3 text-sm font-black text-[#202126] transition hover:border-[#f6b73c] hover:bg-[#f6b73c]">Add</button>
+                      <button type="button" aria-label={`Add ${sizedLabel(item)} to the combo`} onClick={() => addItem(item.id)} className="inline-flex h-10 shrink-0 items-center gap-1 rounded-lg border border-black/12 bg-white px-4 text-sm font-black text-[#202126] transition hover:border-[#f6b73c] hover:bg-[#f6b73c]">Add</button>
                     )}
                   </div>
                 );
@@ -252,8 +277,8 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
             <div className="space-y-1.5">
               <AnimatePresence initial={false}>
                 {selectedLines.map((line) => (
-                  <motion.div key={line.item.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="min-w-0 truncate text-[#4e5057]"><span className="font-black tabular-nums">{line.quantity}×</span> {line.item.name}</span>
+                  <motion.div key={line.item.id} layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-start justify-between gap-2 text-sm">
+                    <span className="min-w-0 break-words text-[#4e5057]"><span className="font-black tabular-nums">{line.quantity}×</span> <SizedName item={line.item} /></span>
                     <span className="shrink-0 font-semibold tabular-nums text-[#202126]">{formatPaise(discountedUnit(line.item) * line.quantity)}</span>
                   </motion.div>
                 ))}
@@ -307,31 +332,28 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
               const savedPct = real > 0 ? Math.round((saved / real) * 100) : 0;
               return (
                 <div key={combo.id} className={`flex flex-col rounded-xl border p-4 transition ${combo.active ? "border-black/10 bg-white" : "border-black/8 bg-[#f3f4f6]"}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-base font-black tracking-[-0.02em]">{combo.name}</h3>
-                      {!combo.active ? <span className="mt-1 inline-block rounded bg-[#e9e5dd] px-2 py-0.5 text-[10px] font-black uppercase text-[#8a857c]">Hidden</span> : null}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <button type="button" aria-label="Edit combo" onClick={() => loadForEdit(combo)} className="grid h-8 w-8 place-items-center rounded-lg border border-black/10 text-[#4e5057] transition hover:border-black/25"><Pencil size={14} /></button>
-                      <button type="button" aria-label="Delete combo" onClick={() => removeCombo(combo)} className="grid h-8 w-8 place-items-center rounded-lg border border-black/10 text-[#8a342c] transition hover:border-[#8a342c]/40 hover:bg-[#8a342c]/5"><Trash2 size={14} /></button>
-                    </div>
+                  <div className="min-w-0">
+                    <h3 className="break-words text-base font-black tracking-[-0.02em]">{combo.name}</h3>
+                    {!combo.active ? <span className="mt-1 inline-block rounded bg-[#e9e5dd] px-2 py-0.5 text-[10px] font-black uppercase text-[#8a857c]">Hidden</span> : null}
                   </div>
 
                   <ul className="mt-3 space-y-1 text-sm text-[#625b50]">
                     {combo.items.map((line) => (
-                      <li key={line.id} className="flex items-center gap-1.5"><span className="font-black tabular-nums text-[#171713]">{line.quantity}×</span> <span className="truncate">{line.menuItem.name}</span></li>
+                      <li key={line.id} className="flex items-start gap-1.5"><span className="font-black tabular-nums text-[#171713]">{line.quantity}×</span> <span className="min-w-0 break-words"><SizedName item={line.menuItem} /></span></li>
                     ))}
                   </ul>
 
-                  <div className="mt-4 flex items-end justify-between border-t border-black/8 pt-3">
-                    <div>
-                      <p className="text-lg font-black tabular-nums">{formatPaise(combo.comboPricePaise)}</p>
-                      {saved > 0 ? <p className="text-xs font-bold text-[#2b6e56]">saves {formatPaise(saved)} · {savedPct}%</p> : <p className="text-xs font-semibold text-[#a0a2a8] tabular-nums">worth {formatPaise(real)}</p>}
-                    </div>
-                    <button type="button" onClick={() => toggleActive(combo)} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition ${combo.active ? "bg-[#34705a]/10 text-[#2b6e56] hover:bg-[#34705a]/20" : "bg-[#f3f4f6] text-[#85878e] hover:bg-black/5"}`}>
-                      {combo.active ? <><Check size={13} /> Live</> : "Hidden"}
+                  <div className="mt-4 border-t border-black/8 pt-3">
+                    <p className="text-lg font-black tabular-nums">{formatPaise(combo.comboPricePaise)}</p>
+                    {saved > 0 ? <p className="text-xs font-bold text-[#2b6e56]">saves {formatPaise(saved)} · {savedPct}%</p> : <p className="text-xs font-semibold text-[#a0a2a8] tabular-nums">worth {formatPaise(real)}</p>}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 [&>button]:whitespace-nowrap">
+                    <button type="button" onClick={() => toggleActive(combo)} aria-label={combo.active ? "Hide this combo from customers" : "Show this combo to customers"} className={`inline-flex h-10 items-center justify-center gap-1 rounded-lg px-2 text-sm font-black transition ${combo.active ? "bg-[#34705a]/10 text-[#2b6e56] hover:bg-[#34705a]/20" : "bg-[#f3f4f6] text-[#85878e] hover:bg-black/5"}`}>
+                      {combo.active ? <><Check size={14} /> Live</> : "Hidden"}
                     </button>
+                    <button type="button" onClick={() => loadForEdit(combo)} className="inline-flex h-10 items-center justify-center gap-1 rounded-lg border border-black/12 px-2 text-sm font-bold text-[#4e5057] transition hover:border-black/25"><Pencil size={14} /> Edit</button>
+                    <button type="button" onClick={() => removeCombo(combo)} className="inline-flex h-10 items-center justify-center rounded-lg px-2 text-sm font-bold text-red-600 transition hover:bg-red-50 hover:text-red-700">Delete</button>
                   </div>
                 </div>
               );
@@ -345,6 +367,7 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
           </div>
         )}
       </SectionCard>
+      {confirmDialog}
     </div>
   );
 }

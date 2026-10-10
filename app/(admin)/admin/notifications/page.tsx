@@ -4,6 +4,7 @@ import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
 import { NotificationsPanel } from "@/components/admin/NotificationsPanel";
 import { linkButtonClasses } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
+import { cn } from "@/lib/utils";
 import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export default async function AdminNotificationsPage() {
         title="Notification log"
         description="Every message sent to customers, when a delivery failed, and whether an automatic or manual retry recovered it."
       >
-        <Link href="/admin/settings#notifications" className={linkButtonClasses("outline")}>Turn email or WhatsApp on or off</Link>
+        <Link href="/admin/settings#notifications" className={cn(linkButtonClasses("outline"), "h-auto min-h-11 whitespace-normal py-2 text-center")}>Turn email or WhatsApp on or off</Link>
       </AdminPageHeader>
       <div className="space-y-5">
         <NotificationsPanel failedLogs={failedLogs} recentLogs={recentLogs} />

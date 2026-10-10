@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { AdminPageHeader, PageContainer, StatCard } from "@/components/admin/AdminShell";
+import { AdminPageHeader, PageContainer } from "@/components/admin/AdminShell";
+import { PizzaStatRow } from "@/components/admin/PizzaStatRow";
 import { PizzaStoreManager } from "@/components/admin/PizzaStoreManager";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -27,11 +28,13 @@ export default async function AdminPizzaStorePage() {
         title="Store"
         description="Open/close the shop for orders, and keep its customer-facing profile up to date."
       />
-      <div className="grid gap-3 min-[430px]:grid-cols-3 sm:gap-4">
-        <StatCard label="Courses" value={shop._count.courses} />
-        <StatCard label="Menu items" value={shop._count.menuItems} />
-        <StatCard label="Combos" value={shop._count.combos} />
-      </div>
+      <PizzaStatRow
+        stats={[
+          { label: "Courses", value: shop._count.courses },
+          { label: "Menu items", value: shop._count.menuItems },
+          { label: "Combos", value: shop._count.combos }
+        ]}
+      />
       <PizzaStoreManager
         initialShop={{
           id: shop.id,

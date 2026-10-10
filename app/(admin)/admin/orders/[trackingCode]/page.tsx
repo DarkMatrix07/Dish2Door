@@ -252,7 +252,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
 
   return (
     <PageContainer>
-      <Link href="/admin/orders/all" className="text-sm font-semibold text-neutral-500 hover:underline">
+      <Link href="/admin/orders/all" className="inline-flex min-h-10 items-center text-sm font-semibold text-neutral-500 hover:underline">
         ← All orders
       </Link>
       <AdminPageHeader

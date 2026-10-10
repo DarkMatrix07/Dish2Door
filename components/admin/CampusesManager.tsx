@@ -55,7 +55,8 @@ function Choice({ options, value, onChange }: { options: { label: string; value:
   return (
     <div className="grid grid-cols-2 gap-2">
       {options.map((option) => (
-        <Button key={option.label} variant={value === option.value ? (option.tone ?? "default") : "outline"} onClick={() => onChange(option.value)}>
+        // Short labels, no wrapping and tight side padding so both fit side by side at 320px.
+        <Button key={option.label} type="button" aria-pressed={value === option.value} variant={value === option.value ? (option.tone ?? "default") : "outline"} onClick={() => onChange(option.value)} className="min-w-0 whitespace-nowrap px-2">
           {option.label}
         </Button>
       ))}
@@ -179,7 +180,7 @@ export function CampusesManager({ initialCampuses }: { initialCampuses: Campus[]
                       <div className="text-sm font-bold text-[#3f4046] sm:col-span-2">
                         Hostel delivery slots
                         <div className="mt-1.5">
-                          <Choice value={draft.hostelDeliveryNightOnly} onChange={(hostelDeliveryNightOnly) => edit(base.id, { hostelDeliveryNightOnly })} options={[{ label: "Night orders only", value: true }, { label: "Both slots", value: false }]} />
+                          <Choice value={draft.hostelDeliveryNightOnly} onChange={(hostelDeliveryNightOnly) => edit(base.id, { hostelDeliveryNightOnly })} options={[{ label: "Night only", value: true }, { label: "Both slots", value: false }]} />
                         </div>
                       </div>
                     ) : null}

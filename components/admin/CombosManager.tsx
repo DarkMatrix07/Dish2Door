@@ -255,7 +255,7 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-bold text-[#3f4046]">Combo name<input className={`${inputClass} mt-1.5`} value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Lunch Feast" maxLength={80} /></label>
-            <label className="text-sm font-bold text-[#3f4046]">Image URL <span className="font-medium text-[#a0a2a8]">(optional)</span><input className={`${inputClass} mt-1.5`} value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="/uploads/combo.png or https://…" /></label>
+            <label className="text-sm font-bold text-[#3f4046]">Image URL <span className="font-medium text-[#a0a2a8]">(optional)</span><input className={`${inputClass} mt-1.5`} value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="Paste an image link" /></label>
             <label className="text-sm font-bold text-[#3f4046] sm:col-span-2">Short description <span className="font-medium text-[#a0a2a8]">(optional)</span><input className={`${inputClass} mt-1.5`} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="What makes this combo great" maxLength={300} /></label>
           </div>
 
@@ -278,17 +278,17 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
                   <div key={item.id} className={`flex items-center gap-3 rounded-lg border p-2.5 transition ${chosen ? "border-[#f6b73c] bg-[#f6b73c]/[0.08]" : "border-black/8 bg-white hover:border-black/15"}`}>
                     <img loading="lazy" decoding="async" alt={itemLabel(item)} src={item.imageUrl ?? "/dish-placeholder.webp"} className="h-11 w-11 shrink-0 rounded-md object-cover" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-[#202126]">{itemLabel(item)}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>
+                      <p className="break-words text-sm font-bold text-[#202126]">{itemLabel(item)}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>
                       <p className="mt-0.5 text-xs font-semibold tabular-nums text-[#70727a]">{formatPaise(discountedUnit(item))}{item.discountPercent ? <span className="ml-1.5 text-[#a0a2a8] line-through">{formatPaise(item.pricePaise)}</span> : null}</p>
                     </div>
                     {chosen ? (
-                      <div className="flex h-9 items-center rounded-lg bg-[#171713] text-white">
-                        <button type="button" aria-label={`Remove one ${itemLabel(item)}`} onClick={() => stepItem(item.id, -1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Minus size={13} /></button>
+                      <div className="flex h-10 items-center rounded-lg bg-[#171713] text-white">
+                        <button type="button" aria-label={`Remove one ${itemLabel(item)}`} onClick={() => stepItem(item.id, -1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10"><Minus size={13} /></button>
                         <span className="w-6 text-center text-sm font-black tabular-nums">{quantity}</span>
-                        <button type="button" aria-label={`Add one ${itemLabel(item)}`} onClick={() => stepItem(item.id, 1)} className="grid h-9 w-9 place-items-center transition hover:bg-white/10"><Plus size={13} /></button>
+                        <button type="button" aria-label={`Add one ${itemLabel(item)}`} onClick={() => stepItem(item.id, 1)} className="grid h-10 w-10 place-items-center transition hover:bg-white/10"><Plus size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => addItem(item.id)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-black/12 bg-white px-3 text-sm font-black text-[#202126] transition hover:border-[#f6b73c] hover:bg-[#f6b73c]">Add</button>
+                      <button type="button" onClick={() => addItem(item.id)} className="inline-flex h-10 items-center gap-1 rounded-lg border border-black/12 bg-white px-4 text-sm font-black text-[#202126] transition hover:border-[#f6b73c] hover:bg-[#f6b73c]">Add</button>
                     )}
                   </div>
                 );
@@ -368,12 +368,12 @@ export function CombosManager({ initialRestaurants }: { initialRestaurants: Rest
                 <div key={combo.id} className={`flex flex-col rounded-xl border p-4 transition ${combo.active ? "border-black/10 bg-white" : "border-black/8 bg-[#f3f4f6]"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="truncate text-base font-black tracking-[-0.02em]">{combo.name}</h3>
+                      <h3 className="break-words text-base font-black tracking-[-0.02em]">{combo.name}</h3>
                       {!combo.active ? <span className="mt-1 inline-block rounded bg-[#e9e5dd] px-2 py-0.5 text-[10px] font-black uppercase text-[#8a857c]">Hidden</span> : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <button type="button" aria-label="Edit combo" onClick={() => loadForEdit(combo)} className="grid h-8 w-8 place-items-center rounded-lg border border-black/10 text-[#4e5057] transition hover:border-black/25"><Pencil size={14} /></button>
-                      <button type="button" aria-label="Delete combo" onClick={() => removeCombo(combo)} className="grid h-8 w-8 place-items-center rounded-lg border border-black/10 text-[#8a342c] transition hover:border-[#8a342c]/40 hover:bg-[#8a342c]/5"><Trash2 size={14} /></button>
+                      <button type="button" aria-label="Edit combo" onClick={() => loadForEdit(combo)} className="grid h-10 w-10 place-items-center rounded-lg border border-black/10 text-[#4e5057] transition hover:border-black/25"><Pencil size={14} /></button>
+                      <button type="button" aria-label="Delete combo" onClick={() => removeCombo(combo)} className="grid h-10 w-10 place-items-center rounded-lg border border-black/10 text-[#8a342c] transition hover:border-[#8a342c]/40 hover:bg-[#8a342c]/5"><Trash2 size={14} /></button>
                     </div>
                   </div>
 

@@ -573,7 +573,7 @@ export function CartPageClient({
       ) : (
         <section className="mx-auto grid max-w-[1440px] gap-12 px-5 py-10 pb-24 sm:px-8 lg:grid-cols-[minmax(0,1fr)_25rem] lg:gap-16 lg:px-12 lg:py-16">
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-center justify-between border-b border-black/12 pb-4"><h2 className="text-2xl font-black tracking-[-0.035em]">From {cart[0]?.restaurantName}</h2><button type="button" onClick={emptyCart} className="inline-flex items-center gap-2 text-sm font-bold text-[#8a342c] transition hover:text-[#b23f32]"><Trash2 size={15} /> Clear cart</button></div>
+            <div className="flex items-center justify-between border-b border-black/12 pb-4"><h2 className="text-2xl font-black tracking-[-0.035em]">From {cart[0]?.restaurantName}</h2><button type="button" onClick={emptyCart} className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#8a342c] transition hover:text-[#b23f32]"><Trash2 size={15} /> Clear cart</button></div>
             <div>
               {/* Removing a line (− to zero) slides it out and closes the gap, instead of
                   the list jumping. */}
@@ -658,7 +658,7 @@ export function CartPageClient({
                       <span className="block text-sm font-black">{slot.label}</span>
                       <span className={`mt-1 block text-[11px] font-medium leading-4 sm:text-xs ${unavailable ? "text-[#9a9388]" : customer.orderSlot === slot.value ? "text-[#171713]/65" : "text-[#817a70]"}`}>{slot.cutoffLabel}</span>
                       <span className={`block text-[11px] font-bold leading-4 sm:text-xs ${unavailable ? "text-[#9a9388]" : customer.orderSlot === slot.value ? "text-[#171713]" : "text-[#c65d24]"}`}>{slot.deliveryLabel}</span>
-                      {blockedByHostel ? <span className="absolute right-2.5 top-2.5 rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#8a342c]">Hostel is night only</span> : unavailable && indiaMinutes !== null ? <span className="absolute right-2.5 top-2.5 rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#8a342c]">Closed</span> : null}
+                      {blockedByHostel ? <span className="mt-2 block w-fit rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#8a342c]">Hostel is night only</span> : unavailable && indiaMinutes !== null ? <span className="mt-2 block w-fit rounded-full bg-[#8a342c]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-[#8a342c]">Closed</span> : null}
                     </button>
                     );
                   })}
@@ -673,7 +673,7 @@ export function CartPageClient({
               {coupon ? (
                 <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center justify-between gap-3 rounded-lg border border-[#34705a]/25 bg-[#34705a]/[0.07] px-3.5 py-3">
                   <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-[#285d4a]"><Check size={15} className="shrink-0" /><span className="truncate"><span className="font-mono font-black">{coupon.code}</span> · {coupon.discountPercent}% off</span></span>
-                  <button type="button" aria-label={`Remove coupon ${coupon.code}`} onClick={removeCoupon} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#285d4a] transition hover:bg-[#34705a]/12"><X size={15} /></button>
+                  <button type="button" aria-label={`Remove coupon ${coupon.code}`} onClick={removeCoupon} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[#285d4a] transition hover:bg-[#34705a]/12"><X size={15} /></button>
                 </motion.div>
               ) : (
                 <>
@@ -708,7 +708,7 @@ export function CartPageClient({
               <button type="button" disabled={checkingPayment} onClick={checkPaymentStatus} className="mt-3 w-full rounded-md border border-black/20 px-4 py-3 text-sm font-bold transition hover:border-black/40 disabled:opacity-50">{checkingPayment ? "Checking payment..." : "Check payment status"}</button>
             ) : null}
             <p className="mt-4 text-xs leading-5 text-[#817a70]">After payment, your tracking link and private 4-digit passcode are sent by WhatsApp and email.</p>
-            {rememberContact ? <button type="button" className="mt-3 text-xs font-bold text-[#817a70] underline underline-offset-2 transition hover:text-[#171713]" onClick={() => { forgetStoredIdentity(); setRememberContact(false); toast.success("Saved contact details removed from this device."); }}>Forget my saved details on this device</button> : null}
+            {rememberContact ? <button type="button" className="mt-3 min-h-10 text-xs font-bold text-[#817a70] underline underline-offset-2 transition hover:text-[#171713]" onClick={() => { forgetStoredIdentity(); setRememberContact(false); toast.success("Saved contact details removed from this device."); }}>Forget my saved details on this device</button> : null}
           </aside>
         </section>
       )}
@@ -769,7 +769,7 @@ export function CartPageClient({
             >
               <div className="flex items-start justify-between gap-4">
                 <span className="grid h-12 w-12 place-items-center rounded-xl bg-[#f6b73c] text-[#171713]"><ShoppingBag size={22} /></span>
-                <Link href="/menu" className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold text-[#716a5f] transition hover:bg-black/5 hover:text-[#171713]"><ArrowLeft size={14} /> Back to menu</Link>
+                <Link href="/menu" className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold text-[#716a5f] transition hover:bg-black/5 hover:text-[#171713]"><ArrowLeft size={14} /> Back to menu</Link>
               </div>
               <h2 id="identity-gate-title" className="mt-5 text-3xl font-black tracking-[-0.04em]">Let&apos;s get your details</h2>
               <p className="mt-2 text-sm leading-6 text-[#716a5f]">We use these to send your tracking link — and regulars sometimes unlock a surprise.</p>

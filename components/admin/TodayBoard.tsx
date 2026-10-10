@@ -64,7 +64,7 @@ function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () =>
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        "h-9 rounded-full border px-3.5 text-sm font-semibold transition",
+        "h-10 rounded-full border px-3.5 text-sm font-semibold transition",
         FOCUS,
         pressed ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
       )}
@@ -258,20 +258,20 @@ export function TodayBoard({
         title="Today's orders"
         description={`${data.dayLabel}. Hand orders over campus by campus, slot by slot.`}
       >
-        {/* Two equal columns on phones (sheets on top, links below) so no label ever wraps. */}
+        {/* A 2x2 grid on phones (sheets on top, links below). The phone labels are one short word, so nothing wraps even at 320px; the printer icon says what they are. */}
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <Button variant="outline" className={cn("min-w-0 gap-1.5 whitespace-nowrap px-3 text-sm", FOCUS)} disabled={afternoonSheet === 0} onClick={() => printPrepSheet(orders, "AFTERNOON", data.dayLabel)}>
             <Printer size={16} className="shrink-0" aria-hidden="true" />
-            <span className="sr-only">Print </span>Afternoon sheet
+            <span className="sr-only">Print </span>Afternoon<span className="max-sm:sr-only">&nbsp;sheet</span>
           </Button>
           <Button variant="outline" className={cn("min-w-0 gap-1.5 whitespace-nowrap px-3 text-sm", FOCUS)} disabled={nightSheet === 0} onClick={() => printPrepSheet(orders, "NIGHT", data.dayLabel)}>
             <Printer size={16} className="shrink-0" aria-hidden="true" />
-            <span className="sr-only">Print </span>Night sheet
+            <span className="sr-only">Print </span>Night<span className="max-sm:sr-only">&nbsp;sheet</span>
           </Button>
-          <Link href="/admin/orders/all" className={cn(linkButtonClasses("outline"), "min-w-0 whitespace-nowrap", FOCUS)}>
+          <Link href="/admin/orders/all" className={cn(linkButtonClasses("outline"), "min-w-0 whitespace-nowrap px-3", FOCUS)}>
             All orders
           </Link>
-          <Link href="/admin/orders/new" className={cn(linkButtonClasses("default"), "min-w-0 whitespace-nowrap", FOCUS)}>
+          <Link href="/admin/orders/new" className={cn(linkButtonClasses("default"), "min-w-0 whitespace-nowrap px-3", FOCUS)}>
             <Plus size={16} className="shrink-0" aria-hidden="true" />
             New order
           </Link>
@@ -344,8 +344,8 @@ export function TodayBoard({
       ) : null}
 
       <SectionCard bodyClassName="space-y-3">
-        <div className="flex gap-2">
-          <div className="relative min-w-0 flex-1" role="search">
+        <div>
+          <div className="relative min-w-0" role="search">
             <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
             <Input
               type="search"
@@ -361,16 +361,12 @@ export function TodayBoard({
                 type="button"
                 aria-label="Clear search"
                 onClick={() => setSearch("")}
-                className={cn("absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900", FOCUS)}
+                className={cn("absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900", FOCUS)}
               >
                 <X size={15} aria-hidden="true" />
               </button>
             ) : null}
           </div>
-          <Button variant="outline" className={cn("shrink-0", FOCUS)} disabled={refreshing} onClick={() => void refresh()}>
-            <RefreshCw size={15} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
-            Refresh
-          </Button>
         </div>
 
         <div role="group" aria-label="Delivery slot" className="flex flex-wrap gap-2">
@@ -410,7 +406,14 @@ export function TodayBoard({
           </div>
         </div>
 
-        <p className="text-xs text-neutral-500">Updated {updatedAt} · refreshes every 30 seconds</p>
+        {/* Refresh sits beside the "updated" note, not beside the search box, so the search box keeps the full width on phones. */}
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 text-xs text-neutral-500">Updated {updatedAt} · refreshes every 30 seconds</p>
+          <Button variant="outline" className={cn("shrink-0", FOCUS)} disabled={refreshing} onClick={() => void refresh()}>
+            <RefreshCw size={15} className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
+            Refresh
+          </Button>
+        </div>
       </SectionCard>
 
       {orders.length === 0 ? (

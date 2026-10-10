@@ -451,17 +451,18 @@ export function MenuClient({ restaurants, featured, slotTimes }: { restaurants: 
         layout
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-4 border-b border-black/10 py-4"
+        className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3 border-b border-black/10 py-4 sm:grid-cols-[4.5rem_minmax(0,1fr)_auto]"
       >
         <button type="button" aria-label={`View ${item.name}`} onClick={() => setDetail({ item, restaurant })} className="overflow-hidden rounded-xl bg-[#e9e3d8]">
           <FadeImage alt={item.name} src={item.imageUrl ?? ITEM_FALLBACK} className={`h-[4.5rem] w-[4.5rem] object-cover ${item.available ? "" : "grayscale opacity-60"}`} />
         </button>
         <div className="min-w-0">
-          <button type="button" onClick={() => openRestaurantById(restaurant.id)} className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#c65d24] transition hover:text-[#171713]">{restaurant.name}</button>
-          <button type="button" onClick={() => setDetail({ item, restaurant })} className="block text-left"><h3 className="truncate font-black tracking-[-0.02em]">{item.name}</h3></button>
+          <button type="button" onClick={() => openRestaurantById(restaurant.id)} className="inline-flex min-h-8 items-center text-left text-[11px] font-bold uppercase tracking-[0.1em] text-[#c65d24] transition hover:text-[#171713]">{restaurant.name}</button>
+          <button type="button" onClick={() => setDetail({ item, restaurant })} className="block text-left"><h3 className="break-words font-black tracking-[-0.02em]">{item.name}</h3></button>
           <span className="text-sm font-black tabular-nums">{formatPaise(discountedPrice(item))}</span>
         </div>
-        {renderStepper(() => itemLine(item, restaurant), item.name, item.available)}
+        {/* Under the dish on phones (beside it from sm up) so a long dish name is never squeezed. */}
+        <div className="col-start-2 sm:col-start-3">{renderStepper(() => itemLine(item, restaurant), item.name, item.available)}</div>
       </motion.article>
     );
   }
@@ -481,11 +482,11 @@ export function MenuClient({ restaurants, featured, slotTimes }: { restaurants: 
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search biryani, noodles, wraps…"
-                className="h-12 w-full rounded-xl border border-black/12 bg-white/80 pl-11 pr-11 text-sm font-medium shadow-[0_8px_24px_rgba(23,23,19,0.05)] outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
+                placeholder="Search biryani, wraps…"
+                className="h-12 w-full rounded-xl border border-black/12 bg-white/80 pl-11 pr-12 text-base font-medium sm:text-sm shadow-[0_8px_24px_rgba(23,23,19,0.05)] outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
               />
               {query ? (
-                <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[#817a70] transition hover:bg-black/5 hover:text-[#171713]"><X size={15} /></button>
+                <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-[#817a70] transition hover:bg-black/5 hover:text-[#171713]"><X size={15} /></button>
               ) : null}
             </label>
             {hasFeatured && !searching ? (
@@ -495,7 +496,7 @@ export function MenuClient({ restaurants, featured, slotTimes }: { restaurants: 
                     key={tab.key}
                     type="button"
                     onClick={() => setLandingView(tab.key)}
-                    className="relative rounded-lg px-4 py-2 text-sm font-black transition sm:px-5"
+                    className="relative min-h-10 rounded-lg px-4 py-2 text-sm font-black transition sm:px-5"
                   >
                     {landingView === tab.key ? <motion.span layoutId="landing-tab" transition={{ type: "spring", stiffness: 420, damping: 34 }} className="absolute inset-0 rounded-lg bg-[#171713]" /> : null}
                     <span className={`relative ${landingView === tab.key ? "text-white" : "text-[#6c6458] hover:text-[#171713]"}`}>{tab.label}</span>
@@ -513,7 +514,7 @@ export function MenuClient({ restaurants, featured, slotTimes }: { restaurants: 
           </div>
         ) : (
           <div className="mx-auto max-w-[1440px] px-5 pb-8 pt-28 sm:px-8 lg:px-12 lg:pb-10 lg:pt-32">
-            <button type="button" onClick={closeRestaurant} className="group inline-flex items-center gap-2 text-sm font-bold text-[#6c6458] transition hover:text-[#c65d24]"><ArrowLeft size={16} className="transition-transform group-hover:-translate-x-0.5" /> All restaurants</button>
+            <button type="button" onClick={closeRestaurant} className="group inline-flex min-h-10 items-center gap-2 text-sm font-bold text-[#6c6458] transition hover:text-[#c65d24]"><ArrowLeft size={16} className="transition-transform group-hover:-translate-x-0.5" /> All restaurants</button>
           </div>
         )}
       </section>
@@ -599,15 +600,15 @@ export function MenuClient({ restaurants, featured, slotTimes }: { restaurants: 
               <div className="sticky top-0 z-30 -mx-5 border-b border-black/10 bg-[#f7f3eb]/95 px-5 pb-3 pt-3 backdrop-blur-xl sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
                 <div className="relative">
                   <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#817a70]" />
-                  <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${activeRestaurant.name}`} className="h-12 w-full rounded-md border border-black/12 bg-white/70 pl-11 pr-11 text-sm font-medium outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10" />
-                  {query ? <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[#817a70] transition hover:bg-black/5 hover:text-[#171713]"><X size={15} /></button> : null}
+                  <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this menu" className="h-12 w-full rounded-md border border-black/12 bg-white/70 pl-11 pr-12 text-base font-medium sm:text-sm outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10" />
+                  {query ? <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-[#817a70] transition hover:bg-black/5 hover:text-[#171713]"><X size={15} /></button> : null}
                 </div>
                 {chips.length > 1 ? (
                   <nav ref={chipStripRef} className="relative mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label="Jump to a category">
                     {chips.map((chip) => {
                       const selected = chip.id === activeSection;
                       return (
-                        <button key={chip.id} data-chip={chip.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => jumpTo(chip.id)} className="relative shrink-0 rounded-md border border-black/12 px-4 py-2 text-sm font-bold transition-colors">
+                        <button key={chip.id} data-chip={chip.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => jumpTo(chip.id)} className="relative inline-flex min-h-10 shrink-0 items-center rounded-md border border-black/12 px-4 py-2 text-sm font-bold transition-colors">
                           {selected ? <motion.span layoutId={`chip-${activeRestaurant.id}`} transition={{ type: "spring", stiffness: 460, damping: 36 }} className="absolute inset-[-1px] rounded-md bg-[#171713]" /> : null}
                           <span className={`relative ${selected ? "text-white" : "text-[#625b50]"}`}>{chip.name}</span>
                         </button>

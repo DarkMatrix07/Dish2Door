@@ -131,10 +131,10 @@ export default async function AdminRatingsPage({
         description="What customers say about the food and the delivery. Filter by restaurant, stars or date to find what needs attention."
       />
 
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <StatCard label={filtered ? "Matching reviews" : "Total reviews"} value={total} />
-        <StatCard label="Food average" value={average(summary._avg.foodRating)} helper={total ? "out of 5" : undefined} />
-        <StatCard label="Delivery average" value={average(summary._avg.deliveryRating)} helper={total ? "out of 5" : undefined} />
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <StatCard label="Reviews" title={filtered ? "Matching reviews" : "Total reviews"} value={total} />
+        <StatCard label="Food" title="Food average" value={average(summary._avg.foodRating)} helper={total ? "average, out of 5" : undefined} />
+        <StatCard label="Delivery" title="Delivery average" value={average(summary._avg.deliveryRating)} helper={total ? "average, out of 5" : undefined} />
       </div>
 
       <SectionCard title="Find reviews" bodyClassName="space-y-4">

@@ -55,7 +55,7 @@ export function Modal({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
-          <div>
+          <div className="min-w-0">
             <h2 id="modal-title" className="text-lg font-black text-neutral-950">{title}</h2>
             {description ? <p className="mt-1 text-sm text-neutral-500">{description}</p> : null}
           </div>
@@ -63,13 +63,14 @@ export function Modal({
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-900"
+            className="-mr-2 -mt-2 grid h-10 w-10 shrink-0 place-items-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-900"
           >
             <X size={20} />
           </button>
         </div>
         <div className="p-5">{children}</div>
-        {footer ? <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 p-4 sm:p-5">{footer}</div> : null}
+        {/* Phones: full-width buttons stacked, main action on top. From sm up: a right-aligned row. */}
+        {footer ? <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 p-4 sm:flex-row sm:flex-wrap sm:justify-end sm:p-5">{footer}</div> : null}
       </div>
     </div>
   );

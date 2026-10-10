@@ -36,6 +36,16 @@ const SLOT_OPTIONS: DropdownOption[] = [
 ];
 const HOSTEL_OPTIONS: DropdownOption[] = HOSTEL_BLOCKS.map((block) => ({ value: block, label: block }));
 
+// Same small label the Dropdown shows above itself, so text boxes and dropdowns line up.
+function TextField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-semibold text-neutral-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restaurant[]; campuses: CampusRef[] }) {
   const router = useRouter();
   const [restaurantId, setRestaurantId] = useState(restaurants[0]?.id ?? "");
@@ -121,38 +131,38 @@ export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restau
     <div className="grid gap-5 lg:grid-cols-2">
       <SectionCard title="Customer & delivery" description="Use for phone, cash, direct UPI, or staff-created orders. No Razorpay required.">
         <div className="grid gap-3">
-          <Input placeholder="Customer name" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} />
-          <Input placeholder="Phone number" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} />
-          <Input placeholder="Email (optional)" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} />
+          <TextField label="Customer name"><Input placeholder="Customer name" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} /></TextField>
+          <TextField label="Phone number"><Input inputMode="tel" placeholder="Phone number" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} /></TextField>
+          <TextField label="Email (optional)"><Input placeholder="Email (optional)" value={customer.email} onChange={(event) => setCustomer({ ...customer, email: event.target.value })} /></TextField>
           {campuses.length > 1 ? (
             <Dropdown
-              ariaLabel="Campus"
+              label="Campus"
               value={customer.campusCode}
               onChange={(campusCode) => setCustomer({ ...customer, campusCode })}
               options={campusOptions}
             />
           ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
-            <Dropdown ariaLabel="Delivery type" value={customer.deliveryType} onChange={(deliveryType) => setCustomer({ ...customer, deliveryType })} options={DELIVERY_OPTIONS} />
-            <Dropdown ariaLabel="Payment" value={customer.paymentStatus} onChange={(paymentStatus) => setCustomer({ ...customer, paymentStatus })} options={PAYMENT_OPTIONS} />
+            <Dropdown label="Delivery type" value={customer.deliveryType} onChange={(deliveryType) => setCustomer({ ...customer, deliveryType })} options={DELIVERY_OPTIONS} />
+            <Dropdown label="Payment" value={customer.paymentStatus} onChange={(paymentStatus) => setCustomer({ ...customer, paymentStatus })} options={PAYMENT_OPTIONS} />
           </div>
           {customer.deliveryType === "HOSTEL" ? (
             <Dropdown
-              ariaLabel="Hostel block"
+              label="Hostel block"
               placeholder="Select hostel block"
               value={customer.hostelBlock}
               onChange={(hostelBlock) => setCustomer({ ...customer, hostelBlock })}
               options={HOSTEL_OPTIONS}
             />
           ) : null}
-          <Dropdown ariaLabel="Delivery time" value={customer.orderSlot} onChange={(orderSlot) => setCustomer({ ...customer, orderSlot })} options={SLOT_OPTIONS} />
+          <Dropdown label="Delivery time" value={customer.orderSlot} onChange={(orderSlot) => setCustomer({ ...customer, orderSlot })} options={SLOT_OPTIONS} />
         </div>
       </SectionCard>
 
       <SectionCard title="Items" description="Pick a restaurant, then add items to the order.">
         <div className="grid gap-3">
           <Dropdown
-            ariaLabel="Restaurant"
+            label="Restaurant"
             value={restaurantId}
             onChange={(id) => {
               setRestaurantId(id);
@@ -163,10 +173,10 @@ export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restau
             options={restaurantOptions}
             searchPlaceholder="Search restaurants"
           />
-          <Dropdown ariaLabel="Course" value={courseId} onChange={setCourseId} options={courseOptions} />
-          <div className="grid grid-cols-[1fr_84px] gap-2">
-            <Dropdown ariaLabel="Item" placeholder="Select item" value={menuItemId} onChange={setMenuItemId} options={itemOptions} searchPlaceholder="Search items" />
-            <Input type="number" min={1} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} />
+          <Dropdown label="Course" value={courseId} onChange={setCourseId} options={courseOptions} />
+          <div className="grid grid-cols-[minmax(0,1fr)_5rem] items-end gap-2">
+            <Dropdown label="Item" placeholder="Select item" value={menuItemId} onChange={setMenuItemId} options={itemOptions} searchPlaceholder="Search items" />
+            <TextField label="Qty"><Input type="number" inputMode="numeric" min={1} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></TextField>
           </div>
           <Button variant="outline" onClick={addItem}>
             Add item
@@ -179,13 +189,14 @@ export function ManualOrderForm({ restaurants, campuses }: { restaurants: Restau
                   const menuItem = restaurant?.menuItems.find((item) => item.id === draft.menuItemId);
                   return (
                     <div key={draft.menuItemId} className="flex items-center justify-between gap-3">
-                      <span>
+                      <span className="min-w-0 break-words">
                         {draft.quantity}x {menuItem?.name}
                       </span>
-                      <div className="flex items-center gap-3">
+                      <div className="flex shrink-0 items-center gap-2">
                         <span className="text-neutral-500">{menuItem ? formatPaise(menuItem.pricePaise * draft.quantity) : ""}</span>
                         <button
-                          className="font-semibold text-red-600"
+                          type="button"
+                          className="min-h-9 rounded-lg px-2 font-semibold text-red-600 hover:bg-red-50"
                           onClick={() => setItems(items.filter((item) => item.menuItemId !== draft.menuItemId))}
                         >
                           Remove

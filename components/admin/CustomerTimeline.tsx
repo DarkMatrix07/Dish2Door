@@ -141,7 +141,7 @@ export function CustomerTimeline({
             scroll={false}
             aria-current={option.key === filter ? "true" : undefined}
             className={cn(
-              "inline-flex h-9 items-center rounded-full border px-4 text-sm font-semibold transition",
+              "inline-flex h-10 items-center rounded-full border px-4 text-sm font-semibold transition",
               option.key === filter ? "border-neutral-950 bg-neutral-950 text-white!" : "border-neutral-200 bg-white hover:bg-neutral-50"
             )}
           >
@@ -186,7 +186,7 @@ export function CustomerTimeline({
             <Link
               href={timelineHref(phone, filter, next)}
               scroll={false}
-              className="inline-flex h-9 items-center rounded-md border border-neutral-200 px-4 text-sm font-semibold hover:bg-neutral-50"
+              className="inline-flex h-10 items-center rounded-lg border border-neutral-200 px-4 text-sm font-semibold hover:bg-neutral-50"
             >
               Show more
             </Link>

@@ -72,17 +72,19 @@ export function Switch({ on, onChange, label, disabled }: { on: boolean; onChang
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className={cn("relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-50", on ? "bg-[#171713]" : "bg-[#d7d9de]")}
+      // The before: layer stretches the tappable area to 40px tall without changing how the switch looks.
+      className={cn("relative inline-flex h-7 w-12 shrink-0 items-center rounded-full outline-none transition before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[''] focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2 disabled:opacity-50", on ? "bg-[#171713]" : "bg-[#d7d9de]")}
     >
       <span className={cn("inline-block h-5 w-5 transform rounded-full shadow transition", on ? "translate-x-6 bg-[#f6b73c]" : "translate-x-1 bg-white")} />
     </button>
   );
 }
 
-// A titled on/off row: the words on the left, the switch on the right.
+// A titled on/off row: the words on the left, the switch on the right. The whole row is a
+// label for the switch, so tapping anywhere on it flips the switch.
 export function SwitchRow({ title, description, on, onChange, disabled, icon }: { title: string; description: string; on: boolean; onChange: (next: boolean) => void; disabled?: boolean; icon?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg bg-[#f3f4f6] p-4">
+    <label className={cn("flex items-center justify-between gap-4 rounded-lg bg-[#f3f4f6] p-4", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
       <div className="flex min-w-0 items-center gap-3">
         {icon ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-[#555860] shadow-sm">{icon}</span> : null}
         <div className="min-w-0">
@@ -91,6 +93,6 @@ export function SwitchRow({ title, description, on, onChange, disabled, icon }: 
         </div>
       </div>
       <Switch on={on} onChange={onChange} label={title} disabled={disabled} />
-    </div>
+    </label>
   );
 }

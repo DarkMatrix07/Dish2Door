@@ -67,7 +67,7 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
             </button>
             {expanded ? <div className="mb-2 mt-1 space-y-1 pl-5">{entry.children.map((child) => {
               const active = isLinkActive(pathname, child.href);
-              return <Link key={child.href} href={child.href} onClick={onNavigate} className={cn("flex min-h-9 items-center rounded-r-lg border-l px-3 py-2 text-sm transition", active ? "border-[#f6b73c] bg-white/[0.07] font-semibold text-white" : "border-white/10 text-white/45 hover:border-white/30 hover:bg-white/[0.05] hover:text-white")}>{child.label}</Link>;
+              return <Link key={child.href} href={child.href} onClick={onNavigate} className={cn("flex min-h-10 items-center rounded-r-lg border-l px-3 py-2 text-sm transition", active ? "border-[#f6b73c] bg-white/[0.07] font-semibold text-white" : "border-white/10 text-white/45 hover:border-white/30 hover:bg-white/[0.05] hover:text-white")}>{child.label}</Link>;
             })}</div> : null}
           </div>
         );
@@ -122,10 +122,10 @@ export function AdminShell({ children, userName }: { children: React.ReactNode; 
       <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-black/10 bg-white/90 px-4 py-3 backdrop-blur-xl lg:hidden">
         <button type="button" onClick={() => setMobileOpen(true)} className="grid h-10 w-10 place-items-center rounded-lg bg-[#171713] text-white transition active:scale-95" aria-label="Open menu"><MenuIcon size={19} /></button>
         <p className="mx-3 truncate text-sm font-bold">{currentTitle(pathname)}</p>
-        <Link href="/admin" className="grid h-9 w-9 place-items-center rounded-lg bg-[#f6b73c] text-xs font-black text-[#171713]">D2</Link>
+        <Link href="/admin" className="grid h-10 w-10 place-items-center rounded-lg bg-[#f6b73c] text-xs font-black text-[#171713]">D2</Link>
       </header>
 
-      {mobileOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button type="button" aria-label="Close menu overlay" className="absolute inset-0 h-full w-full bg-black/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><aside className="absolute inset-y-0 left-0 flex h-dvh w-[20rem] max-w-[88vw] flex-col bg-[#171713] text-white shadow-2xl"><div className="flex min-h-16 shrink-0 items-center justify-between border-b border-white/10 px-5 py-4"><Link href="/admin" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#f6b73c] text-xs font-black text-[#171713]">D2</span><span><span className="block font-black">Dish2Door</span><span className="block text-xs text-white/40">Admin workspace</span></span></Link><button type="button" onClick={() => setMobileOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/15 text-white/70" aria-label="Close menu"><X size={17} /></button></div><SidebarNav pathname={pathname} onNavigate={() => setMobileOpen(false)} /><SidebarFooter userName={userName} /></aside></div> : null}
+      {mobileOpen ? <div className="fixed inset-0 z-50 lg:hidden"><button type="button" aria-label="Close menu overlay" className="absolute inset-0 h-full w-full bg-black/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} /><aside className="absolute inset-y-0 left-0 flex h-dvh w-[20rem] max-w-[88vw] flex-col bg-[#171713] text-white shadow-2xl"><div className="flex min-h-16 shrink-0 items-center justify-between border-b border-white/10 px-5 py-4"><Link href="/admin" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}><span className="grid h-9 w-9 place-items-center rounded-lg bg-[#f6b73c] text-xs font-black text-[#171713]">D2</span><span><span className="block font-black">Dish2Door</span><span className="block text-xs text-white/40">Admin workspace</span></span></Link><button type="button" onClick={() => setMobileOpen(false)} className="grid h-10 w-10 place-items-center rounded-lg border border-white/15 text-white/70" aria-label="Close menu"><X size={17} /></button></div><SidebarNav pathname={pathname} onNavigate={() => setMobileOpen(false)} /><SidebarFooter userName={userName} /></aside></div> : null}
 
       <div className="lg:pl-72">
         <div className="sticky top-0 z-20 hidden min-h-16 items-center justify-between border-b border-black/8 bg-white/80 px-8 backdrop-blur-xl lg:flex"><div><p className="text-xs font-semibold text-[#8a8c93]">Admin workspace</p><p className="text-sm font-black">{currentTitle(pathname)}</p></div><Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-bold text-[#4e5057] transition hover:border-black/20">View customer site <ExternalLink size={14} /></Link></div>
@@ -146,8 +146,18 @@ export function AdminPageHeader({ eyebrow, title, description, children }: { eye
   return <div className="flex flex-col gap-5 border-b border-black/10 pb-6 sm:pb-8 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-bold text-[#b65a20]">{eyebrow}</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">{title}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-[#70727a] sm:text-base">{description}</p></div>{children ? <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{children}</div> : null}</div>;
 }
 
-export function StatCard({ label, value, helper }: { label: string; value: React.ReactNode; helper?: string }) {
-  return <div className="min-w-0 rounded-xl bg-white p-4 shadow-[0_10px_35px_rgba(30,32,38,0.05)] sm:p-5"><p className="truncate text-xs font-bold text-[#85878e] sm:text-sm">{label}</p><p className="mt-2 truncate text-2xl font-black tracking-[-0.04em] tabular-nums sm:text-3xl" title={typeof value === "string" ? value : undefined}>{value}</p>{helper ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#96989e]">{helper}</p> : null}</div>;
+// `title` carries the long form of a short label (hover on desktop, read out by screen readers).
+// Phones: the grid that holds these should be two columns (or three for exactly three short
+// ones) and each card sits in its own grid cell, so labels stay on one line and the helper
+// text wraps instead of being cut off.
+export function StatCard({ label, value, helper, title, className }: { label: string; value: React.ReactNode; helper?: string; title?: string; className?: string }) {
+  return (
+    <div className={cn("min-w-0 rounded-xl bg-white p-4 shadow-[0_10px_35px_rgba(30,32,38,0.05)] sm:p-5", className)}>
+      <p className="truncate text-xs font-bold text-[#85878e] sm:text-sm" title={title}>{title ? <><span aria-hidden="true">{label}</span><span className="sr-only">{title}</span></> : label}</p>
+      <p className="mt-2 truncate text-[1.375rem] font-black leading-tight tracking-[-0.04em] tabular-nums sm:text-3xl" title={typeof value === "string" ? value : undefined}>{value}</p>
+      {helper ? <p className="mt-1 break-words text-xs leading-5 text-[#96989e]">{helper}</p> : null}
+    </div>
+  );
 }
 
 export function SectionCard({ id, title, description, actions, children, className, bodyClassName }: { id?: string; title?: string; description?: string; actions?: React.ReactNode; children: React.ReactNode; className?: string; bodyClassName?: string }) {

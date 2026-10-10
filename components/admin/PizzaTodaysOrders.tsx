@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { FileDown } from "lucide-react";
-import { SectionCard, StatCard } from "@/components/admin/AdminShell";
+import { SectionCard } from "@/components/admin/AdminShell";
+import { PizzaStatRow } from "@/components/admin/PizzaStatRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CampusBadge, campusLabel } from "@/components/admin/CampusBadge";
@@ -69,6 +70,10 @@ function deliveryLabel(order: Order) {
   return order.deliveryType === "HOSTEL" ? `Hostel ${order.hostelBlock ?? ""}`.trim() : "Gate";
 }
 
+// Full-width, never wraps its label, and a clearly greyed-out look when there is nothing to print.
+const pdfButtonClass =
+  "w-full gap-1.5 whitespace-nowrap px-2 disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:opacity-100";
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 }
@@ -98,15 +103,15 @@ export function PizzaTodaysOrders({ orders, dateLabel, restaurantName }: { order
             </p>
             <div className="grid gap-2 md:grid-cols-2">
               {slotOrders.map((order) => (
-                <div key={order.id} className="rounded-xl border border-neutral-200 bg-white p-3 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold">{order.customerName}</span>
-                    <span className="font-black">{formatPaise(order.totalPaise)}</span>
+                <div key={order.id} className="min-w-0 rounded-xl border border-neutral-200 bg-white p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 break-words font-semibold">{order.customerName}</span>
+                    <span className="shrink-0 font-black">{formatPaise(order.totalPaise)}</span>
                   </div>
-                  <p className="text-xs text-neutral-500">
+                  <p className="break-words text-xs text-neutral-500">
                     {order.customerPhone} · {deliveryLabel(order)} · {order.trackingCode}
                   </p>
-                  <p className="mt-1 text-neutral-700">
+                  <p className="mt-1 break-words text-neutral-700">
                     {order.items.map((it) => `${it.quantity}× ${it.nameSnapshot}`).join(", ")}
                   </p>
                 </div>
@@ -191,19 +196,24 @@ export function PizzaTodaysOrders({ orders, dateLabel, restaurantName }: { order
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid w-full flex-1 gap-3 min-[430px]:grid-cols-3 sm:max-w-md">
-          <StatCard label="Today" value={counts.total} helper="orders" />
-          <StatCard label="Afternoon" value={counts.afternoon} />
-          <StatCard label="Night" value={counts.night} />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => generatePdf("AFTERNOON")} disabled={!counts.afternoon}>
-            <FileDown size={16} className="-ml-1 mr-1" />
+      {/* Stats get a full-width row of their own and the PDF buttons a full-width row under it,
+          so nothing can be squeezed beside anything else on a narrow phone. */}
+      <div className="space-y-3">
+        <PizzaStatRow
+          className="sm:max-w-xl"
+          stats={[
+            { label: "Today", value: counts.total },
+            { label: "Afternoon", value: counts.afternoon },
+            { label: "Night", value: counts.night }
+          ]}
+        />
+        <div className="grid grid-cols-2 gap-2 sm:max-w-xl">
+          <Button variant="outline" className={pdfButtonClass} onClick={() => generatePdf("AFTERNOON")} disabled={!counts.afternoon}>
+            <FileDown size={16} className="shrink-0" />
             Afternoon PDF
           </Button>
-          <Button onClick={() => generatePdf("NIGHT")} disabled={!counts.night}>
-            <FileDown size={16} className="-ml-1 mr-1" />
+          <Button className={pdfButtonClass} onClick={() => generatePdf("NIGHT")} disabled={!counts.night}>
+            <FileDown size={16} className="shrink-0" />
             Night PDF
           </Button>
         </div>

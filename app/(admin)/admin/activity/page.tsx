@@ -29,7 +29,7 @@ const BASE_PATH = "/admin/activity";
 
 const chipClasses = (active: boolean) =>
   cn(
-    "inline-flex h-9 items-center rounded-full border px-4 text-sm font-semibold transition",
+    "inline-flex h-10 items-center rounded-full border px-4 text-sm font-semibold transition",
     active ? "border-neutral-950 bg-neutral-950 text-white!" : "border-neutral-200 bg-white text-neutral-700! hover:bg-neutral-50"
   );
 

@@ -93,7 +93,7 @@ export default async function AdminDashboardPage() {
               <li key={row.key}>
                 <Link
                   href={boardCampusHref(row.key)}
-                  className={cn("block rounded-xl border border-neutral-200 bg-neutral-50 p-4 transition hover:border-neutral-300 hover:bg-white", FOCUS)}
+                  className={cn("block rounded-xl border border-neutral-200 bg-neutral-50 p-3 transition sm:p-4 hover:border-neutral-300 hover:bg-white", FOCUS)}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <CampusBadge campus={row.campus} />
@@ -101,9 +101,9 @@ export default async function AdminDashboardPage() {
                       Open board <ChevronRight size={14} aria-hidden />
                     </span>
                   </div>
-                  <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <dl className="mt-3 grid grid-cols-3 gap-1.5 text-center sm:gap-2">
                     <CampusFigure label="To prepare" value={row.toPrepare} strong={row.toPrepare > 0} />
-                    <CampusFigure label="Reached campus" value={row.reached} />
+                    <CampusFigure label="Reached" title="Reached campus" value={row.reached} />
                     <CampusFigure label="Delivered" value={row.delivered} />
                   </dl>
                 </Link>
@@ -207,11 +207,21 @@ export default async function AdminDashboardPage() {
   );
 }
 
-function CampusFigure({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) {
+// `title` is the long form of a short label; screen readers get it instead of the short one.
+function CampusFigure({ label, title, value, strong = false }: { label: string; title?: string; value: number; strong?: boolean }) {
   return (
-    <div className="min-w-0 rounded-lg bg-white px-2 py-2.5 ring-1 ring-black/5">
+    <div className="min-w-0 rounded-lg bg-white px-1 py-2.5 ring-1 ring-black/5 sm:px-2" title={title}>
       <dd className={cn("text-2xl font-black tabular-nums", strong ? "text-neutral-950" : "text-neutral-700")}>{value}</dd>
-      <dt className="mt-0.5 text-[11px] font-semibold leading-tight text-neutral-500">{label}</dt>
+      <dt className="mt-0.5 text-xs font-semibold leading-tight text-neutral-500">
+        {title ? (
+          <>
+            <span aria-hidden="true">{label}</span>
+            <span className="sr-only">{title}</span>
+          </>
+        ) : (
+          label
+        )}
+      </dt>
     </div>
   );
 }

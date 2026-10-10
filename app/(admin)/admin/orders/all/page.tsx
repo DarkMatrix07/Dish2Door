@@ -6,6 +6,7 @@ import { linkButtonClasses } from "@/components/ui/button";
 import { searchAdminOrders } from "@/lib/admin-orders";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { cn } from "@/lib/utils";
 import { orderListParams, parseOrderSearch, parsePaging, searchParamsFromRecord } from "@/lib/order-search";
 
 export const dynamic = "force-dynamic";
@@ -38,10 +39,10 @@ export default async function AllOrdersPage({
       >
         {/* Two equal columns on phones instead of wrapping pills. */}
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-          <Link href="/admin/orders" className={linkButtonClasses("outline")}>
+          <Link href="/admin/orders" className={cn(linkButtonClasses("outline"), "min-w-0 whitespace-nowrap px-3")}>
             Today&apos;s orders
           </Link>
-          <Link href="/admin/orders/new" className={linkButtonClasses("default")}>
+          <Link href="/admin/orders/new" className={cn(linkButtonClasses("default"), "min-w-0 whitespace-nowrap px-3")}>
             <Plus size={16} className="-ml-1" aria-hidden="true" />
             New order
           </Link>

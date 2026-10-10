@@ -15,9 +15,9 @@ export function SiteFooter() {
           <p className="text-xl font-black tracking-[-0.03em] text-[#171713]">Dish2Door</p>
           <p className="mt-2">Good food, from campus kitchens to your door.</p>
         </div>
-        <nav className="flex flex-wrap gap-x-5 gap-y-2" aria-label="Legal and support">
+        <nav className="flex flex-wrap gap-x-5" aria-label="Legal and support">
           {legalLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="font-semibold transition-colors hover:text-[#c65d24]">{link.label}</Link>
+            <Link key={link.href} href={link.href} className="inline-flex min-h-10 items-center font-semibold transition-colors hover:text-[#c65d24]">{link.label}</Link>
           ))}
         </nav>
       </div>

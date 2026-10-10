@@ -21,6 +21,16 @@ type DeliveryUser = {
   _count: { deliveries: number };
 };
 
+// A text box with a small visible label above it (same look as the Dropdown label).
+function Labeled({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <label className={`block${className ? ` ${className}` : ""}`}>
+      <span className="mb-1 block text-xs font-semibold text-neutral-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 function HostelSelector({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
   return (
     <div>
@@ -111,10 +121,10 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
     <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
       <SectionCard title="Add delivery person" description="Create a login that opens the delivery dashboard directly.">
         <div className="space-y-3">
-          <Input placeholder="Name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-          <Input placeholder="Email" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} />
-          <Input placeholder="Phone number" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
-          <Input placeholder="Temporary password" type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} />
+          <Labeled label="Name"><Input placeholder="Name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Labeled>
+          <Labeled label="Email"><Input placeholder="Email" type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></Labeled>
+          <Labeled label="Phone number"><Input placeholder="Phone number" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></Labeled>
+          <Labeled label="Temporary password"><Input placeholder="Temporary password" type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} /></Labeled>
           <HostelSelector value={draft.assignedHostelBlocks} onChange={(assignedHostelBlocks) => setDraft({ ...draft, assignedHostelBlocks })} />
           <Button className="w-full" disabled={busy} onClick={createUser}>
             Create delivery login
@@ -129,9 +139,9 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
               {editingId === user.id ? (
                 <div className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <Input value={editDraft.name} onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })} />
-                    <Input type="email" value={editDraft.email} onChange={(event) => setEditDraft({ ...editDraft, email: event.target.value })} />
-                    <Input value={editDraft.phone} onChange={(event) => setEditDraft({ ...editDraft, phone: event.target.value })} />
+                    <Labeled label="Name"><Input value={editDraft.name} onChange={(event) => setEditDraft({ ...editDraft, name: event.target.value })} /></Labeled>
+                    <Labeled label="Email"><Input type="email" value={editDraft.email} onChange={(event) => setEditDraft({ ...editDraft, email: event.target.value })} /></Labeled>
+                    <Labeled label="Phone number"><Input value={editDraft.phone} onChange={(event) => setEditDraft({ ...editDraft, phone: event.target.value })} /></Labeled>
                   </div>
                   <HostelSelector value={editDraft.assignedHostelBlocks} onChange={(assignedHostelBlocks) => setEditDraft({ ...editDraft, assignedHostelBlocks })} />
                 </div>
@@ -149,15 +159,17 @@ export function DeliveryPersonsManager({ initialUsers }: { initialUsers: Deliver
                 </div>
               )}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex flex-1 gap-2">
-                  <Input
-                    type="password"
-                    placeholder="New password"
-                    value={passwordDraft[user.id] ?? ""}
-                    onChange={(event) => setPasswordDraft({ ...passwordDraft, [user.id]: event.target.value })}
-                  />
-                  <Button variant="outline" size="sm" disabled={busy} onClick={() => resetPassword(user.id)}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="flex flex-1 items-end gap-2">
+                  <Labeled label="New password" className="min-w-0 flex-1">
+                    <Input
+                      type="password"
+                      placeholder="New password"
+                      value={passwordDraft[user.id] ?? ""}
+                      onChange={(event) => setPasswordDraft({ ...passwordDraft, [user.id]: event.target.value })}
+                    />
+                  </Labeled>
+                  <Button variant="outline" className="shrink-0" disabled={busy} onClick={() => resetPassword(user.id)}>
                     Reset
                   </Button>
                 </div>
