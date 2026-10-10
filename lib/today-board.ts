@@ -273,7 +273,7 @@ function countStatuses(orders: { status: string }[]): StatusCounts {
 export type RestaurantGroup = {
   key: string;
   name: string;
-  // Only what is shown; delivered orders are left out while "Show delivered" is off.
+  // Only what is shown; delivered orders are left out while "Hide delivered" is on.
   orders: BoardOrder[];
   hiddenDelivered: number;
   counts: StatusCounts;
@@ -430,7 +430,8 @@ export function parseBoardView(params: ParamSource): BoardView {
   return {
     slot: (SLOT_KEYS as readonly string[]).includes(slot ?? "") ? (slot as SlotKey) : null,
     campus: campus && ID_PATTERN.test(campus) ? campus : null,
-    showDelivered: params.get("delivered") === "1",
+    // Delivered orders stay on the board unless the owner hides them (?delivered=0).
+    showDelivered: params.get("delivered") !== "0",
     search: (params.get("search") ?? "").trim().slice(0, MAX_SEARCH_LENGTH)
   };
 }
@@ -440,7 +441,7 @@ export function boardViewToParams(view: BoardView) {
   const params = new URLSearchParams();
   if (view.slot) params.set("slot", view.slot);
   if (view.campus) params.set("campus", view.campus);
-  if (view.showDelivered) params.set("delivered", "1");
+  if (!view.showDelivered) params.set("delivered", "0");
   const search = view.search.trim().slice(0, MAX_SEARCH_LENGTH);
   if (search) params.set("search", search);
   return params;

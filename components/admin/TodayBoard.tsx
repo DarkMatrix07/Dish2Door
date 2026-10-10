@@ -400,8 +400,8 @@ export function TodayBoard({
             </div>
           ) : null}
           <div className="sm:ml-auto">
-            <Chip pressed={view.showDelivered} onClick={() => changeView({ showDelivered: !view.showDelivered })}>
-              Show delivered ({deliveredCount})
+            <Chip pressed={!view.showDelivered} onClick={() => changeView({ showDelivered: !view.showDelivered })}>
+              Hide delivered ({deliveredCount})
             </Chip>
           </div>
         </div>

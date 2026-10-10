@@ -271,12 +271,15 @@ test("filters combine slot, campus and search", () => {
 
 test("view state parses from an allow-list and round-trips through the URL", () => {
   const hostile = parseBoardView(new URLSearchParams("slot=noon&campus=a%20b;--&delivered=yes&search=%20%20"));
-  assert.deepEqual(hostile, { slot: null, campus: null, showDelivered: false, search: "" });
+  // Delivered orders show unless explicitly hidden, so junk values leave them visible.
+  assert.deepEqual(hostile, { slot: null, campus: null, showDelivered: true, search: "" });
 
-  const query = "slot=NIGHT&campus=vit_ap&delivered=1&search=ravi";
+  const query = "slot=NIGHT&campus=vit_ap&delivered=0&search=ravi";
   const view = parseBoardView(new URLSearchParams(query));
-  assert.deepEqual(view, { slot: "NIGHT", campus: "vit_ap", showDelivered: true, search: "ravi" });
+  assert.deepEqual(view, { slot: "NIGHT", campus: "vit_ap", showDelivered: false, search: "ravi" });
   assert.equal(boardViewToParams(view).toString(), query);
+  // Old bookmarks with delivered=1 still mean "shown", which is now simply the default.
+  assert.equal(parseBoardView(new URLSearchParams("delivered=1")).showDelivered, true);
   assert.equal(boardViewToParams(parseBoardView(new URLSearchParams(""))).toString(), "");
   assert.equal(parseBoardView(new URLSearchParams("slot=NONE&campus=none")).slot, "NONE");
 });
