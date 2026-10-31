@@ -348,8 +348,38 @@ test("the prep sheet prints one page per campus with escaped names, totals and t
   assert.match(html, /<td>Hostel B4<\/td>/);
   assert.match(html, /<td>Gate<\/td>/);
   assert.match(html, /<td class="right">₹125<\/td>/);
-  // The first campus does not start on a new page; later ones do.
-  assert.equal((html.match(/page-break">/g) ?? []).length, 1);
+  // The first campus does not start on a new page; later ones and hostel runs do.
+  assert.equal((html.match(/<section class="campus page-break">/g) ?? []).length, 1);
+  assert.match(html, /<p class="split">0 gate · 1 hostel<\/p>/);
+});
+
+test("the prep sheet adds a hostel run per campus, grouped by block in checkout order", () => {
+  const orders = [
+    order({ deliveryType: "HOSTEL", hostelBlock: "LH-1", customerName: "Asha" }),
+    order({ deliveryType: "HOSTEL", hostelBlock: "MH-2", customerName: "Kiran" }),
+    order({ deliveryType: "HOSTEL", hostelBlock: "MH-2", customerName: "Sai", status: "DELIVERED" }),
+    order({ customerName: "Gate Guy" }),
+    order({ campus: SRM })
+  ];
+  const { html } = buildPrepSheet({ orders, slot: "AFTERNOON", dateLabel: "Today", now: new Date(2026, 8, 29, 14, 5) });
+  // Only VIT-AP has hostel orders, so only one run.
+  assert.equal((html.match(/Hostel delivery run/g) ?? []).length, 1);
+  assert.match(html, /<section class="hostel-run page-break">/);
+  assert.match(html, /Hostel delivery run <span class="muted">\(3 orders\)<\/span>/);
+  assert.match(html, /<p class="split">1 gate · 3 hostel<\/p>/);
+  // MH blocks come before LH blocks, as at checkout.
+  assert.ok(html.indexOf("<h3>MH-2") < html.indexOf("<h3>LH-1"));
+  assert.match(html, /<h3>MH-2 <span class="muted">\(2 orders\)<\/span><\/h3>/);
+  const run = html.slice(html.indexOf('<section class="hostel-run'));
+  assert.equal(run.includes("Gate Guy"), false);
+  assert.match(run, /<strong>TRK\d{4}<\/strong>/);
+  assert.match(run, /<span class="muted">Delivered<\/span>/);
+});
+
+test("a slot with only gate orders prints no hostel run", () => {
+  const { html } = buildPrepSheet({ orders: [order()], slot: "AFTERNOON", dateLabel: "Today", now: new Date(2026, 8, 29, 14, 5) });
+  assert.equal(html.includes("Hostel delivery run"), false);
+  assert.equal(html.includes('class="split"'), false);
 });
 
 test("an empty slot still prints a sheet that says so", () => {

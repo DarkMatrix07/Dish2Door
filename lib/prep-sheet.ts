@@ -1,8 +1,8 @@
-// The printable Afternoon / Night prep sheet, built as one HTML document. It moved here
-// unchanged from the old Today's orders page so the Today board and the sheet share the
-// same grouping code; the markup, styles and wording are exactly what they were. Pure
-// (no window, no toast) so the output can be tested; components/admin/print-prep-sheet.ts
-// is the part that opens the print window.
+// The printable Afternoon / Night prep sheet, built as one HTML document: per campus, what
+// each restaurant has to prepare, then a hostel delivery run grouped by block. Shares the
+// Today board's grouping code. Pure (no window, no toast) so the output can be tested;
+// components/admin/print-prep-sheet.ts is the part that opens the print window.
+import { HOSTEL_BLOCKS } from "@/lib/hostels";
 import { FULFILLABLE_PAYMENT_STATUSES } from "@/lib/order-filters";
 import {
   aggregateItems,
@@ -27,6 +27,59 @@ function sheetDeliveryLabel(order: { deliveryType: string; hostelBlock: string |
 
 function summaryLine(lines: PrepLine[]) {
   return lines.map((line) => `${line.quantity}× ${escapeHtml(line.name)}`).join(", ");
+}
+
+function plural(count: number, word: string) {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+// Hostel orders grouped by block, in the order the blocks are listed at checkout
+// (MH-1..MH-7, then LH-1..LH-4); anything unexpected goes last, A–Z.
+function groupByHostelBlock(orders: BoardOrder[]) {
+  const groups = new Map<string, BoardOrder[]>();
+  for (const order of orders) {
+    const block = order.hostelBlock?.trim() || "Block not given";
+    groups.set(block, [...(groups.get(block) ?? []), order]);
+  }
+  const rank = (block: string) => {
+    const index = (HOSTEL_BLOCKS as readonly string[]).indexOf(block);
+    return index === -1 ? HOSTEL_BLOCKS.length : index;
+  };
+  return [...groups.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
+}
+
+// The hostel run: one list the runner carries, block by block, with a box to tick per
+// order. Starts on its own page so it can be torn off and handed over.
+function hostelRunSection(orders: BoardOrder[]) {
+  const hostelOrders = orders.filter((order) => order.deliveryType === "HOSTEL");
+  if (hostelOrders.length === 0) return "";
+  const blocks = groupByHostelBlock(hostelOrders)
+    .map(([block, blockOrders]) => {
+      const rows = blockOrders
+        .map(
+          (o) => `<tr>
+                    <td class="tick">☐</td>
+                    <td><strong>${escapeHtml(o.trackingCode)}</strong></td>
+                    <td>${escapeHtml(o.customerName)}<br><span class="muted">${escapeHtml(o.customerPhone)}</span></td>
+                    <td>${escapeHtml(o.restaurant.name)}</td>
+                    <td>${o.items.map((it) => `${it.quantity}× ${escapeHtml(it.nameSnapshot)}`).join("<br>")}</td>
+                    <td class="right">${formatPaise(o.totalPaise)}${o.status === "DELIVERED" ? '<br><span class="muted">Delivered</span>' : ""}</td>
+                  </tr>`
+        )
+        .join("");
+      return `<section class="block">
+              <h3>${escapeHtml(block)} <span class="muted">(${plural(blockOrders.length, "order")})</span></h3>
+              <table>
+                <thead><tr><th class="tick">✓</th><th>Code</th><th>Customer</th><th>Restaurant</th><th>Items</th><th class="right">Total</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </section>`;
+    })
+    .join("");
+  return `<section class="hostel-run page-break">
+          <h2 class="run-heading">Hostel delivery run <span class="muted">(${plural(hostelOrders.length, "order")})</span></h2>
+          ${blocks}
+        </section>`;
 }
 
 // What goes on the sheet: today's orders that were not cancelled and were paid (or are
@@ -67,6 +120,8 @@ export function buildPrepSheet({
   const body = campusGroups
     .map(({ campus, orders: campusOrders }, campusIndex) => {
       const restaurants = groupByRestaurantName(campusOrders);
+      const hostelCount = campusOrders.filter((order) => order.deliveryType === "HOSTEL").length;
+      const split = hostelCount > 0 ? `<p class="split">${campusOrders.length - hostelCount} gate · ${hostelCount} hostel</p>` : "";
       const campusSummary = summaryLine(aggregateItems(campusOrders));
       const restaurantSections = restaurants
         .map(([name, restaurantOrders]) => {
@@ -75,7 +130,7 @@ export function buildPrepSheet({
             .map(
               (o, i) => `<tr>
                     <td>${i + 1}</td>
-                    <td>${escapeHtml(o.customerName)}<br><span class="muted">${escapeHtml(o.customerPhone)}</span></td>
+                    <td>${escapeHtml(o.customerName)}<br><span class="muted">${escapeHtml(o.customerPhone)} · ${escapeHtml(o.trackingCode)}</span></td>
                     <td>${escapeHtml(sheetDeliveryLabel(o))}</td>
                     <td>${o.items.map((it) => `${it.quantity}× ${escapeHtml(it.nameSnapshot)}`).join("<br>")}</td>
                     <td class="right">${formatPaise(o.totalPaise)}</td>
@@ -94,8 +149,10 @@ export function buildPrepSheet({
         .join("");
       return `<section class="campus${campusIndex > 0 ? " page-break" : ""}">
           <h1 class="campus-heading">${escapeHtml(campusName(campus))} <span class="muted">(${campusOrders.length} order${campusOrders.length === 1 ? "" : "s"})</span></h1>
+          ${split}
           <p class="summary campus-summary"><strong>Campus total to prepare:</strong> ${campusSummary}</p>
           ${restaurantSections}
+          ${hostelRunSection(campusOrders)}
         </section>`;
     })
     .join("");
@@ -107,7 +164,12 @@ export function buildPrepSheet({
         h1 { margin: 0 0 2px; font-size: 22px; }
         .meta { color: #666; font-size: 12px; margin-bottom: 18px; }
         section.restaurant { margin-bottom: 22px; page-break-inside: avoid; }
-        section.campus.page-break { page-break-before: always; }
+        section.campus.page-break, section.hostel-run.page-break { page-break-before: always; }
+        .split { font-size: 12px; font-weight: bold; margin: 0 0 6px; }
+        .run-heading { font-size: 18px; border-bottom: 3px solid #111; }
+        section.block { margin-bottom: 14px; page-break-inside: avoid; }
+        h3 { font-size: 15px; margin: 12px 0 6px; }
+        .tick { width: 28px; text-align: center; font-size: 15px; }
         .campus-heading { font-size: 20px; border-bottom: 3px solid #111; padding-bottom: 6px; margin: 6px 0 8px; }
         .campus-summary { background: #eef2ff; }
         h2 { font-size: 17px; border-bottom: 2px solid #111; padding-bottom: 4px; margin: 18px 0 8px; }

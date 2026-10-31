@@ -8,7 +8,6 @@ import { EmptyState } from "@/components/admin/EmptyState";
 import { SettingsSection } from "@/components/admin/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FEATURES } from "@/lib/features";
 import {
   type CampusDraft,
   type CampusForm,
@@ -135,9 +134,6 @@ export function CampusesManager({ initialCampuses }: { initialCampuses: Campus[]
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             {rows.map(({ saved: base, draft, campus, problems, dirty: cardDirty }) => {
-              // Hostel delivery needs the delivery portal. While it is off the controls stay out
-              // of the way, except on a campus that still has it switched on so it can be turned off.
-              const showHostel = FEATURES.deliveryPortal || base.hostelDeliveryEnabled || draft.hostelDeliveryEnabled;
               return (
                 <div key={base.id} className={cn("min-w-0 space-y-4 rounded-lg border p-4", cardDirty ? "border-amber-300 bg-amber-50/40" : "border-black/10")}>
                   <div className="flex items-start justify-between gap-3">
@@ -157,26 +153,24 @@ export function CampusesManager({ initialCampuses }: { initialCampuses: Campus[]
                     <Field label="Payment handling (%)" hint="Added to online payments." error={problems.paymentPercent}>
                       <Input inputMode="decimal" value={draft.paymentPercent} onChange={(event) => edit(base.id, { paymentPercent: event.target.value })} aria-invalid={Boolean(problems.paymentPercent)} className={problems.paymentPercent ? "border-red-400" : undefined} />
                     </Field>
-                    {showHostel ? (
-                      <Field label="Hostel delivery fee (₹)" error={problems.hostelDeliveryFee}>
-                        <Input inputMode="decimal" value={draft.hostelDeliveryFee} onChange={(event) => edit(base.id, { hostelDeliveryFee: event.target.value })} aria-invalid={Boolean(problems.hostelDeliveryFee)} className={problems.hostelDeliveryFee ? "border-red-400" : undefined} />
-                      </Field>
-                    ) : null}
+                    <Field label="Hostel delivery fee (₹)" error={problems.hostelDeliveryFee}>
+                      <Input inputMode="decimal" value={draft.hostelDeliveryFee} onChange={(event) => edit(base.id, { hostelDeliveryFee: event.target.value })} aria-invalid={Boolean(problems.hostelDeliveryFee)} className={problems.hostelDeliveryFee ? "border-red-400" : undefined} />
+                    </Field>
                     <div className="text-sm font-bold text-[#3f4046]">
                       Shown to customers
                       <div className="mt-1.5">
                         <Choice value={draft.active} onChange={(active) => edit(base.id, { active })} options={[{ label: "Live", value: true }, { label: "Hidden", value: false, tone: "destructive" }]} />
                       </div>
                     </div>
-                    {showHostel ? (
-                      <div className="text-sm font-bold text-[#3f4046]">
-                        Hostel delivery
-                        <div className="mt-1.5">
-                          <Choice value={draft.hostelDeliveryEnabled} onChange={(hostelDeliveryEnabled) => edit(base.id, { hostelDeliveryEnabled })} options={[{ label: "Available", value: true }, { label: "Coming soon", value: false, tone: "destructive" }]} />
-                        </div>
+                    {/* Hostel delivery works without the delivery portal: admins handle those
+                        orders from the Today board like gate orders. */}
+                    <div className="text-sm font-bold text-[#3f4046]">
+                      Hostel delivery
+                      <div className="mt-1.5">
+                        <Choice value={draft.hostelDeliveryEnabled} onChange={(hostelDeliveryEnabled) => edit(base.id, { hostelDeliveryEnabled })} options={[{ label: "Available", value: true }, { label: "Coming soon", value: false, tone: "destructive" }]} />
                       </div>
-                    ) : null}
-                    {showHostel && draft.hostelDeliveryEnabled ? (
+                    </div>
+                    {draft.hostelDeliveryEnabled ? (
                       <div className="text-sm font-bold text-[#3f4046] sm:col-span-2">
                         Hostel delivery slots
                         <div className="mt-1.5">
