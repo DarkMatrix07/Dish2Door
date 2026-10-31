@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import test from "node:test";
 import bcrypt from "bcryptjs";
+
+// The sign-in route sets a cookie after the password check. Stub that before the
+// route loads so this file does not need a Next.js request scope.
+const require = createRequire(import.meta.url);
+const nextHeaders = require("next/headers") as { cookies: unknown };
+nextHeaders.cookies = async () => ({ set() {} });
 
 // Synthetic doubles only: no environment file, database, or real sessions.
 process.env.DATABASE_URL = "postgresql://fixture:fixture@127.0.0.1:1/fixture";
@@ -26,20 +33,19 @@ const login = () => POST(new Request("http://test.invalid/api/session/login", {
   body: JSON.stringify({ email: "rider@example.invalid", password: "correct-password" })
 }));
 
-test("the delivery portal ships switched off", () => {
-  assert.equal(FEATURES.deliveryPortal, false);
+test("the delivery portal is switched on", () => {
+  assert.equal(FEATURES.deliveryPortal, true);
 });
 
-test("a delivery account with the right password cannot sign in while the portal is off", async () => {
+test("a delivery account with the right password can sign in while the portal is on", async () => {
   const originalCompare = bcrypt.compare;
   (bcrypt as unknown as { compare: unknown }).compare = async () => true;
   try {
     role = "DELIVERY";
     const response = await login();
-    assert.equal(response.status, 401);
-    // Same generic answer as a wrong password, and no session is ever created.
-    assert.deepEqual(await response.json(), { error: "Invalid credentials" });
-    assert.equal(sessionsCreated, 0);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { user: { id: "staff", name: "Staff", role: "DELIVERY" } });
+    assert.equal(sessionsCreated, 1);
   } finally {
     bcrypt.compare = originalCompare;
   }
