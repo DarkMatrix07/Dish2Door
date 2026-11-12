@@ -13,6 +13,7 @@ export type NavIcon =
   | "analytics"
   | "log"
   | "pizza"
+  | "groceries"
   | "settings";
 
 export type NavLink = { href: string; label: string };
@@ -50,6 +51,21 @@ export function buildNav(features: { deliveryPortal: boolean }): NavEntry[] {
         { href: "/admin/pizza/today", label: "Today" }
       ]
     },
+    // Groceries is the same kind of shop as Domino's, so it sits in the same block,
+    // directly underneath.
+    {
+      type: "group",
+      label: "Groceries",
+      icon: "groceries",
+      children: [
+        { href: "/admin/groceries", label: "Store" },
+        { href: "/admin/groceries/courses", label: "Courses" },
+        { href: "/admin/groceries/items", label: "Items" },
+        { href: "/admin/groceries/combos", label: "Combos" },
+        { href: "/admin/groceries/orders", label: "Orders" },
+        { href: "/admin/groceries/today", label: "Today" }
+      ]
+    },
     { type: "link", href: "/admin/settings", label: "Settings", icon: "settings", dividerBefore: true }
   ];
 }
@@ -75,7 +91,7 @@ export function isLinkActive(pathname: string, href: string) {
   if (href === "/admin/orders/all") return pathname === href || pathname.startsWith(`${href}/`) || isOrderDetailPath(pathname);
   // Any of these have sibling routes nested one level deeper ("/x/y"), so a prefix
   // match would wrongly light up both the parent link and its sibling at once.
-  if (href === "/admin" || href === "/admin/pizza") return pathname === href;
+  if (href === "/admin" || href === "/admin/pizza" || href === "/admin/groceries") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

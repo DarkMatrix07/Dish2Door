@@ -4,7 +4,7 @@
 export const MAIN_STORE_MODE = "ONLINE_PAYMENT";
 export const DOMINOS_MODE = "WHATSAPP";
 
-export const DOMINOS_MANAGED_MESSAGE = "Domino's is managed from the Domino's Pizza section.";
+export const DOMINOS_MANAGED_MESSAGE = "This shop is managed from its own section, not the main menu.";
 
 // The same limits item.update has always allowed.
 export const MAX_DISCOUNT_PERCENT = 90;

@@ -36,7 +36,7 @@ type Restaurant = {
 
 type Draft = { name: string; price: string; discountPercent: string; courseId: string; sizeLabel: string; sizeOrder: string; isVeg: string };
 
-const PLACEHOLDER = "/pizza-placeholder.webp";
+const DEFAULT_PLACEHOLDER = "/pizza-placeholder.webp";
 const IMAGE_TYPES = "image/png,image/jpeg,image/webp";
 
 const VEG_OPTIONS = [
@@ -83,7 +83,13 @@ function ChoosePhoto({ busy, onPick }: { busy?: boolean; onPick: (file: File | u
   );
 }
 
-export function PizzaItemsManager({ restaurant: initialRestaurant }: { restaurant: Restaurant }) {
+export function PizzaItemsManager({
+  restaurant: initialRestaurant,
+  imageFallback = DEFAULT_PLACEHOLDER
+}: {
+  restaurant: Restaurant;
+  imageFallback?: string;
+}) {
   const [restaurant, setRestaurant] = useState(initialRestaurant);
   const [confirm, confirmDialog] = useConfirm();
   const [showCreate, setShowCreate] = useState(false);
@@ -343,7 +349,7 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
             return (
               <div key={`${dish.courseId}::${dish.name}`} className="space-y-3 p-3 sm:p-5">
                 <div className="flex items-center gap-3">
-                  <div className="h-14 w-14 shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center sm:h-20 sm:w-20" style={{ backgroundImage: `url('${dish.imageUrl ?? PLACEHOLDER}')` }} />
+                  <div className="h-14 w-14 shrink-0 rounded-xl bg-neutral-100 bg-cover bg-center sm:h-20 sm:w-20" style={{ backgroundImage: `url('${dish.imageUrl ?? imageFallback}')` }} />
                   <div className="min-w-0">
                     <p className="break-words font-semibold">{dish.name}</p>
                     <p className="text-xs text-neutral-500">{dish.course.name}</p>
@@ -387,7 +393,7 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
                             <div>
                               <p className="text-xs font-semibold text-neutral-500">Photo</p>
                               <div className="mt-1 flex items-center gap-3">
-                                <div className="h-16 w-16 shrink-0 rounded-lg bg-neutral-100 bg-cover bg-center" style={{ backgroundImage: `url('${menuItem.imageUrl ?? PLACEHOLDER}')` }} />
+                                <div className="h-16 w-16 shrink-0 rounded-lg bg-neutral-100 bg-cover bg-center" style={{ backgroundImage: `url('${menuItem.imageUrl ?? imageFallback}')` }} />
                                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                                   <ChoosePhoto busy={uploading} onPick={(file) => replaceItemImage(menuItem, file)} />
                                   {menuItem.imageUrl ? (
@@ -561,7 +567,7 @@ export function PizzaItemsManager({ restaurant: initialRestaurant }: { restauran
               Photo <span className="font-medium text-neutral-400">(optional)</span>
             </p>
             <div className="mt-1 space-y-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3">
-              <div className="h-24 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${imagePreview || PLACEHOLDER}')` }} />
+              <div className="h-24 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url('${imagePreview || imageFallback}')` }} />
               <div className="flex items-center gap-3">
                 <ChoosePhoto onPick={onNewImage} />
                 <span className="min-w-0 truncate text-sm text-neutral-500">{imageFile ? imageFile.name : "No photo chosen"}</span>

@@ -77,7 +77,7 @@ export default async function AdminDashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" role="group" aria-label="Today's totals">
         <StatCard label="To prepare" value={totals.toPrepare} helper="Confirmed, not yet at campus" />
-        <StatCard label="Today's revenue" value={formatPaise(totals.revenuePaise)} helper="Paid, not cancelled · Domino's not included" />
+        <StatCard label="Today's revenue" value={formatPaise(totals.revenuePaise)} helper="Paid, not cancelled · WhatsApp shops not included" />
         <StatCard label="Orders today" value={totals.orders} helper="Cancelled not counted" />
         <StatCard
           label="Average order"

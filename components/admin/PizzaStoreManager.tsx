@@ -22,7 +22,7 @@ type Shop = {
 
 type CampusOption = { code: string; name: string };
 
-const PLACEHOLDER = "/pizza-placeholder.webp";
+const DEFAULT_PLACEHOLDER = "/pizza-placeholder.webp";
 
 // A visible label above a form control, same look as the Dropdown's own label.
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -34,7 +34,15 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function PizzaStoreManager({ initialShop, campuses }: { initialShop: Shop; campuses: CampusOption[] }) {
+export function PizzaStoreManager({
+  initialShop,
+  campuses,
+  imageFallback = DEFAULT_PLACEHOLDER
+}: {
+  initialShop: Shop;
+  campuses: CampusOption[];
+  imageFallback?: string;
+}) {
   const [shop, setShop] = useState(initialShop);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -122,7 +130,7 @@ export function PizzaStoreManager({ initialShop, campuses }: { initialShop: Shop
 
       <SectionCard title="Shop profile" description="This is what customers see on the shop card and menu page.">
         <div className="grid gap-4 sm:grid-cols-[220px_1fr]">
-          <div className="h-40 rounded-xl bg-neutral-100 bg-cover bg-center sm:h-auto sm:min-h-40" style={{ backgroundImage: `url('${shop.imageUrl ?? PLACEHOLDER}')` }} />
+          <div className="h-40 rounded-xl bg-neutral-100 bg-cover bg-center sm:h-auto sm:min-h-40" style={{ backgroundImage: `url('${shop.imageUrl ?? imageFallback}')` }} />
           <div className="min-w-0 space-y-3">
             <Field label="Shop name">
               <Input

@@ -51,7 +51,7 @@ export const AUDIT_ACTIONS = {
   "settings.orders_open": { label: "Opened or closed ordering", group: "settings" },
   "settings.notifications": { label: "Changed notification switches", group: "settings" },
   "campus.update": { label: "Changed a campus's fees or switches", group: "settings" },
-  "shop.update": { label: "Changed the Domino's shop details", group: "settings" },
+  "shop.update": { label: "Changed a WhatsApp shop's details", group: "settings" },
   "delivery.create": { label: "Added a delivery person", group: "settings" },
   "delivery.update": { label: "Edited a delivery person", group: "settings" },
   "delivery.password_reset": { label: "Reset a delivery person's password", group: "settings" },

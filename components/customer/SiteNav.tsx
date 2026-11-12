@@ -13,11 +13,12 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/menu", label: "Menu" },
   { href: "/pizza", label: "Pizza" },
+  { href: "/groceries", label: "Groceries" },
   { href: "/cart", label: "Cart" }
 ];
 
 // Cart has its own button on desktop, so the inline links stop before it.
-const DESKTOP_LINK_COUNT = 3;
+const DESKTOP_LINK_COUNT = 4;
 
 export function SiteNav({ dark = false }: { dark?: boolean }) {
   const [open, setOpen] = useState(false);

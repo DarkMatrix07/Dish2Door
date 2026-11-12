@@ -321,11 +321,11 @@ export function TodayBoard({
         <StatCard label="Reached campus" value={summary.reached} helper="Waiting for handover" />
         <StatCard label="Delivered" value={summary.delivered} />
         <StatCard label="Cancelled today" value={summary.cancelled} />
-        <StatCard label="Today's revenue" value={formatPaise(summary.revenuePaise)} helper="Paid, not cancelled · Domino's not included" />
+        <StatCard label="Today's revenue" value={formatPaise(summary.revenuePaise)} helper="Paid, not cancelled · WhatsApp shops not included" />
         <StatCard label="Total active" value={summary.active} helper="Confirmed + reached" />
       </div>
 
-      {data.unpaidCheckouts > 0 || data.dominosOrders > 0 ? (
+      {data.unpaidCheckouts > 0 || data.dominosOrders > 0 || data.groceriesOrders > 0 ? (
         <p className="flex flex-col gap-1 text-sm text-neutral-600 sm:flex-row sm:flex-wrap sm:gap-x-6">
           {data.unpaidCheckouts > 0 ? (
             <Link href={unpaidHref} className={cn("rounded font-semibold underline-offset-2 hover:underline", FOCUS)}>
@@ -337,6 +337,14 @@ export function TodayBoard({
               Domino&apos;s: {plural(data.dominosOrders, "order")} today →{" "}
               <Link href="/admin/pizza/today" className={cn("rounded font-semibold underline-offset-2 hover:underline", FOCUS)}>
                 Domino&apos;s orders
+              </Link>
+            </span>
+          ) : null}
+          {data.groceriesOrders > 0 ? (
+            <span>
+              Groceries: {plural(data.groceriesOrders, "order")} today →{" "}
+              <Link href="/admin/groceries/today" className={cn("rounded font-semibold underline-offset-2 hover:underline", FOCUS)}>
+                Groceries orders
               </Link>
             </span>
           ) : null}

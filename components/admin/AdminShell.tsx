@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BadgePercent, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Pizza, ScrollText, Settings, UserRoundCheck, Users, UtensilsCrossed, X } from "lucide-react";
+import { BarChart3, BadgePercent, ChevronDown, ClipboardList, ExternalLink, LayoutDashboard, Menu as MenuIcon, Pizza, ScrollText, Settings, ShoppingBasket, UserRoundCheck, Users, UtensilsCrossed, X } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { NAV, currentTitle, isGroupActive, isLinkActive, type NavEntry, type NavIcon } from "@/lib/admin-nav";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ const ICONS: Record<NavIcon, typeof LayoutDashboard> = {
   analytics: BarChart3,
   log: ScrollText,
   pizza: Pizza,
+  groceries: ShoppingBasket,
   settings: Settings
 };
 

@@ -112,9 +112,9 @@ test("slots always list afternoon and night, and no-slot only when it holds orde
 
 test("WhatsApp shops are kept out of the main restaurant list", () => {
   const split = splitRestaurants([
-    { id: "a", name: "Zed", orderMode: "ONLINE_PAYMENT", revenuePaise: 100, orders: 1 },
-    { id: "b", name: "Domino's", orderMode: "WHATSAPP", revenuePaise: 900, orders: 4 },
-    { id: "c", name: "Alpha", orderMode: "ONLINE_PAYMENT", revenuePaise: 500, orders: 2 }
+    { id: "a", name: "Zed", slug: "zed", orderMode: "ONLINE_PAYMENT", revenuePaise: 100, orders: 1 },
+    { id: "b", name: "Domino's", slug: "dominos-pizza", orderMode: "WHATSAPP", revenuePaise: 900, orders: 4 },
+    { id: "c", name: "Alpha", slug: "alpha", orderMode: "ONLINE_PAYMENT", revenuePaise: 500, orders: 2 }
   ]);
   assert.deepEqual(split.main.map((r) => r.name), ["Alpha", "Zed"]);
   assert.deepEqual(split.whatsapp.map((r) => r.name), ["Domino's"]);
@@ -159,7 +159,8 @@ test("values only ever reach SQL as placeholders", () => {
   assert.equal(totals.values.filter((value) => value instanceof Date).length, 12);
   // 4 periods x (revenue, orders, wheel, other) = 16 aliased columns.
   assert.equal(periodColumnsSql(starts).sql.match(/ AS "/g)?.length, 16);
-  assert.match(totals.sql, /GROUP BY r\."orderMode"/);
+  assert.match(totals.sql, /ELSE r\."slug"/);
+  assert.match(totals.sql, /GROUP BY 1/);
 
   const dishes = topDishesSql(new Date("2026-09-01T00:00:00Z"), "quantity", 10);
   assert.doesNotMatch(dishes.sql, /2026/);

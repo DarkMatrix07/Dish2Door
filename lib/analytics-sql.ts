@@ -50,13 +50,18 @@ export function periodColumnsSql(starts: Record<Exclude<PeriodKey, "all">, Date>
   return Prisma.join(columns, ", ");
 }
 
-// Fixed periods for the main store and Domino's, one row each.
+// Fixed periods for the main store, Domino's and Groceries. Online-payment restaurants
+// stay one row. Each WhatsApp shop is its own row, keyed by slug, so their money is
+// never added together.
 export function totalsByStoreSql(starts: Record<Exclude<PeriodKey, "all">, Date>) {
   return Prisma.sql`
-    SELECT r."orderMode"::text AS "orderMode", ${periodColumnsSql(starts)}
+    SELECT CASE
+             WHEN r."orderMode" = ${BOARD_RESTAURANT_WHERE.orderMode}::"RestaurantOrderMode" THEN 'ONLINE_PAYMENT'
+             ELSE r."slug"
+           END AS "bucket", ${periodColumnsSql(starts)}
     ${ORDER_JOIN_SQL}
     WHERE ${REVENUE_SQL}
-    GROUP BY r."orderMode"`;
+    GROUP BY 1`;
 }
 
 // Fixed periods per campus, main store only.
@@ -83,12 +88,12 @@ export function dailySql(start: Date) {
 // Per restaurant, both kinds of shop (the page splits them), from `start` on.
 export function byRestaurantSql(start: Date) {
   return Prisma.sql`
-    SELECT r."id" AS "id", r."name" AS "name", r."orderMode"::text AS "orderMode",
+    SELECT r."id" AS "id", r."name" AS "name", r."slug" AS "slug", r."orderMode"::text AS "orderMode",
            COALESCE(SUM(o."totalPaise"), 0)::float8 AS "revenuePaise",
            COUNT(*)::int AS "orders"
     ${ORDER_JOIN_SQL}
     WHERE ${REVENUE_SQL} AND ${sinceSql(start)}
-    GROUP BY r."id", r."name", r."orderMode"`;
+    GROUP BY r."id", r."name", r."slug", r."orderMode"`;
 }
 
 // Per delivery slot, main store, from `start` on. Orders with no slot come back as null.

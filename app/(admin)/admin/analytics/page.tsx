@@ -13,6 +13,7 @@ import {
   totalDiscountPaise
 } from "@/lib/analytics";
 import { loadAnalytics } from "@/lib/analytics-data";
+import { DOMINOS_SLUG, GROCERIES_SLUG } from "@/lib/whatsapp-shops";
 import { cn, formatPaise } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -31,18 +32,19 @@ export default async function AnalyticsPage({
   await requireRole(["ADMIN"]);
   const range = parseRange((await searchParams).range);
   const data = await loadAnalytics(range);
-  const { main, dominos } = data;
+  const { main, dominos, groceries } = data;
 
   const maxDayRevenue = Math.max(0, ...data.days.map((day) => day.revenuePaise));
   const maxRestaurantRevenue = Math.max(0, ...data.restaurants.main.map((row) => row.revenuePaise));
   const hasDominos = dominos.all.orders > 0;
+  const hasGroceries = groceries.all.orders > 0;
 
   return (
     <PageContainer>
       <AdminPageHeader
         eyebrow="Insights"
         title="Analytics"
-        description="Every money figure lives here. Paid orders that were not cancelled, for the main store, so the numbers match the dashboard and the Today board. Domino's is shown separately at the bottom."
+        description="Every money figure lives here. Paid orders that were not cancelled, for the main store, so the numbers match the dashboard and the Today board. Domino's and Groceries are shown separately at the bottom."
       >
         <nav aria-label="Time range" className="flex flex-wrap gap-2">
           {RANGE_CHOICES.map((choice) => {
@@ -228,9 +230,9 @@ export default async function AnalyticsPage({
                 </div>
               ))}
             </dl>
-            {data.restaurants.whatsapp.length > 0 ? (
+            {data.restaurants.whatsapp.some((row) => row.slug === DOMINOS_SLUG) ? (
               <ul className="mt-4 divide-y divide-neutral-100 text-sm">
-                {data.restaurants.whatsapp.map((row) => (
+                {data.restaurants.whatsapp.filter((row) => row.slug === DOMINOS_SLUG).map((row) => (
                   <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2">
                     <span className="min-w-0 break-words font-semibold text-neutral-800">{row.name}</span>
                     <span className="tabular-nums text-neutral-600">
@@ -244,6 +246,40 @@ export default async function AnalyticsPage({
           </>
         ) : (
           <p className="text-sm text-neutral-500">No paid Domino&apos;s orders yet.</p>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Groceries, counted separately"
+        description="Groceries takes orders on WhatsApp. It is not in any number above."
+      >
+        {hasGroceries ? (
+          <>
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {PERIOD_KEYS.map((key) => (
+                <div key={key} className="min-w-0 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                  <dt className="text-xs font-semibold text-neutral-500">{PERIOD_LABELS[key]}</dt>
+                  <dd className="mt-1 truncate text-lg font-bold tabular-nums text-neutral-900">{formatPaise(groceries[key].revenuePaise)}</dd>
+                  <dd className="text-xs text-neutral-500">{orderCount(groceries[key].orders)}</dd>
+                </div>
+              ))}
+            </dl>
+            {data.restaurants.whatsapp.some((row) => row.slug === GROCERIES_SLUG) ? (
+              <ul className="mt-4 divide-y divide-neutral-100 text-sm">
+                {data.restaurants.whatsapp.filter((row) => row.slug === GROCERIES_SLUG).map((row) => (
+                  <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2">
+                    <span className="min-w-0 break-words font-semibold text-neutral-800">{row.name}</span>
+                    <span className="tabular-nums text-neutral-600">
+                      {formatPaise(row.revenuePaise)} · {orderCount(row.orders)}
+                      <span className="text-neutral-400"> (last {range} days)</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-sm text-neutral-500">No paid Groceries orders yet.</p>
         )}
       </SectionCard>
     </PageContainer>

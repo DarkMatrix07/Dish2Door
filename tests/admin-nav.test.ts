@@ -11,7 +11,8 @@ test("the sidebar links to every page in the agreed groups, once each", () => {
   for (const href of [
     "/admin", "/admin/orders", "/admin/orders/all", "/admin/menu/restaurants", "/admin/menu/items", "/admin/menu/combos",
     "/admin/offers/coupons", "/admin/rewards", "/admin/customers", "/admin/ratings", "/admin/analytics",
-    "/admin/notifications", "/admin/activity", "/admin/settings", "/admin/pizza", "/admin/pizza/today"
+    "/admin/notifications", "/admin/activity", "/admin/settings", "/admin/pizza", "/admin/pizza/today",
+    "/admin/groceries", "/admin/groceries/today"
   ]) assert.ok(all.includes(href), `${href} is in the nav`);
 });
 
@@ -32,6 +33,10 @@ test("Settings is a single link and the Domino's group sits apart from the main 
   const pizza = nav.find((entry) => entry.type === "group" && entry.label === "Domino's Pizza");
   assert.equal(pizza?.dividerBefore, true);
   assert.ok(nav.indexOf(pizza!) > nav.findIndex((entry) => entry.type === "link" && entry.href === "/admin/notifications"));
+  const groceries = nav.find((entry) => entry.type === "group" && entry.label === "Groceries");
+  assert.equal(groceries?.type, "group");
+  assert.equal(groceries && "dividerBefore" in groceries ? groceries.dividerBefore : undefined, undefined);
+  assert.equal(nav.indexOf(groceries!), nav.indexOf(pizza!) + 1);
 });
 
 test("the Activity log sits next to the Notification log and has its own title and highlight", () => {
@@ -66,6 +71,11 @@ test("the Domino's Store link does not light up on its sub-pages", () => {
   const pizza = nav.find((entry): entry is Extract<NavEntry, { type: "group" }> => entry.type === "group" && entry.label === "Domino's Pizza")!;
   assert.equal(isGroupActive("/admin/pizza/combos", pizza), true);
   assert.equal(isGroupActive("/admin/menu/combos", pizza), false);
+  assert.equal(isLinkActive("/admin/groceries/items", "/admin/groceries"), false);
+  assert.equal(isLinkActive("/admin/groceries/items", "/admin/groceries/items"), true);
+  const groceries = nav.find((entry): entry is Extract<NavEntry, { type: "group" }> => entry.type === "group" && entry.label === "Groceries")!;
+  assert.equal(isGroupActive("/admin/groceries/combos", groceries), true);
+  assert.equal(isGroupActive("/admin/pizza/combos", groceries), false);
 });
 
 test("the top bar has a sensible title on every admin page", () => {
@@ -87,7 +97,9 @@ test("the top bar has a sensible title on every admin page", () => {
     "/admin/notifications": "Notification log",
     "/admin/settings": "Settings",
     "/admin/pizza": "Domino's Pizza / Store",
-    "/admin/pizza/orders": "Domino's Pizza / Orders"
+    "/admin/pizza/orders": "Domino's Pizza / Orders",
+    "/admin/groceries": "Groceries / Store",
+    "/admin/groceries/orders": "Groceries / Orders"
   };
   for (const [path, title] of Object.entries(titles)) assert.equal(currentTitle(path, nav), title, path);
   assert.equal(currentTitle("/admin/somewhere-else", nav), "Admin");
