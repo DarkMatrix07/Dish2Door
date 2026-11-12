@@ -53,7 +53,7 @@ test("restaurantDeleteBlock refuses any restaurant that has orders", () => {
 test("only ONLINE_PAYMENT counts as the main store", () => {
   assert.equal(isMainStoreMode("ONLINE_PAYMENT"), true);
   assert.equal(isMainStoreMode("WHATSAPP"), false);
-  assert.match(DOMINOS_MANAGED_MESSAGE, /managed from the Domino's Pizza section/);
+  assert.match(DOMINOS_MANAGED_MESSAGE, /managed from its own section/);
 });
 
 test("menuTargetOf names the row each mutation touches", () => {

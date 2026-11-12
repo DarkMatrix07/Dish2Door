@@ -18,6 +18,7 @@ import {
   totalsByStoreSql
 } from "@/lib/analytics-sql";
 import { istDayStartUtc } from "@/lib/ist-day";
+import { DOMINOS_SLUG, GROCERIES_SLUG } from "@/lib/whatsapp-shops";
 
 export const TOP_DISHES_LIMIT = 10;
 
@@ -29,9 +30,9 @@ function dishes(rows: RawRow[]): DishRow[] {
 }
 
 // Everything is worked out in the database: a handful of grouped queries in parallel, so
-// the page never loads a month of orders into memory. Main-store figures and Domino's
-// come from the same rule (paid, not cancelled), and the main store is the same set of
-// orders the dashboard and the Today board use.
+// the page never loads a month of orders into memory. Main-store figures, Domino's and
+// Groceries come from the same rule (paid, not cancelled). The main store is the same
+// set of orders the dashboard and the Today board use. Each WhatsApp shop is its own row.
 export async function loadAnalytics(range: RangeDays, now = new Date()) {
   const starts = periodStarts(now);
   const rangeStart = istDayStartUtc(range - 1, now);
@@ -47,11 +48,12 @@ export async function loadAnalytics(range: RangeDays, now = new Date()) {
     prisma.$queryRaw<RawRow[]>(topDishesSql(rangeStart, "revenue", TOP_DISHES_LIMIT))
   ]);
 
-  const storeRow = (mode: string) => storeRows.find((row) => row.orderMode === mode);
+  const storeRow = (bucket: string) => storeRows.find((row) => row.bucket === bucket);
   const restaurants = splitRestaurants(
     restaurantRows.map((row) => ({
       id: String(row.id),
       name: String(row.name),
+      slug: String(row.slug),
       orderMode: String(row.orderMode),
       revenuePaise: num(row.revenuePaise),
       orders: num(row.orders)
@@ -62,8 +64,9 @@ export async function loadAnalytics(range: RangeDays, now = new Date()) {
     range,
     // The headline numbers: the main store only, matching the dashboard and Today board.
     main: readPeriods(storeRow("ONLINE_PAYMENT")),
-    // Domino's runs on WhatsApp and is reported on its own.
-    dominos: readPeriods(storeRow("WHATSAPP")),
+    // Each WhatsApp shop is reported on its own. Paid orders only, same as the main store.
+    dominos: readPeriods(storeRow(DOMINOS_SLUG)),
+    groceries: readPeriods(storeRow(GROCERIES_SLUG)),
     campuses: labelCampuses(
       campusRows.map((row) => ({ campusId: row.campusId === null ? null : String(row.campusId), totals: readPeriods(row) })),
       campuses

@@ -4,6 +4,7 @@
 import type { Prisma } from "@prisma/client";
 import { AUDIT_GROUPS, actionsInGroup, type AuditGroup } from "@/lib/audit-actions";
 import { istDayStartUtc } from "@/lib/ist-day";
+import { SHOP_ADMIN_LINKS } from "@/lib/whatsapp-shops";
 
 export const AUDIT_PAGE_SIZE = 30;
 
@@ -109,7 +110,9 @@ export function auditTargetLink(action: string, targetType: string, targetId: st
     case "restaurant":
       return targetId && ID_PATTERN.test(targetId) ? { href: `/admin/menu/items?restaurant=${encodeURIComponent(targetId)}`, label: "Open menu" } : null;
     case "shop":
-      return { href: "/admin/pizza", label: "Open Domino's shop" };
+      // Known shops open their own admin. Anything else still lands on Domino's, which
+      // was the only WhatsApp shop when older rows were written.
+      return (targetId && SHOP_ADMIN_LINKS[targetId]) || { href: "/admin/pizza", label: "Open Domino's shop" };
     case "coupon":
       return { href: "/admin/offers/coupons", label: "Open coupons" };
     case "settings":

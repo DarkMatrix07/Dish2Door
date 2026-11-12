@@ -151,7 +151,7 @@ export function normaliseSlots(rows: { slot: string | null; revenuePaise: number
   return SLOT_ORDER.map((slot) => bySlot.get(slot)!).filter((entry) => entry.slot !== "NONE" || entry.orders > 0);
 }
 
-export type RestaurantFigure = { id: string; name: string; orderMode: string; revenuePaise: number; orders: number };
+export type RestaurantFigure = { id: string; name: string; slug: string; orderMode: string; revenuePaise: number; orders: number };
 
 // Main-store restaurants and WhatsApp shops are never mixed in one list: Domino's has its
 // own small section so the headline numbers match the dashboard and the Today board.

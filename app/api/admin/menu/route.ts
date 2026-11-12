@@ -152,10 +152,11 @@ async function assertItemsBelongToRestaurant(restaurantId: string, menuItemIds: 
   }
 }
 
-// The Domino's menu is edited from /admin/pizza. Callers that only ever deal with the
-// main store (the Restaurants, Items and Combos screens) send ?scope=main, and then every
-// mutation that targets a WhatsApp-mode restaurant, or one of its courses, items or
-// combos, is refused. It is opt-in because the Domino's admin screens also post here.
+// WhatsApp shops (Domino's, Groceries) are edited from their own admin sections. Callers
+// that only ever deal with the main store (the Restaurants, Items and Combos screens)
+// send ?scope=main, and then every mutation that targets a WhatsApp-mode restaurant, or
+// one of its courses, items or combos, is refused. It is opt-in because those shop
+// screens also post here.
 const itemInclude = { course: true } as const;
 
 async function orderModeOfTarget(target: NonNullable<ReturnType<typeof menuTargetOf>>): Promise<string | null> {

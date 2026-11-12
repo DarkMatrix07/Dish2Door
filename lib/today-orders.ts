@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { istDayKey, istTodayRange } from "@/lib/ist-day";
 import {
   dominosTodayWhere,
+  groceriesTodayWhere,
   openEarlierWhere,
   summariseBoard,
   toBoardOrder,
@@ -43,7 +44,7 @@ const OLDEST_FIRST = [{ createdAt: "asc" }, { id: "asc" }] satisfies Prisma.Orde
 export async function loadTodayBoard(now = new Date()): Promise<TodayBoardData> {
   const range = istTodayRange(now);
 
-  const [todayRows, earlierRows, openEarlierTotal, unpaidCheckouts, dominosOrders] = await Promise.all([
+  const [todayRows, earlierRows, openEarlierTotal, unpaidCheckouts, dominosOrders, groceriesOrders] = await Promise.all([
     prisma.order.findMany({ where: todayBoardWhere(range), select: boardOrderSelect, orderBy: OLDEST_FIRST }),
     prisma.order.findMany({
       where: openEarlierWhere(range.start),
@@ -53,7 +54,8 @@ export async function loadTodayBoard(now = new Date()): Promise<TodayBoardData> 
     }),
     prisma.order.count({ where: openEarlierWhere(range.start) }),
     prisma.order.count({ where: unpaidCheckoutsTodayWhere(range) }),
-    prisma.order.count({ where: dominosTodayWhere(range) })
+    prisma.order.count({ where: dominosTodayWhere(range) }),
+    prisma.order.count({ where: groceriesTodayWhere(range) })
   ]);
 
   const orders = todayRows.map(toBoardOrder);
@@ -66,6 +68,7 @@ export async function loadTodayBoard(now = new Date()): Promise<TodayBoardData> 
     openEarlierTotal,
     unpaidCheckouts,
     dominosOrders,
+    groceriesOrders,
     summary: summariseBoard(orders)
   };
 }

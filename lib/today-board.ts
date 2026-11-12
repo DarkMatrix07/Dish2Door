@@ -9,11 +9,12 @@ import {
   REVENUE_ORDER_WHERE,
   UNPAID_CHECKOUT_WHERE
 } from "@/lib/order-filters";
+import { DOMINOS_SLUG, GROCERIES_SLUG } from "@/lib/whatsapp-shops";
 
 // The board is for the shops handed over at the campus gates. WhatsApp-mode shops
-// (Domino's) run their own admin under /admin/pizza, and the global "reached campus"
-// sweep has always skipped them, so this one rule is shared by the board, the sweep and
-// the scoped bulk action.
+// (Domino's, Groceries) run their own admin, and the global "reached campus" sweep has
+// always skipped them, so this one rule is shared by the board, the sweep and the
+// scoped bulk action.
 export const BOARD_RESTAURANT_WHERE = { orderMode: "ONLINE_PAYMENT" } satisfies Prisma.RestaurantWhereInput;
 
 export type DayRange = { start: Date; end: Date };
@@ -51,13 +52,22 @@ export function unpaidCheckoutsTodayWhere(range: DayRange): Prisma.OrderWhereInp
   return { AND: [UNPAID_CHECKOUT_WHERE, { createdAt: { gte: range.start, lt: range.end } }] };
 }
 
-// Domino's orders placed today, counted the way its own Today page lists them.
-export function dominosTodayWhere(range: DayRange): Prisma.OrderWhereInput {
+// Confirmed orders for one WhatsApp shop today, counted the way that shop's Today page
+// lists them. Filtered by slug so Domino's and Groceries are never mixed together.
+export function whatsappShopTodayWhere(slug: string, range: DayRange): Prisma.OrderWhereInput {
   return {
     createdAt: { gte: range.start, lt: range.end },
-    restaurant: { orderMode: "WHATSAPP" },
+    restaurant: { slug },
     status: { notIn: ["CANCELLED", "AWAITING_CONFIRMATION"] }
   };
+}
+
+export function dominosTodayWhere(range: DayRange): Prisma.OrderWhereInput {
+  return whatsappShopTodayWhere(DOMINOS_SLUG, range);
+}
+
+export function groceriesTodayWhere(range: DayRange): Prisma.OrderWhereInput {
+  return whatsappShopTodayWhere(GROCERIES_SLUG, range);
 }
 
 // Which orders a "reached campus" sweep may move. `undefined` means "do not filter on
@@ -124,6 +134,7 @@ export type TodayBoardData = {
   openEarlierTotal: number;
   unpaidCheckouts: number;
   dominosOrders: number;
+  groceriesOrders: number;
   summary: TodaySummary;
 };
 

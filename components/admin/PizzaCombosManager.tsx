@@ -68,7 +68,13 @@ async function postAction(payload: Record<string, unknown>) {
   return data;
 }
 
-export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaurant: Restaurant }) {
+export function PizzaCombosManager({
+  restaurant: initialRestaurant,
+  imageFallback = "/pizza-placeholder.webp"
+}: {
+  restaurant: Restaurant;
+  imageFallback?: string;
+}) {
   const [restaurant, setRestaurant] = useState(initialRestaurant);
 
   // Builder state
@@ -248,7 +254,7 @@ export function PizzaCombosManager({ restaurant: initialRestaurant }: { restaura
                 return (
                   <div key={item.id} className={`flex items-center gap-3 rounded-lg border p-2.5 transition ${chosen ? "border-[#f6b73c] bg-[#f6b73c]/[0.08]" : "border-black/8 bg-white hover:border-black/15"}`}>
                     {/* The photo is skipped on phones so the dish name and size get the room. */}
-                    <img loading="lazy" decoding="async" alt="" src={item.imageUrl ?? "/pizza-placeholder.webp"} className="hidden h-11 w-11 shrink-0 rounded-md object-cover sm:block" />
+                    <img loading="lazy" decoding="async" alt="" src={item.imageUrl ?? imageFallback} className="hidden h-11 w-11 shrink-0 rounded-md object-cover sm:block" />
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm font-bold leading-snug text-[#202126]"><SizedName item={item} /></p>
                       <p className="mt-0.5 text-xs font-semibold tabular-nums text-[#70727a]">{formatPaise(discountedUnit(item))}{item.discountPercent ? <span className="ml-1.5 text-[#a0a2a8] line-through">{formatPaise(item.pricePaise)}</span> : null}{!item.available ? <span className="ml-2 rounded bg-[#f3f4f6] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#9a9ca2]">Sold out</span> : null}</p>

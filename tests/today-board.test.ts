@@ -10,6 +10,7 @@ import {
   boardViewToParams,
   bulkReachableCount,
   dominosTodayWhere,
+  groceriesTodayWhere,
   filterBoardOrders,
   formatPrepLine,
   groupBoard,
@@ -115,8 +116,12 @@ test("unpaid checkouts and Domino's are counted for their links, never shown as 
   assert.deepEqual(unpaid.AND[0], { source: "CUSTOMER_ONLINE", paymentStatus: { in: ["PENDING", "FAILED"] } });
 
   const dominos = dominosTodayWhere(range) as Record<string, unknown>;
-  assert.deepEqual(dominos.restaurant, { orderMode: "WHATSAPP" });
+  assert.deepEqual(dominos.restaurant, { slug: "dominos-pizza" });
   assert.deepEqual(dominos.status, { notIn: ["CANCELLED", "AWAITING_CONFIRMATION"] });
+
+  const groceries = groceriesTodayWhere(range) as Record<string, unknown>;
+  assert.deepEqual(groceries.restaurant, { slug: "groceries" });
+  assert.deepEqual(groceries.status, { notIn: ["CANCELLED", "AWAITING_CONFIRMATION"] });
 });
 
 test("only confirmed paid orders count as bulk-reachable", () => {
