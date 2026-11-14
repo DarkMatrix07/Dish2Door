@@ -12,7 +12,7 @@ test("the sidebar links to every page in the agreed groups, once each", () => {
     "/admin", "/admin/orders", "/admin/orders/all", "/admin/menu/restaurants", "/admin/menu/items", "/admin/menu/combos",
     "/admin/offers/coupons", "/admin/rewards", "/admin/customers", "/admin/ratings", "/admin/analytics",
     "/admin/notifications", "/admin/activity", "/admin/settings", "/admin/pizza", "/admin/pizza/today",
-    "/admin/groceries", "/admin/groceries/today"
+    "/admin/snacks", "/admin/snacks/today"
   ]) assert.ok(all.includes(href), `${href} is in the nav`);
 });
 
@@ -71,10 +71,10 @@ test("the Domino's Store link does not light up on its sub-pages", () => {
   const pizza = nav.find((entry): entry is Extract<NavEntry, { type: "group" }> => entry.type === "group" && entry.label === "Domino's Pizza")!;
   assert.equal(isGroupActive("/admin/pizza/combos", pizza), true);
   assert.equal(isGroupActive("/admin/menu/combos", pizza), false);
-  assert.equal(isLinkActive("/admin/groceries/items", "/admin/groceries"), false);
-  assert.equal(isLinkActive("/admin/groceries/items", "/admin/groceries/items"), true);
+  assert.equal(isLinkActive("/admin/snacks/items", "/admin/snacks"), false);
+  assert.equal(isLinkActive("/admin/snacks/items", "/admin/snacks/items"), true);
   const groceries = nav.find((entry): entry is Extract<NavEntry, { type: "group" }> => entry.type === "group" && entry.label === "Snacks")!;
-  assert.equal(isGroupActive("/admin/groceries/combos", groceries), true);
+  assert.equal(isGroupActive("/admin/snacks/combos", groceries), true);
   assert.equal(isGroupActive("/admin/pizza/combos", groceries), false);
 });
 
@@ -98,8 +98,8 @@ test("the top bar has a sensible title on every admin page", () => {
     "/admin/settings": "Settings",
     "/admin/pizza": "Domino's Pizza / Store",
     "/admin/pizza/orders": "Domino's Pizza / Orders",
-    "/admin/groceries": "Snacks / Store",
-    "/admin/groceries/orders": "Snacks / Orders"
+    "/admin/snacks": "Snacks / Store",
+    "/admin/snacks/orders": "Snacks / Orders"
   };
   for (const [path, title] of Object.entries(titles)) assert.equal(currentTitle(path, nav), title, path);
   assert.equal(currentTitle("/admin/somewhere-else", nav), "Admin");
