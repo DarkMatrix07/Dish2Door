@@ -238,7 +238,7 @@ test("targets link to the page that shows them", () => {
   assert.deepEqual(auditTargetLink("wheel.gift", "customer", "9876543210"), { href: "/admin/customers/9876543210", label: "Open customer" });
   assert.equal(auditTargetLink("menu.item.price", "restaurant", "ckrest1")?.href, "/admin/menu/items?restaurant=ckrest1");
   assert.equal(auditTargetLink("shop.update", "shop", "ckpizza")?.href, "/admin/pizza");
-  assert.equal(auditTargetLink("shop.update", "shop", "shop_groceries")?.href, "/admin/groceries");
+  assert.equal(auditTargetLink("shop.update", "shop", "shop_groceries")?.href, "/admin/snacks");
   assert.equal(auditTargetLink("shop.update", "shop", "shop_dominos_pizza")?.href, "/admin/pizza");
   assert.equal(auditTargetLink("coupon.update", "coupon", "ckc1")?.href, "/admin/offers/coupons");
   assert.equal(auditTargetLink("settings.update", "settings", "default")?.href, "/admin/settings");

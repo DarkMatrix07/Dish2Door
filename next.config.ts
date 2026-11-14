@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
   // URL is content-stable: bundled art is renamed when it changes, and menu uploads are
   // written as `<timestamp>-<uuid>.webp`, so replacing an item's photo yields a NEW url
   // rather than mutating an existing one.
+  async redirects() {
+    return [
+      { source: "/groceries", destination: "/snacks", permanent: true },
+      { source: "/admin/groceries", destination: "/admin/snacks", permanent: true },
+      { source: "/admin/groceries/:path*", destination: "/admin/snacks/:path*", permanent: true }
+    ];
+  },
   async headers() {
     const IMAGE_EXT = "jpg|jpeg|png|webp|avif|gif|svg|ico";
     return [
