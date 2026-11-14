@@ -33,7 +33,7 @@ test("Settings is a single link and the Domino's group sits apart from the main 
   const pizza = nav.find((entry) => entry.type === "group" && entry.label === "Domino's Pizza");
   assert.equal(pizza?.dividerBefore, true);
   assert.ok(nav.indexOf(pizza!) > nav.findIndex((entry) => entry.type === "link" && entry.href === "/admin/notifications"));
-  const groceries = nav.find((entry) => entry.type === "group" && entry.label === "Groceries");
+  const groceries = nav.find((entry) => entry.type === "group" && entry.label === "Snacks");
   assert.equal(groceries?.type, "group");
   assert.equal(groceries && "dividerBefore" in groceries ? groceries.dividerBefore : undefined, undefined);
   assert.equal(nav.indexOf(groceries!), nav.indexOf(pizza!) + 1);
@@ -73,7 +73,7 @@ test("the Domino's Store link does not light up on its sub-pages", () => {
   assert.equal(isGroupActive("/admin/menu/combos", pizza), false);
   assert.equal(isLinkActive("/admin/groceries/items", "/admin/groceries"), false);
   assert.equal(isLinkActive("/admin/groceries/items", "/admin/groceries/items"), true);
-  const groceries = nav.find((entry): entry is Extract<NavEntry, { type: "group" }> => entry.type === "group" && entry.label === "Groceries")!;
+  const groceries = nav.find((entry): entry is Extract<NavEntry, { type: "group" }> => entry.type === "group" && entry.label === "Snacks")!;
   assert.equal(isGroupActive("/admin/groceries/combos", groceries), true);
   assert.equal(isGroupActive("/admin/pizza/combos", groceries), false);
 });
@@ -98,8 +98,8 @@ test("the top bar has a sensible title on every admin page", () => {
     "/admin/settings": "Settings",
     "/admin/pizza": "Domino's Pizza / Store",
     "/admin/pizza/orders": "Domino's Pizza / Orders",
-    "/admin/groceries": "Groceries / Store",
-    "/admin/groceries/orders": "Groceries / Orders"
+    "/admin/groceries": "Snacks / Store",
+    "/admin/groceries/orders": "Snacks / Orders"
   };
   for (const [path, title] of Object.entries(titles)) assert.equal(currentTitle(path, nav), title, path);
   assert.equal(currentTitle("/admin/somewhere-else", nav), "Admin");

@@ -22,7 +22,7 @@ export default async function AdminGroceriesItemsPage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Groceries"
+        eyebrow="Snacks"
         title="Menu items"
         description="Add items, set prices and discounts, manage stock, and update images."
       />

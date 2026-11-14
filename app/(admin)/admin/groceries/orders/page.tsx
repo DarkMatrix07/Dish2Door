@@ -43,7 +43,7 @@ export default async function GroceriesOrdersPage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Groceries"
+        eyebrow="Snacks"
         title="Orders generated"
         description={`Orders sent over WhatsApp for ${restaurant.name}, waiting for confirmation. Confirm to move an order into the normal pipeline, or reject to cancel it.`}
       />

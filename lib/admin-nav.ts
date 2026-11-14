@@ -51,11 +51,11 @@ export function buildNav(features: { deliveryPortal: boolean }): NavEntry[] {
         { href: "/admin/pizza/today", label: "Today" }
       ]
     },
-    // Groceries is the same kind of shop as Domino's, so it sits in the same block,
+    // Snacks is the same kind of shop as Domino's, so it sits in the same block,
     // directly underneath.
     {
       type: "group",
-      label: "Groceries",
+      label: "Snacks",
       icon: "groceries",
       children: [
         { href: "/admin/groceries", label: "Store" },

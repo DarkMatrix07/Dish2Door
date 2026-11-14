@@ -44,7 +44,7 @@ export default async function AnalyticsPage({
       <AdminPageHeader
         eyebrow="Insights"
         title="Analytics"
-        description="Every money figure lives here. Paid orders that were not cancelled, for the main store, so the numbers match the dashboard and the Today board. Domino's and Groceries are shown separately at the bottom."
+        description="Every money figure lives here. Paid orders that were not cancelled, for the main store, so the numbers match the dashboard and the Today board. Domino's and Snacks are shown separately at the bottom."
       >
         <nav aria-label="Time range" className="flex flex-wrap gap-2">
           {RANGE_CHOICES.map((choice) => {
@@ -250,8 +250,8 @@ export default async function AnalyticsPage({
       </SectionCard>
 
       <SectionCard
-        title="Groceries, counted separately"
-        description="Groceries takes orders on WhatsApp. It is not in any number above."
+        title="Snacks, counted separately"
+        description="Snacks takes orders on WhatsApp. It is not in any number above."
       >
         {hasGroceries ? (
           <>
@@ -279,7 +279,7 @@ export default async function AnalyticsPage({
             ) : null}
           </>
         ) : (
-          <p className="text-sm text-neutral-500">No paid Groceries orders yet.</p>
+          <p className="text-sm text-neutral-500">No paid Snacks orders yet.</p>
         )}
       </SectionCard>
     </PageContainer>

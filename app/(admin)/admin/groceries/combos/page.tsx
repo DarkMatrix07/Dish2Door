@@ -22,7 +22,7 @@ export default async function AdminGroceriesCombosPage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Groceries"
+        eyebrow="Snacks"
         title="Combos"
         description="Bundle menu items into a fixed-price deal customers see first."
       />

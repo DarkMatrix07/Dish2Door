@@ -97,7 +97,7 @@ export default async function GroceriesPage() {
   if (!shop || !shop.active) {
     return (
       <QuietPage
-        title="Groceries is coming soon."
+        title="Snacks is coming soon."
         body="We're still setting up this storefront. Check back shortly, or explore the campus kitchens in the meantime."
       />
     );
@@ -109,7 +109,7 @@ export default async function GroceriesPage() {
       <QuietPage
         closed
         title={`${shop.name} is closed.`}
-        body="We're not taking grocery orders right now. Check back a little later, or browse the campus kitchens in the meantime."
+        body="We're not taking snack orders right now. Check back a little later, or browse the campus kitchens in the meantime."
       />
     );
   }
