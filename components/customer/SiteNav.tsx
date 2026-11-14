@@ -13,7 +13,7 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/menu", label: "Menu" },
   { href: "/pizza", label: "Pizza" },
-  { href: "/groceries", label: "Groceries" },
+  { href: "/groceries", label: "Snacks" },
   { href: "/cart", label: "Cart" }
 ];
 

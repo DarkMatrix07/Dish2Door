@@ -342,9 +342,9 @@ export function TodayBoard({
           ) : null}
           {data.groceriesOrders > 0 ? (
             <span>
-              Groceries: {plural(data.groceriesOrders, "order")} today →{" "}
+              Snacks: {plural(data.groceriesOrders, "order")} today →{" "}
               <Link href="/admin/groceries/today" className={cn("rounded font-semibold underline-offset-2 hover:underline", FOCUS)}>
-                Groceries orders
+                Snacks orders
               </Link>
             </span>
           ) : null}

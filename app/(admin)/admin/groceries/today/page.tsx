@@ -46,7 +46,7 @@ export default async function GroceriesTodaysOrdersPage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Groceries"
+        eyebrow="Snacks"
         title="Today's orders"
         description={`Confirmed orders for ${restaurant.name} on ${label}, grouped by delivery slot.`}
       />

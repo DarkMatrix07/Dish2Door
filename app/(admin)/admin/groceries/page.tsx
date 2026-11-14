@@ -23,7 +23,7 @@ export default async function AdminGroceriesStorePage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Groceries"
+        eyebrow="Snacks"
         title="Store"
         description="Open or close the shop for orders, and keep its customer-facing profile up to date."
       />

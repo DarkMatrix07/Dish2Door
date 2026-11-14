@@ -12,5 +12,5 @@ export const GROCERIES_SHOP_ID = "shop_groceries";
 
 export const SHOP_ADMIN_LINKS: Record<string, { href: string; label: string }> = {
   [DOMINOS_SHOP_ID]: { href: "/admin/pizza", label: "Open Domino's shop" },
-  [GROCERIES_SHOP_ID]: { href: "/admin/groceries", label: "Open Groceries" }
+  [GROCERIES_SHOP_ID]: { href: "/admin/groceries", label: "Open Snacks" }
 };

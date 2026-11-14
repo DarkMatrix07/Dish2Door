@@ -386,7 +386,7 @@ export function GroceriesStorefront({ shop, campuses }: { shop: Shop; campuses: 
               {shop.name}.<br /><span className="text-[#c65d24]">To your campus.</span>
             </h1>
             <p className="mt-7 max-w-xl text-lg leading-8 text-[#625b50]">
-              {shop.description ?? "Build your grocery order here, confirm it on WhatsApp, and pay by cash or UPI when it is handed over."}
+              {shop.description ?? "Build your snack order here, confirm it on WhatsApp, and pay by cash or UPI when it is handed over."}
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Dropdown tone="customer" ariaLabel="Your campus" className="min-w-48" value={campusCode} onChange={chooseCampus} options={campusOptions} />
@@ -410,7 +410,7 @@ export function GroceriesStorefront({ shop, campuses }: { shop: Shop; campuses: 
           <div className="relative min-h-72 overflow-hidden rounded-[2rem] bg-[#ded8cd]">
             <FadeImage alt={shop.name} src={heroImage} className="h-full min-h-72 w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-            <p className="absolute bottom-6 left-6 right-6 text-lg font-bold text-white">Fresh stock, packed for campus handover.</p>
+            <p className="absolute bottom-6 left-6 right-6 text-lg font-bold text-white">Momos, starters, and plates, ready for campus handover.</p>
           </div>
         </div>
       </section>
@@ -419,13 +419,13 @@ export function GroceriesStorefront({ shop, campuses }: { shop: Shop; campuses: 
         <div className="sticky top-0 z-30 -mx-5 border-b border-black/10 bg-[#f7f3eb]/95 px-5 py-3 backdrop-blur-xl sm:-mx-8 sm:px-8 lg:mx-0 lg:rounded-none lg:px-0">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label className="relative block min-w-0 flex-1">
-              <span className="sr-only">Search groceries</span>
+              <span className="sr-only">Search snacks</span>
               <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#817a70]" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search rice, snacks, drinks…"
+                placeholder="Search momos, starters, pasta…"
                 className="h-12 w-full rounded-md border border-black/12 bg-white/80 pl-11 pr-12 text-sm font-medium outline-none transition focus:border-[#c65d24] focus:ring-2 focus:ring-[#c65d24]/10"
               />
               {searchQuery ? (

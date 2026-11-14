@@ -19,7 +19,7 @@ export default async function AdminGroceriesCoursesPage() {
   return (
     <PageContainer>
       <AdminPageHeader
-        eyebrow="Groceries"
+        eyebrow="Snacks"
         title="Courses"
         description="Menu sections that group items. Order controls how they appear on the customer page."
       />
